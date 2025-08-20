@@ -1,23 +1,27 @@
-from models.networks import *
-
+from models.networks.networks import *
+import torch
 
 class SynthTab(pl.LightningModule):
-    def __init__(self, input_dim, output_dim, temperature=1.0, lr=1e-3):
+    def __init__(self, input_dim, output_dim, temperature, optimizer_cfg):
         super().__init__()
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.temperature = temperature
+        self.optimizer_cfg = optimizer_cfg
+
         self.model = DeepMLP(input_dim, output_dim, temperature)
-        self.lr = lr
 
     def forward(self, x):
         return self.model(x)
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch):
         x, y = batch
         logits = self(x)
         loss = F.cross_entropy(logits, y)
         self.log("train_loss", loss)
         return loss
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch):
         x, y = batch
         logits = self(x)
         val_loss = F.cross_entropy(logits, y)
@@ -27,9 +31,24 @@ class SynthTab(pl.LightningModule):
         self.log("val_acc", acc)
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.lr)
+        opt_name = self.optimizer_cfg.name.lower()
+        lr = self.optimizer_cfg.lr
+        wd = self.optimizer_cfg.get("weight_decay", 0.0)
+
+        # Dynamically get the optimizer class
+        optimizer_class = getattr(torch.optim, opt_name.capitalize(), None)
+        if optimizer_class is None:
+            raise ValueError(f"Unsupported optimizer: {opt_name}")
+
+        # Build kwargs dynamically
+        optimizer_kwargs = {"lr": lr, "weight_decay": wd}
+        if opt_name == "sgd":
+            optimizer_kwargs["momentum"] = self.optimizer_cfg.get("momentum", 0.9)
+
+        optimizer = optimizer_class(self.parameters(), **optimizer_kwargs)
+        return optimizer
     
-    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+    def predict_step(self, batch):
         """
         Prediction step for a batch of data.
         :param batch:
@@ -55,7 +74,50 @@ class SynthTab(pl.LightningModule):
         }
 
     
+class MnistModel(nn.Module):
+    def __init__():
+        super().__init__()
+        pass
+    
+class Cifar10Model(nn.Module):
+    def __init__():
+        super().__init__()
+        pass
+    
+class Cifar10OODModel(nn.Module):
+    def __init__():
+        super().__init__()
+        pass
 
+class Cifar10LongTailModel(nn.Module):
+    def __init__():
+        super().__init__()
+        pass
+    
+class Cifar100Model(nn.Module):
+    def __init__():
+        super().__init__()
+        pass
+    
+class Cifar100LongTailModel(nn.Module):
+    def __init__():
+        super().__init__()
+        pass
+    
+class ImagenetModel(nn.Module):
+    def __init__():
+        super().__init__()
+        pass
+    
+class ImagenetOODModel(nn.Module):
+    def __init__():
+        super().__init__()
+        pass
+    
+class ImagenetLongTailModel(nn.Module):
+    def __init__():
+        super().__init__()
+        pass
 
 
   

@@ -1,19 +1,24 @@
+defaults:
+  - _self_
+  - models: mlp
+  - dataset: synthetic
 
+# Global parameters
+seed: 2022
+
+# main commands
 pretrain: False
 test: False
 calibrate: True
-experiment: 'synthetic
+exp_name: 
+data: 'synthetic'
 calibration_method: "local_calibration"
 
-
-num_classes: 20
-num_features: 10
-n_bins: 15
-batch_size: 1024
+# synthetic data model
 init_logits_scaling: 1.
 temperature: 1.
 
-
+# calibration hyper-parameters
 log_var_initializer: 1.    # Control initial variance. less classes -> smaller values. If sampling is true set to small values to initialize encodings close to inputs
 hidden_dim: 256            # Size of hidden layer of calibrating net
 alpha1: 10.                # Classification contraint penalty
@@ -28,6 +33,13 @@ sampling: False            # If true uses parametrised varances to to add noise 
 use_empirical_freqs: True  # If true computes cross-entropy with empirical frequencies about of each point in place else uses softmax of new latent encodings 
 predict_labels: True       # If true computes cross-entropy with true labels else uses predicted labels of frozen model
 js_distance: True          # If true copmutes JS distance in place of kl divergence between model scroes and kernel estimates
+
+
+# weight and bias
+wandb_entity: cesare-barbera-university-of-trento
+wandb_project: calibration-experiments
+wandb_id:
+use_wand: True
 
 
 

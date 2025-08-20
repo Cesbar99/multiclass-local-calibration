@@ -1,72 +1,88 @@
 import pytorch_lightning as pl
-from lightning.pytorch.loggers import TensorBoardLogger
-from models import networks, trainers
+from pytorch_lightning.loggers import TensorBoardLogger
+from models.networks.networks import *
+from models.trainers.trainers import *
 import hydra
 from hydra import initialize, compose
 from hydra.core.global_hydra import GlobalHydra
 from omegaconf import DictConfig, open_dict, OmegaConf
 import time
-from utils.utils import get_raw_res
+from utils.utils import *
+from datasets.dataset import *
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, LearningRateMonitor
 
-def pretrain():
+def pretrain(kwargs, wandb_logger):
     
     seed = kwargs.seed
     pl.seed_everything(seed, workers=True)  
     
-    if kwargs.experiment == 'synthetic':
-        data = SynthData()
-        model = SynthTab(input_dim=kwargs.mlp_input_dim, 
-                           output_dim=kwargs.num_classes, 
-                           temperature=kwargs.temperature)
-    elif kwargs.experiment == 'mnist':
-        data = MnistData()
-        model = MnistModel(input_dim=kwargs.mlp_input_dim, 
-                           output_dim=kwargs.num_classes, 
-                           temperature=kwargs.temperature)
-    elif kwargs.experiment == 'cifar10':
-        data = Cifar10Data()
-        model = Cifar10Model(input_dim=kwargs.mlp_input_dim, 
-                             output_dim=kwargs.num_classes, 
-                             temperature=kwargs.temperature)
-    elif kwargs.experiment == 'cifar10_ood':
-        data = Cifar10OODData()
-        model = Cifar10OODModel(input_dim=kwargs.mlp_input_dim, 
-                                output_dim=kwargs.num_classes, 
-                                temperature=kwargs.temperature)
-    elif kwargs.experiment == 'cifar10_longtail':
-        data = Cifar10LongTailData()
-        model = Cifar10LongTailModel(input_dim=kwargs.mlp_input_dim, 
-                                    output_dim=kwargs.num_classes, 
-                                    temperature=kwargs.temperature)
-    elif kwargs.experiment == 'cifar100':
-        data = Cifar100Data()        
-        model = Cifar100Model(input_dim=kwargs.mlp_input_dim, 
-                              output_dim=kwargs.num_classes, 
-                              temperature=kwargs.temperature)    
-    elif kwargs.experiment == 'cifar100_longtail':
-        data = Cifar100LongTailData()
-        model = Cifar100LongTailModel(input_dim=kwargs.mlp_input_dim, 
-                                      output_dim=kwargs.num_classes, 
-                                      temperature=kwargs.temperature)
-    elif kwargs.experiment == 'Imagenet':
-        data = ImagenetData()
-        model = ImagenetModel(input_dim=kwargs.mlp_input_dim, 
-                              output_dim=kwargs.num_classes, 
-                              temperature=kwargs.temperature)
-    elif kwargs.experiment == 'imagenet_ood':
-        data = ImagenetOODData()
-        model = ImagenetOODModel(input_dim=kwargs.mlp_input_dim, 
-                                 output_dim=kwargs.num_classes, 
-                                 temperature=kwargs.temperature)
-    elif kwargs.experiment == 'imagenet_longtail':
-        data = ImagenetLongTailData()  
-        model = ImagenetLongTailModel(input_dim=kwargs.mlp_input_dim, 
-                                      output_dim=kwargs.num_classes, 
-                                      temperature=kwargs.temperature)    
-    
-    logger = TensorBoardLogger(
-            "tb_logs", name="{}".format(kwargs.experiment)
+    if kwargs.data == 'synthetic':
+        dataset = SynthData(kwargs.dataset)
+        pl_model = SynthTab(input_dim=kwargs.dataset.num_features,            
+                            output_dim=kwargs.dataset.num_classes,
+                            temperature=kwargs.models.temperature,
+                            optimizer_cfg=kwargs.models.optimizer
+                        )
+        
+    elif kwargs.data == 'mnist':
+        dataset = MnistData()
+        pl_model = MnistModel()
+        
+    elif kwargs.data == 'cifar10':
+        dataset = Cifar10Data()
+        pl_model = Cifar10Model()
+        
+    elif kwargs.data == 'cifar10_ood':
+        dataset = Cifar10OODData()
+        pl_model = Cifar10OODModel()
+        
+    elif kwargs.data == 'cifar10_longtail':
+        dataset = Cifar10LongTailData()
+        pl_model = Cifar10LongTailModel()
+        
+    elif kwargs.data == 'cifar100':
+        dataset = Cifar100Data()        
+        pl_model = Cifar100Model()    
+        
+    elif kwargs.data == 'cifar100_longtail':
+        dataset = Cifar100LongTailData()
+        pl_model = Cifar100LongTailModel()
+        
+    elif kwargs.data == 'Imagenet':
+        dataset = ImagenetData()
+        pl_model = ImagenetModel()
+        
+    elif kwargs.data == 'imagenet_ood':
+        dataset = ImagenetOODData()
+        pl_model = ImagenetOODModel()
+        
+    elif kwargs.data == 'imagenet_longtail':
+        dataset = ImagenetLongTailData()  
+        pl_model = ImagenetLongTailModel()    
+        
+    os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}", exist_ok=True)
+    path_model = "models/{}/{}/model_s_{}_seed-{}_ep-{}_tmp_{}.pt".format(
+            kwargs.exp_name,
+            kwargs.data,
+            seed,
+            total_epochs,
+            kwargs.temperature
         )
+    raw_results_path_test = "results/{}/{}/raw_results_test_seed-{}_ep-{}_tmp_{}.csv".format(
+            kwargs.exp_name,
+            kwargs.data,
+            seed,
+            total_epochs,
+            kwargs.temperature            
+        )
+    raw_results_path_cal = "results/{}/{}/raw_results_cal_seed-{}_ep-{}_tmp_{}.csv".format(
+            kwargs.exp_name,
+            kwargs.data,
+            seed,
+            total_epochs,
+            kwargs.temperature            
+        )
+    
     total_epochs = kwargs.total_epochs    
     cuda_device = kwargs.cuda_device
     print(F'BEGIN TRAINING FOR {total_epochs} EPOCHS WITH SEED {seed}!')        
@@ -74,7 +90,7 @@ def pretrain():
             max_epochs=total_epochs,
             accelerator="cuda",
             devices=[cuda_device],
-            logger=logger,
+            logger=wandb_logger,
             check_val_every_n_epoch=5,
             #gradient_clip_val=5,
             deterministic=True,
@@ -88,18 +104,19 @@ def pretrain():
                 )]
         )
     start = time.time()
-    trainer.fit(model, dataset.data_train_loader,
+    trainer.fit(pl_model, dataset.data_train_loader,
                     dataset.data_val_loader)
     train_time = time.time() - start
-    time_to_fit = train_time
     print(train_time)
-    torch.save(model.model.state_dict(), path_model_f)
+    torch.save(pl_model.model.state_dict(), path_model)
     
-    raws = trainer.predict(model_joint, dataset.data_test_loader)
-    
-    res = get_raw_res(raws, paradigm)
-    os.makedirs("results/{}".format(data), exist_ok=True)
+    raws = trainer.predict(pl_model, dataset.data_test_loader)
+    res = get_raw_res(raws)
     res.to_csv(raw_results_path_test, index=False)
+    
+    raws = trainer.predict(pl_model, dataset.data_cal_loader)
+    res = get_raw_res(raws)
+    res.to_csv(raw_results_path_cal, index=False)
     
     print("PRE-TRAINING OVER!")
     

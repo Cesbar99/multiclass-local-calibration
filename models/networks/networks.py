@@ -53,4 +53,47 @@ class DeepMLP(nn.Module):
     
 
 
+class MnistArch(nn.Module):
+    def __init__():
+        super().__init__()
+        pass
     
+class Cifar10Arch(nn.Module):
+    def __init__():
+        super().__init__()
+        pass
+    
+class Cifar10OODArch(nn.Module):
+    def __init__():
+        super().__init__()
+        pass
+s
+class Cifar10LongTailArch(nn.Module):
+    def __init__():
+        super().__init__()
+        pass
+    
+class Cifar100Arch(nn.Module):
+    def __init__():
+        super().__init__()
+        pass
+    
+class Cifar100LongTailArch(nn.Module):
+    def __init__():
+        super().__init__()
+        pass
+    
+class ImagenetArch(nn.Module):
+    def __init__():
+        super().__init__()
+        pass
+    
+class ImagenetOODArch(nn.Module):
+    def __init__():
+        super().__init__()
+        pass
+    
+class ImagenetLongTailArch(nn.Module):
+    def __init__():
+        super().__init__()
+        pass

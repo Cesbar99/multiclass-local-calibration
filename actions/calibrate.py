@@ -9,7 +9,7 @@ import time
 from localibration.utils.utils import get_raw_res
 from localibration.calibrator.local_net import AuxiliaryMLP
 
-def pretrain():
+def calibrate():
     
     seed = kwargs.seed
     pl.seed_everything(seed, workers=True)  

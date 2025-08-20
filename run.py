@@ -7,33 +7,54 @@ from omegaconf import DictConfig, open_dict, OmegaConf
 from actions.pretrain import *
 from actions.test import *
 from actions.calibrate import *
+from pytorch_lightning.loggers import WandbLogger
+import time
+from datetime import datetime
+import os
+import sys
 
 def main(cfg):
     
     kwargs = OmegaConf.create(cfg)  
+    
+    now = datetime.now()
+    start = time.time()
+    pl.seed_everything(kwargs.seed)
+    
+    base_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+    base_dir = os.path.join(os.path.dirname(os.path.dirname(base_dir)), 'result')
+    
+    exp_name = f'{kwargs.exp_name}_{kwargs.target}_{now.strftime("%m%d_%H%M")}'
+    if kwargs.use_wandb:
+        if kwargs.resume_training and kwargs.wandb_id:
+             wandb_logger = WandbLogger(name=exp_name, project=kwargs.wandb_project, entity=kwargs.wandb_entity, save_dir=base_dir, offline=kwargs.offline, id=kwargs.wandb_id, resume='allow')
+        else:
+            wandb_logger = WandbLogger(name=exp_name, project=kwargs.wandb_project, entity=kwargs.wandb_entity, save_dir=base_dir, offline=kwargs.offline)
+    else:
+        wandb_logger = WandbLogger(name=exp_name, project='Test', entity=kwargs.wandb_entity, save_dir=base_dir, offline=kwargs.offline)
+    kwargs.wandb_id = wandb_logger.version
+    
     if kwargs.pretrain:
+        kwargs.exp_name = 'pre-train'
         print("Pretraining model...")
-        pretrain(kwargs)
+        pretrain(kwargs, wandb_logger)
         # Pretrain the model here if needed
         # This is a placeholder for pretraining logic
-        pass
     elif kwargs.test:
+        kwargs.exp_name = 'test'
         print("Testing model...")
-        test(kwargs)
+        test(kwargs, wandb_logger)
         # Logic to resume training from a checkpoint
         # This is a placeholder for resuming logic
-        pass
     elif kwargs.calibrate:
+        kwargs.exp_name = 'calibrate'
         print("Calibrating model with {kwargs.calibration_method} technique...")
-        calibrate(kwargs)
+        calibrate(kwargs, wandb_logger)
         # Logic to calibrate the model
         # This is a placeholder for calibration logic
-        pass
-
 
 @hydra.main(config_path='./configs', config_name='config_local', version_base=None)
-def main_entry(cfg: DictConfig):
-    kwargs = OmegaConf.create(cfg)                       
+def main_entry(cfg: DictConfig):                      
     main(cfg) #main(cfg, split) #main(**OmegaConf.to_container(cfg, resolve=True) )
     
 

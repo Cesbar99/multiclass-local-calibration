@@ -15,8 +15,8 @@ data: 'synthetic'
 calibration_method: "local_calibration"
 
 # synthetic data model
-init_logits_scaling: 1.
-temperature: 1.
+#init_logits_scaling: 1.
+
 
 # calibration hyper-parameters
 log_var_initializer: 1.    # Control initial variance. less classes -> smaller values. If sampling is true set to small values to initialize encodings close to inputs
@@ -41,5 +41,6 @@ wandb_project: calibration-experiments
 wandb_id:
 use_wand: True
 
-
-
+# testing and calibration metrics
+n_bins_calibration_metrics: 15
+save_path_calibration_plots: /home/barbera/calibration/localibration/plots/

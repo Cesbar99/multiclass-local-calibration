@@ -1,15 +1,23 @@
-from models.networks.networks import *
 import torch
+import torchmetrics
+from models.networks.networks import *
 
 class SynthTab(pl.LightningModule):
-    def __init__(self, input_dim, output_dim, temperature, optimizer_cfg):
+    def __init__(self, input_dim, output_dim, temperature, optimizer_cfg, use_acc):
         super().__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.temperature = temperature
         self.optimizer_cfg = optimizer_cfg
-
+        self.use_acc = use_acc
+                    
         self.model = DeepMLP(input_dim, output_dim, temperature)
+        task = 'binary' if self.output_dim == 2 else 'multiclass'
+        
+        if self.use_acc:
+            self.acc_train = torchmetrics.Accuracy(task=task, num_classes=self.hparams.num_classes)
+            self.acc_val = torchmetrics.Accuracy(task=task, num_classes=self.hparams.num_classes)
+        self.acc_test = torchmetrics.Accuracy(task=task, num_classes=self.hparams.num_classes)
 
     def forward(self, x):
         return self.model(x)
@@ -19,16 +27,21 @@ class SynthTab(pl.LightningModule):
         logits = self(x)
         loss = F.cross_entropy(logits, y)
         self.log("train_loss", loss)
+        if self.use_acc:            
+            self.acc_train(logits, y)
+            self.log('train_acc', self.acc_train, on_epoch=True, on_step=True, prog_bar=True)
         return loss
 
     def validation_step(self, batch):
         x, y = batch
         logits = self(x)
         val_loss = F.cross_entropy(logits, y)
-        preds = torch.argmax(logits, dim=1)
-        acc = (preds == y).float().mean()
+        #preds = torch.argmax(logits, dim=1)
+        #acc = (preds == y).float().mean()
         self.log("val_loss", val_loss)
-        self.log("val_acc", acc)
+        if self.use_acc:            
+            self.acc_val(logits, y)
+            self.log('val_acc', self.acc_val, on_epoch=True, on_step=False, prog_bar=True)
 
     def configure_optimizers(self):
         opt_name = self.optimizer_cfg.name.lower()
@@ -63,12 +76,12 @@ class SynthTab(pl.LightningModule):
         x, y = batch  # assuming batch = (x, y, h)
 
         logits = self(x)
-        probs = torch.softmax(logits, dim=-1)
-        preds = torch.argmax(probs, dim=-1).view(-1,1)
+        #probs = torch.softmax(logits, dim=-1)
+        preds = torch.argmax(logits, dim=-1).view(-1,1)
         target = y
         return {
             "preds": preds,
-            "probs": probs,
+            #"probs": probs,
             "true": target,
             "logits": logits,
         }

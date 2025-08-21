@@ -41,7 +41,7 @@ def main(cfg):
         # Pretrain the model here if needed
         # This is a placeholder for pretraining logic
     elif kwargs.test:
-        kwargs.exp_name = 'test'
+        #kwargs.exp_name = 'test'
         print("Testing model...")
         test(kwargs, wandb_logger)
         # Logic to resume training from a checkpoint

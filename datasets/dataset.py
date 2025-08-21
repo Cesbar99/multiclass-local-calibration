@@ -62,8 +62,8 @@ class SynthData(Dataset):
 
         X = StandardScaler().fit_transform(X)  # normalize input
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.75, random_state=random_state)
-        X_cal, X_test, y_cal, y_test = train_test_split(X_test, y_test, test_size=0.1, random_state=random_state)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.45, random_state=random_state)
+        X_cal, X_test, y_cal, y_test = train_test_split(X_test, y_test, test_size=0.1818, random_state=random_state)
         #y_train_oh = F.one_hot(y_train, num_classes=num_classes) #to_categorical(y_train, num_classes)
 
         print(X_train.shape, X_test.shape, X_cal.shape)

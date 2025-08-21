@@ -10,18 +10,22 @@ import time
 from utils.utils import *
 from datasets.dataset import *
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, LearningRateMonitor
+from actions.test import test
 
 def pretrain(kwargs, wandb_logger):
     
     seed = kwargs.seed
     pl.seed_everything(seed, workers=True)  
+    total_epochs = kwargs.total_epochs
+    cuda_device = kwargs.cuda_device
     
     if kwargs.data == 'synthetic':
         dataset = SynthData(kwargs.dataset)
         pl_model = SynthTab(input_dim=kwargs.dataset.num_features,            
                             output_dim=kwargs.dataset.num_classes,
                             temperature=kwargs.models.temperature,
-                            optimizer_cfg=kwargs.models.optimizer
+                            optimizer_cfg=kwargs.models.optimizer,
+                            use_acc=kwargs.model.use_acc
                         )
         
     elif kwargs.data == 'mnist':
@@ -82,9 +86,7 @@ def pretrain(kwargs, wandb_logger):
             total_epochs,
             kwargs.temperature            
         )
-    
-    total_epochs = kwargs.total_epochs    
-    cuda_device = kwargs.cuda_device
+                
     print(F'BEGIN TRAINING FOR {total_epochs} EPOCHS WITH SEED {seed}!')        
     trainer = pl.Trainer(
             max_epochs=total_epochs,
@@ -119,6 +121,7 @@ def pretrain(kwargs, wandb_logger):
     res.to_csv(raw_results_path_cal, index=False)
     
     print("PRE-TRAINING OVER!")
-    
+    print("START TESTING!")
+    test(kwargs)
     
     

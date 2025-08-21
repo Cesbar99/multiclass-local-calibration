@@ -3,6 +3,9 @@ import os
 from os.path import join
 import pandas as pd 
 import sys
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.calibration import calibration_curve
 
 def get_raw_res(raws):
     preds = torch.cat([raws[j]["preds"].cpu() for j in range(len(raws))])
@@ -35,6 +38,132 @@ def create_logdir(name: str, resume_training: bool, wandb_logger):
         raise Exception(f'Run {run_name} already exists. Please delete the folder {logdir} or choose a different run name.')
     os.makedirs(logdir,exist_ok=True)
     return logdir
+
+def compute_multiclass_calibration_metrics(probs: torch.Tensor, y_true: torch.Tensor, n_bins: int = 15, full_ece: bool = False):
+    """
+    Computes ECE, MCE, and Brier Score for a multiclass classifier in a one-vs-all manner.
+    Then averages the metrics across all classes.
+
+    Parameters:
+    - probs: Tensor of shape (n_samples, n_classes), predicted probabilities
+    - y_true: Tensor of shape (n_samples,), true class labels
+    - n_bins: int, number of bins for calibration metrics
+
+    Returns:
+    - avg_ece: averaged Expected Calibration Error over classes
+    - avg_mce: averaged Maximum Calibration Error over classes
+    - avg_brier: averaged Brier Score over classes
+    """
+    n_classes = probs.shape[1]
+
+    eces = []
+    mces = []
+    briers = []
+
+    for class_idx in range(n_classes):
+        # One-vs-all labels
+        labels_binary = (y_true == class_idx).float()
+        probs_class = probs[:, class_idx]
+
+        # Brier Score
+        brier = torch.mean((probs_class - labels_binary) ** 2).item()
+
+        # Bin predictions
+        bin_edges = torch.linspace(0, 1, n_bins + 1)
+        bin_indices = torch.bucketize(probs_class, bin_edges, right=True)
+
+        ece = 0.0
+        mce = 0.0
+
+        for i in range(1, n_bins + 1):
+            bin_mask = bin_indices == i
+            if torch.any(bin_mask):
+                bin_probs = probs_class[bin_mask]
+                bin_labels = labels_binary[bin_mask]
+                bin_accuracy = torch.mean(bin_labels).item()
+                bin_confidence = torch.mean(bin_probs).item()
+                bin_error = abs(bin_accuracy - bin_confidence)
+                ece += bin_error * bin_probs.numel() / probs_class.numel()
+                mce = max(mce, bin_error)
+
+        eces.append(ece)
+        mces.append(mce)
+        briers.append(brier)
+
+    if full_ece:
+        avg_ece = [round(ece, 4) for ece in eces]
+    else:
+        avg_ece = sum(eces) / len(eces)
+    avg_mce = sum(mces) / len(mces)
+    avg_brier = sum(briers) / len(briers)
+
+    return avg_ece, avg_mce, avg_brier
+
+def multiclass_calibration_plot(y_true, probs, n_bins=15, save_path="calibration_plots", filename="multiclass_calibration.png"):
+    """
+    Saves a grid of calibration plots, one per class, to a specified directory.
+
+    Parameters:
+    - y_true: array-like of shape (n_samples,), true class labels
+    - probs: array-like of shape (n_samples, n_classes), predicted probabilities
+    - n_bins: int, number of bins for calibration curve
+    - save_path: str, directory to save the plot
+    - filename: str, name of the output image file
+    """
+    n_classes = probs.shape[1]
+
+    # Grid layout
+    n_cols = min(n_classes, 5)
+    n_rows = (n_classes + n_cols - 1) // n_cols
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 5 * n_rows))
+    axes = np.array(axes).reshape(-1)
+
+    for class_idx in range(n_classes):
+        ax = axes[class_idx]
+        y_true_binary = (y_true == class_idx).astype(int)
+        y_prob_class = probs[:, class_idx]
+
+        # Calibration curve
+        fraction_of_positives, mean_predicted_value = calibration_curve(
+            y_true_binary, y_prob_class, n_bins=n_bins, strategy='uniform'
+        )
+
+        # Bin sample counts
+        bin_edges = np.linspace(0.0, 1.0, n_bins + 1)
+        bin_counts, _ = np.histogram(y_prob_class, bins=bin_edges)
+
+        # Map predicted means to closest bin centers
+        bin_idx_for_text = np.digitize(mean_predicted_value, bin_edges) - 1
+        bin_idx_for_text = np.clip(bin_idx_for_text, 0, n_bins - 1)
+
+        # Plot
+        ax.plot([0, 1], [0, 1], "k:", label="Perfect calibration")
+        ax.plot(mean_predicted_value, fraction_of_positives, "s-", label=f"Class {class_idx}")
+
+        for i, (j, k) in enumerate(zip(mean_predicted_value, fraction_of_positives)):
+            count = bin_counts[bin_idx_for_text[i]]
+            ax.bar(j, k, width=0.07, color="blue", alpha=0.3)
+            ax.text(j, k + 0.03, f"{count}", ha='center', va='bottom', fontsize=8)
+
+        ax.set_xlabel(f"Predicted probability of class {class_idx}")
+        ax.set_ylabel("Empirical frequency")
+        ax.set_title(f"Calibration Plot\nClass {class_idx}")
+        ax.legend()
+        ax.grid(True)
+
+    # Hide unused axes
+    for i in range(n_classes, len(axes)):
+        fig.delaxes(axes[i])
+
+    plt.tight_layout()
+
+    # Ensure save directory exists
+    os.makedirs(save_path, exist_ok=True)
+    full_path = os.path.join(save_path, filename)
+    plt.savefig(full_path)
+    plt.close(fig)
+    print(f"Calibration plot saved to: {full_path}")
 
 
 

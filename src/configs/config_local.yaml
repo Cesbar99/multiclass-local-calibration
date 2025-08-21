@@ -37,7 +37,7 @@ use_wand: True
 
 # testing and calibration metrics
 n_bins_calibration_metrics: 15
-save_path_calibration_plots: /home/barbera/calibration/localibration/plots/
+save_path_calibration_plots: /home/barbera/calibration/localibration/results/plots/
 
 # default behaviour for batch size
 batch_size_map:

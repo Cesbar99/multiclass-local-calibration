@@ -19,17 +19,17 @@ def test(kwargs):
         os.makedirs(save_path, exist_ok=True)    
         test_results = "results/{}/{}/raw_results_train_cal_seed-{}_ep-{}_tmp_{}.csv".format(
                 kwargs.exp_name,
-                kwargs.data,
-                kwargs.seed,
-                kwargs.models.epochs,
-                kwargs.models.temperature            
+                kwargs.checkpoint.data,
+                kwargs.checkpoint.seed,
+                kwargs.checkpoint.epochs,
+                kwargs.checkpoint.temperature            
             )
         cal_results = "results/{}/{}/raw_results_eval_cal_seed-{}_ep-{}_tmp_{}.csv".format(
                 kwargs.exp_name,
-                kwargs.data,
-                kwargs.seed,
-                kwargs.models.epochs,
-                kwargs.models.temperature            
+                kwargs.checkpoint.data,
+                kwargs.checkpoint.seed,
+                kwargs.checkpoint.epochs,
+                kwargs.checkpoint.temperature            
             )
         
         # Load your data
@@ -72,7 +72,7 @@ def test(kwargs):
         # Specify your directory and filename
         output_dir = "results/calibration_metrics"
         os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, "metric_" + kwargs.exp_name + kwargs.data + "_train_cal_.csv")
+        output_file = os.path.join(output_dir, "metric_" + kwargs.exp_name + '_' + kwargs.data + "_train_cal_.csv")
 
         # Save to CSV
         df.to_csv(output_file, index=False)  
@@ -104,14 +104,14 @@ def test(kwargs):
             
     elif kwargs.exp_name == 'calibrate':
         n_bins = kwargs.n_bins_calibration_metrics
-        test_file_name = 'multicalss_calibration_' + kwargs.exp_name + kwargs.data + '_test'+'.png'        
+        test_file_name = 'multicalss_calibration_' + kwargs.exp_name + '_' + kwargs.data + '_test'+'.png'        
         save_path = kwargs.save_path_calibration_plots
         os.makedirs(save_path, exist_ok=True)    
         test_results = "results/{}/{}/raw_results_test_cal_seed-{}_ep-{}.csv".format(
                 kwargs.exp_name,
-                kwargs.data,
-                kwargs.seed,
-                kwargs.models.epochs,                
+                kwargs.checkpoint.data,
+                kwargs.checkpoint.seed,
+                kwargs.checkpoint.epochs,                
             )        
         
         # Load your data
@@ -145,7 +145,7 @@ def test(kwargs):
         # Specify your directory and filename
         output_dir = "results/calibration_metrics"
         os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, "metric_" + kwargs.exp_name + kwargs.data + "_test_.csv")
+        output_file = os.path.join(output_dir, "metric_" + kwargs.exp_name + '_' + kwargs.data + "_test_.csv")
 
         # Save to CSV
         df.to_csv(output_file, index=False)        
@@ -153,7 +153,5 @@ def test(kwargs):
         # Print results
         print(f"Test Calibration — ECE: {ece_test:.4f}, MCE: {mce_test:.4f}, Brier: {brier_test:.4f}")        
         multiclass_calibration_plot(y_true_test_, probs_test, n_bins=n_bins, save_path=save_path, filename=test_file_name)                
-        
-        
-        
+                
         

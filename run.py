@@ -1,12 +1,12 @@
 import pytorch_lightning as pl
-from models import networks, trainers
+from src.models import networks, trainers
 import hydra
 from hydra import initialize, compose
 from hydra.core.global_hydra import GlobalHydra
 from omegaconf import DictConfig, open_dict, OmegaConf
-from actions.pretrain import *
-from actions.test import *
-from actions.calibrate import *
+from src.actions.pretrain import *
+from src.actions.test import *
+from src.actions.calibrate import *
 from pytorch_lightning.loggers import WandbLogger
 import time
 from datetime import datetime

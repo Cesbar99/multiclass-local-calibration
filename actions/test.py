@@ -60,7 +60,41 @@ def test(kwargs):
 
         # Compute calibration metrics
         ece_test, mce_test, brier_test = compute_multiclass_calibration_metrics(probs_test, y_true_test_, n_bins)
+        results = {
+            "ECE": [ece_test],
+            "MCE": [mce_test],
+            "Brier": [brier_test]
+        }
+
+        # Convert to DataFrame
+        df = pd.DataFrame(results)
+
+        # Specify your directory and filename
+        output_dir = "results/calibration_metrics"
+        os.makedirs(output_dir, exist_ok=True)
+        output_file = os.path.join(output_dir, "metric_" + kwargs.exp_name + kwargs.data + "_train_cal_.csv")
+
+        # Save to CSV
+        df.to_csv(output_file, index=False)  
+        
         ece_cal, mce_cal, brier_cal = compute_multiclass_calibration_metrics(probs_cal, y_true_cal_, n_bins)
+        
+        results = {
+            "ECE": [ece_cal],
+            "MCE": [mce_cal],
+            "Brier": [brier_cal]
+        }
+
+        # Convert to DataFrame
+        df = pd.DataFrame(results)
+
+        # Specify your directory and filename
+        output_dir = "results/calibration_metrics"
+        os.makedirs(output_dir, exist_ok=True)
+        output_file = os.path.join(output_dir, "metric_" + kwargs.exp_name + kwargs.data + "_eval_cal_.csv")
+
+        # Save to CSV
+        df.to_csv(output_file, index=False)  
 
         # Print results
         print(f"Test Calibration — ECE: {ece_test:.4f}, MCE: {mce_test:.4f}, Brier: {brier_test:.4f}")
@@ -98,8 +132,24 @@ def test(kwargs):
         probs_test = F.softmax(logits_test_, dim=1)        
 
         # Compute calibration metrics
-        ece_test, mce_test, brier_test = compute_multiclass_calibration_metrics(probs_test, y_true_test_, n_bins)    
+        ece_test, mce_test, brier_test = compute_multiclass_calibration_metrics(probs_test, y_true_test_, n_bins) 
+        results = {
+            "ECE": [ece_test],
+            "MCE": [mce_test],
+            "Brier": [brier_test]
+        }
 
+        # Convert to DataFrame
+        df = pd.DataFrame(results)
+
+        # Specify your directory and filename
+        output_dir = "results/calibration_metrics"
+        os.makedirs(output_dir, exist_ok=True)
+        output_file = os.path.join(output_dir, "metric_" + kwargs.exp_name + kwargs.data + "_test_.csv")
+
+        # Save to CSV
+        df.to_csv(output_file, index=False)        
+   
         # Print results
         print(f"Test Calibration — ECE: {ece_test:.4f}, MCE: {mce_test:.4f}, Brier: {brier_test:.4f}")        
         multiclass_calibration_plot(y_true_test_, probs_test, n_bins=n_bins, save_path=save_path, filename=test_file_name)                

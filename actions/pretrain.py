@@ -16,7 +16,7 @@ def pretrain(kwargs, wandb_logger):
     
     seed = kwargs.seed
     pl.seed_everything(seed, workers=True)  
-    total_epochs = kwargs.total_epochs
+    total_epochs = kwargs.epochs
     cuda_device = kwargs.cuda_device
     
     if kwargs.data == 'synthetic':
@@ -25,7 +25,7 @@ def pretrain(kwargs, wandb_logger):
                             output_dim=kwargs.dataset.num_classes,
                             temperature=kwargs.models.temperature,
                             optimizer_cfg=kwargs.models.optimizer,
-                            use_acc=kwargs.model.use_acc
+                            use_acc=kwargs.models.use_acc
                         )
         
     elif kwargs.data == 'mnist':
@@ -64,27 +64,28 @@ def pretrain(kwargs, wandb_logger):
         dataset = ImagenetLongTailData()  
         pl_model = ImagenetLongTailModel()    
         
-    os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}", exist_ok=True)
-    path_model = "models/{}/{}/model_s_{}_seed-{}_ep-{}_tmp_{}.pt".format(
+    os.makedirs(f"models/{kwargs.exp_name}/{kwargs.data}", exist_ok=True)    
+    os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}", exist_ok=True)    
+    path_model = "models/{}/{}/model_seed-{}_ep-{}_tmp_{}.pt".format(
             kwargs.exp_name,
             kwargs.data,
             seed,
             total_epochs,
-            kwargs.temperature
+            kwargs.models.temperature
         )
     raw_results_path_test = "results/{}/{}/raw_results_test_seed-{}_ep-{}_tmp_{}.csv".format(
             kwargs.exp_name,
             kwargs.data,
             seed,
             total_epochs,
-            kwargs.temperature            
+            kwargs.models.temperature            
         )
     raw_results_path_cal = "results/{}/{}/raw_results_cal_seed-{}_ep-{}_tmp_{}.csv".format(
             kwargs.exp_name,
             kwargs.data,
             seed,
             total_epochs,
-            kwargs.temperature            
+            kwargs.models.temperature            
         )
                 
     print(F'BEGIN TRAINING FOR {total_epochs} EPOCHS WITH SEED {seed}!')        
@@ -93,17 +94,17 @@ def pretrain(kwargs, wandb_logger):
             accelerator="cuda",
             devices=[cuda_device],
             logger=wandb_logger,
-            check_val_every_n_epoch=5,
-            #gradient_clip_val=5,
+            check_val_every_n_epoch=1,            
             deterministic=True,
             callbacks=[
                 EarlyStopping(
                     monitor="val_loss",
-                    patience=10,
+                    patience=5,
                     mode="min",
-                    verbose=False,
+                    verbose=True,
                     min_delta=0.0,
-                )]
+                ), 
+                ClearCacheCallback()]
         )
     start = time.time()
     trainer.fit(pl_model, dataset.data_train_loader,

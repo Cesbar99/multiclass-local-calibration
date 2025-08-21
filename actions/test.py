@@ -13,7 +13,7 @@ def test(kwargs):
     if kwargs.exp_name not in ['pre-train', 'calibrate']:
         raise ValueError(f"Explicitly provide 'exp_name' argument from CLI when testing! Allowed values are 'pre-train' and 'calibrate'. Instead '{kwargs.exp_name}' was given!")
     
-    n_bins =kwargs.n_bins_calibration_metrics
+    n_bins = kwargs.n_bins_calibration_metrics
     test_file_name = 'multicalss_calibration_'+'test'+'.png'
     cal_file_name = 'multicalss_calibration_'+'cal'+'.png'
     save_path = kwargs.save_path_calibration_plots
@@ -22,15 +22,15 @@ def test(kwargs):
             kwargs.exp_name,
             kwargs.data,
             kwargs.seed,
-            kwargs.total_epochs,
-            kwargs.temperature            
+            kwargs.epochs,
+            kwargs.models.temperature            
         )
     cal_results = "results/{}/{}/raw_results_cal_seed-{}_ep-{}_tmp_{}.csv".format(
             kwargs.exp_name,
             kwargs.data,
             kwargs.seed,
-            kwargs.total_epochs,
-            kwargs.temperature            
+            kwargs.epochs,
+            kwargs.models.temperature            
         )
     
     # Load your data
@@ -38,15 +38,15 @@ def test(kwargs):
     df_cal = pd.read_csv(cal_results)
 
     # Compute accuracy
-    accuracy_test = (df_test['pred'] == df_test['true']).mean()
+    accuracy_test = (df_test['preds'] == df_test['true']).mean()
     print(f'Test accuracy: {accuracy_test:.2%}')
-    accuracy_cal = (df_cal['pred'] == df_cal['true']).mean()
+    accuracy_cal = (df_cal['preds'] == df_cal['true']).mean()
     print(f'Cal accuracy: {accuracy_cal:.2%}')    
     
     # Extract logits and true labels
-    logits_test = df_test.drop(columns=['pred', 'true'])
+    logits_test = df_test.drop(columns=['preds', 'true'])
     labels_test = df_test['true']
-    logits_cal = df_cal.drop(columns=['pred', 'true'])
+    logits_cal = df_cal.drop(columns=['preds', 'true'])
     labels_cal = df_cal['true']
     
     logits_test_ = torch.tensor(logits_test.values, dtype=torch.float32)

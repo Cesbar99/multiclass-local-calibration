@@ -6,22 +6,28 @@ import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.calibration import calibration_curve
+from pytorch_lightning.callbacks import Callback
+
+class ClearCacheCallback(Callback):
+    def on_train_epoch_end(self, trainer, pl_module):
+        torch.cuda.empty_cache()
+
 
 def get_raw_res(raws):
     preds = torch.cat([raws[j]["preds"].cpu() for j in range(len(raws))])
-    probs = torch.cat([raws[j]["probs"].cpu() for j in range(len(raws))])
+    #probs = torch.cat([raws[j]["probs"].cpu() for j in range(len(raws))])
     logits = torch.cat([raws[j]["logits"].cpu() for j in range(len(raws))])
     true = torch.cat([raws[j]["true"].cpu() for j in range(len(raws))])
     
     raw_res = pd.DataFrame()
     raw_res["true"] = true.numpy().flatten()
     raw_res["preds"] = preds.numpy()
-    raw_res["logits"] = logits.numpy()
-    raw_res["probs"] = probs.numpy()
+    #raw_res["logits"] = logits.numpy()
+    #raw_res["probs"] = probs.numpy()
     tmp = pd.DataFrame()
 
-    for i in range(probs.shape[1]):
-        tmp["class_probs_{}".format(i)] = probs[:, i].cpu().numpy()
+    for i in range(logits.shape[1]):
+        #tmp["class_probs_{}".format(i)] = probs[:, i].cpu().numpy()
         tmp["logits_{}".format(i)] = logits[:, i].cpu().numpy()
         
     raw_res = pd.concat([raw_res, tmp], axis=1)    
@@ -121,7 +127,7 @@ def multiclass_calibration_plot(y_true, probs, n_bins=15, save_path="calibration
 
     for class_idx in range(n_classes):
         ax = axes[class_idx]
-        y_true_binary = (y_true == class_idx).astype(int)
+        y_true_binary = (y_true == class_idx).int()
         y_prob_class = probs[:, class_idx]
 
         # Calibration curve
@@ -166,4 +172,25 @@ def multiclass_calibration_plot(y_true, probs, n_bins=15, save_path="calibration
     print(f"Calibration plot saved to: {full_path}")
 
 
+def random_label_smoothing(one_hot_labels, smoothing=0.1):
+    """
+    Applies random label smoothing to one-hot encoded labels using PyTorch.
+
+    Parameters:
+    - one_hot_labels: Tensor of shape (batch_size, num_classes)
+    - smoothing: float, maximum amount of random noise to add
+
+    Returns:
+    - smoothed_labels: Tensor of shape (batch_size, num_classes)
+    """
+    # Generate uniform random noise in [0, smoothing)
+    noise = torch.rand_like(one_hot_labels) * smoothing
+
+    # Apply smoothing
+    smoothed_labels = one_hot_labels * (1.0 - smoothing) + noise
+
+    # Optional: Normalize so each row sums to ~1
+    smoothed_labels = smoothed_labels / smoothed_labels.sum(dim=1, keepdim=True)
+
+    return smoothed_labels
 

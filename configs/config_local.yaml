@@ -4,7 +4,12 @@ defaults:
   - dataset: synthetic
 
 # Global parameters
-seed: 2022
+seed: 42
+use_wandb: True
+resume_training: False
+offline: False
+device: cuda
+cuda_device: 0
 
 # main commands
 pretrain: False
@@ -23,9 +28,9 @@ log_var_initializer: 1.    # Control initial variance. less classes -> smaller v
 hidden_dim: 256            # Size of hidden layer of calibrating net
 alpha1: 10.                # Classification contraint penalty
 alpha2: 0.                 # Switch-off variance penalty
-lambda_kl: 10.              # KL-divergence hyperparameter
+lambda_kl: 10.             # KL-divergence hyperparameter
 entropy_factor: 0.         # Control peakness of entropy of model confidence. 
-epochs: 100                # Number of epochs
+epochs: 30                 # Number of epochs
 noise: 0.                  # Std of normal distribution to sample noise to add to input logits to improve generalisation
 smoothing: 0.              # Random label-smootihng parameter to improve on sparse data (many classes -> more sparse matrices!) 4.5e-2
 logits_scaling: 1.         # Scaling logits to make softmax more picked for stable gumbel-softmax sampling of argmax to ensure calssification constraint

@@ -67,7 +67,7 @@ class Cifar10OODArch(nn.Module):
     def __init__():
         super().__init__()
         pass
-s
+
 class Cifar10LongTailArch(nn.Module):
     def __init__():
         super().__init__()

@@ -1,7 +1,7 @@
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
-
+from utils.utils import *
 
 def categorical_cross_entropy(probs, targets, eps=1e-8):
     probs = torch.clamp(probs, eps, 1.0 - eps)  # avoid log(0)
@@ -114,7 +114,7 @@ class AuxTrainer(pl.LightningModule):
         epsilon = torch.randn_like(init_logits)
         noisy_logits = init_logits + self.noise * epsilon
 
-        # Optional label smoothing
+        # Optional label smoothing        
         noisy_y_one_hot = random_label_smoothing(y_one_hot, self.smoothing) if self.smoothing else y_one_hot
 
         # Forward pass
@@ -134,7 +134,7 @@ class AuxTrainer(pl.LightningModule):
         p2 = probs_hat
 
         # Neighborhood-based probabilities
-        p1 = multiclass_neighborhood_class0_prob(means, z_hat, sigma=sigma, y=noisy_y_one_hot)
+        p1 = multiclass_neighborhood_class0_prob(means, z_hat, sigma=sigma, y=noisy_y_one_hot) 
 
         # KL divergence
         kl_loss = compute_multiclass_kl_divergence(p2, p1, y_one_hot, self.num_classes,

@@ -7,7 +7,7 @@ use_acc: True
 
 optimizer:
   name: adam
-  lr: 1e-3
-  weight_decay: 0.0001
+  lr: 1e-2
+  weight_decay: 0. #0.0001
 
   

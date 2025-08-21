@@ -10,7 +10,7 @@ from torch.utils.data import Dataset, DataLoader
 class ClassificationDataset(Dataset):
     def __init__(self, X, y, transforms_fn=None):
         self.X = torch.tensor(X, dtype=torch.float32)
-        self.y = torch.tensor(y, dtype=torch.float32)  # one-hot encoded
+        self.y = torch.tensor(y, dtype=torch.long)  # one-hot encoded
         self.transforms_fn = transforms_fn
 
     def __len__(self):
@@ -62,24 +62,29 @@ class SynthData(Dataset):
 
         X = StandardScaler().fit_transform(X)  # normalize input
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.45, random_state=random_state)
-        X_cal, X_test, y_cal, y_test = train_test_split(X_test, y_test, test_size=0.1818, random_state=random_state)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5, random_state=random_state)
+        X_cal, X_test, y_cal, y_test = train_test_split(X_test, y_test, test_size=0.1668, random_state=random_state)        
+        X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.1668, random_state=random_state)
         #y_train_oh = F.one_hot(y_train, num_classes=num_classes) #to_categorical(y_train, num_classes)
 
-        print(X_train.shape, X_test.shape, X_cal.shape)
+        print(f'Train shape: {X_train.shape}, Test shape: {X_test.shape}, Validation shape: {X_val.shape}, Calibration shape: {X_cal.shape}')
         X_train = torch.tensor(X_train, dtype=torch.float32)
         y_train = torch.tensor(y_train, dtype=torch.long) 
         X_test = torch.tensor(X_test, dtype=torch.float32)
         y_test = torch.tensor(y_test, dtype=torch.long) 
         X_cal = torch.tensor(X_cal, dtype=torch.float32)
         y_cal = torch.tensor(y_cal, dtype=torch.long) 
+        X_val = torch.tensor(X_cal, dtype=torch.float32)
+        y_val = torch.tensor(y_cal, dtype=torch.long) 
         
         train_set = ClassificationDataset(X_train, y_train)
         cal_set   = ClassificationDataset(X_cal, y_cal)
+        val_set   = ClassificationDataset(X_val, y_val)
         test_set  = ClassificationDataset(X_test, y_test)
 
         self.data_train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True,)
         self.data_cal_loader   = DataLoader(cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        self.data_val_loader   = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
         self.data_test_loader  = DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
         
         print("loading synthetic data complete")

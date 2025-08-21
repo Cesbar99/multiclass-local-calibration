@@ -12,6 +12,7 @@ import time
 from datetime import datetime
 import os
 import sys
+import wandb
 
 def main(cfg):
     
@@ -24,7 +25,7 @@ def main(cfg):
     base_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
     base_dir = os.path.join(os.path.dirname(os.path.dirname(base_dir)), 'result')
     
-    exp_name = f'{kwargs.exp_name}_{kwargs.target}_{now.strftime("%m%d_%H%M")}'
+    exp_name = f'{kwargs.exp_name}_{kwargs.data}_{now.strftime("%m%d_%H%M")}' #target
     if kwargs.use_wandb:
         if kwargs.resume_training and kwargs.wandb_id:
              wandb_logger = WandbLogger(name=exp_name, project=kwargs.wandb_project, entity=kwargs.wandb_entity, save_dir=base_dir, offline=kwargs.offline, id=kwargs.wandb_id, resume='allow')
@@ -53,6 +54,14 @@ def main(cfg):
         # Logic to calibrate the model
         # This is a placeholder for calibration logic
 
+    wandb.finish()
+    del wandb_logger
+
+    end = time.time()
+    time_elapsed = end-start
+    print('Total running time: {:.0f}h {:.0f}m'.
+        format(time_elapsed // 3600, (time_elapsed % 3600)//60))
+    
 @hydra.main(config_path='./configs', config_name='config_local', version_base=None)
 def main_entry(cfg: DictConfig):                      
     main(cfg) #main(cfg, split) #main(**OmegaConf.to_container(cfg, resolve=True) )

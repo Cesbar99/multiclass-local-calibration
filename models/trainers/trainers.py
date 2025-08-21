@@ -15,9 +15,9 @@ class SynthTab(pl.LightningModule):
         task = 'binary' if self.output_dim == 2 else 'multiclass'
         
         if self.use_acc:
-            self.acc_train = torchmetrics.Accuracy(task=task, num_classes=self.hparams.num_classes)
-            self.acc_val = torchmetrics.Accuracy(task=task, num_classes=self.hparams.num_classes)
-        self.acc_test = torchmetrics.Accuracy(task=task, num_classes=self.hparams.num_classes)
+            self.acc_train = torchmetrics.Accuracy(task=task, num_classes=self.output_dim)
+            self.acc_val = torchmetrics.Accuracy(task=task, num_classes=self.output_dim)
+        self.acc_test = torchmetrics.Accuracy(task=task, num_classes=self.output_dim)
 
     def forward(self, x):
         return self.model(x)
@@ -75,13 +75,11 @@ class SynthTab(pl.LightningModule):
         """
         x, y = batch  # assuming batch = (x, y, h)
 
-        logits = self(x)
-        #probs = torch.softmax(logits, dim=-1)
+        logits = self(x)        
         preds = torch.argmax(logits, dim=-1).view(-1,1)
         target = y
         return {
-            "preds": preds,
-            #"probs": probs,
+            "preds": preds,            
             "true": target,
             "logits": logits,
         }

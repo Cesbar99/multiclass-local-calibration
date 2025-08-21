@@ -1,18 +1,18 @@
-import torch 
 import pytorch_lightning as pl
-from models.networks import * 
-from models.trainers import * 
+from pytorch_lightning.loggers import TensorBoardLogger
+from models.networks.networks import *
+from models.trainers.trainers import *
 import hydra
 from hydra import initialize, compose
 from hydra.core.global_hydra import GlobalHydra
 from omegaconf import DictConfig, open_dict, OmegaConf
 import time
-import os
-from utils.utils import get_raw_res
-from calibrator.local_net import *
-from calibrator.cal_trainer import *
-from datasets.dataset import * 
+from utils.utils import *
+from datasets.dataset import *
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, LearningRateMonitor
+from actions.test import test
+from calibrator.cal_trainer import *
+from calibrator.local_net import *
 
 def calibrate(kwargs, wandb_logger):
     
@@ -42,34 +42,22 @@ def calibrate(kwargs, wandb_logger):
     elif kwargs.experiment == 'imagenet_longtail':
         dataset = ImagenetLongTailData(calibration=kwargs.calibration)    
     
-    os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}", exist_ok=True)
-    path_model = "models/{}/{}/model_s_{}_seed-{}_ep-{}_tmp_{}.pt".format(
+    os.makedirs(f"checkpoints/{kwargs.exp_name}/{kwargs.data}", exist_ok=True)    
+    os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}", exist_ok=True)   
+    path_model = "models/{}/{}/model_{}_seed-{}_ep-{}.pt".format(
             kwargs.exp_name,
             kwargs.data,
             seed,
-            total_epochs,
-            kwargs.temperature
+            total_epochs
         )
-    raw_results_path_test = "results/{}/{}/raw_results_test_seed-{}_ep-{}_tmp_{}.csv".format(
+    raw_results_path_test_cal = "results/{}/{}/raw_results_test_cal_seed-{}_ep-{}.csv".format(
             kwargs.exp_name,
             kwargs.data,
             seed,
-            total_epochs,
-            kwargs.temperature            
-        )
-    raw_results_path_cal = "results/{}/{}/raw_results_cal_seed-{}_ep-{}_tmp_{}.csv".format(
-            kwargs.exp_name,
-            kwargs.data,
-            seed,
-            total_epochs,
-            kwargs.temperature            
+            total_epochs           
         )
     
-    calibrator_model = AuxiliaryMLP()
-    model = AuxTrainer(calibrator_model, dim=kwargs.dataset.num_classes, num_classes=kwargs.num_classes, lr=kwargs.lr, alpha1=kwargs.alpha1, alpha2=kwargs.alpha2,
-                 lambda_kl=kwargs.lambda_kl, entropy_factor=kwargs.entropy_factor, noise=kwargs.noise, smoothing=kwargs.smoothing,
-                 logits_scaling=kwargs.logits_scaling, sampling=kwargs.sampling, predict_labels=kwargs.predict_labels,
-                 use_empirical_freqs=kwargs.use_empirical_freqs, js_distance=kwargs.js_distance, model_confident=kwargs.model_confident)    
+    pl_model = AuxTrainer(kwargs.model, num_classes=kwargs.dataset.num_classes)    
     
     print(F'BEGIN CALIBRATION FOR {total_epochs} EPOCHS WITH SEED {seed}!')        
     trainer = pl.Trainer(
@@ -90,21 +78,20 @@ def calibrate(kwargs, wandb_logger):
                 )]
         )
     start = time.time()
-    trainer.fit(model, dataset.data_train_loader,
+    trainer.fit(pl_model, dataset.data_train_loader,
                     dataset.data_val_loader)
     train_time = time.time() - start
-    time_to_fit = train_time
     print(train_time)
-
-    torch.save(model.model.state_dict(), path_model)
+    torch.save(pl_model.model.state_dict(), path_model)
     
-    raws = trainer.predict(model, dataset.data_test_loader)
-    
+    raws = trainer.predict(pl_model, dataset.data_test_cal_loader)
     res = get_raw_res(raws)
-    os.makedirs("results/{}".format(kwargs.data), exist_ok=True)
-    res.to_csv(raw_results_path_test, index=False)
-    
+    res.to_csv(raw_results_path_test_cal, index=False)
+
     print("CALIBRATION OVER!")
+    print("START TESTING!")
+    test(kwargs)
+    
     
     
     

@@ -35,8 +35,11 @@ def main(cfg):
         wandb_logger = WandbLogger(name=exp_name, project='Test', entity=kwargs.wandb_entity, save_dir=base_dir, offline=kwargs.offline)
     kwargs.wandb_id = wandb_logger.version
     
+    default_batch_sizes = {"pre-training": 32, "calibration": 1024}    
     if kwargs.pretrain:
         kwargs.exp_name = 'pre-train'
+        if kwargs.dataset.batch_size is None:
+            kwargs.dataset.batch_size = kwargs.default_batch_sizes.get(kwargs.exp_name, 32)  # fallback default
         print("Pretraining model...")
         pretrain(kwargs, wandb_logger)
         # Pretrain the model here if needed
@@ -44,11 +47,13 @@ def main(cfg):
     elif kwargs.test:
         #kwargs.exp_name = 'test'
         print("Testing model...")
-        test(kwargs, wandb_logger)
+        test(kwargs)
         # Logic to resume training from a checkpoint
         # This is a placeholder for resuming logic
     elif kwargs.calibrate:
         kwargs.exp_name = 'calibrate'
+        if kwargs.dataset.batch_size is None:
+            kwargs.dataset.batch_size = default_batch_sizes.get(kwargs.exp_name, 512)  # fallback default
         print("Calibrating model with {kwargs.calibration_method} technique...")
         calibrate(kwargs, wandb_logger)
         # Logic to calibrate the model

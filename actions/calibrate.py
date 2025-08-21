@@ -17,34 +17,34 @@ from calibrator.local_net import *
 def calibrate(kwargs, wandb_logger):
     
     seed = kwargs.seed
-    total_epochs = kwargs.total_epochs    
+    total_epochs = kwargs.models.epochs    
     cuda_device = kwargs.cuda_device
     pl.seed_everything(seed, workers=True)  
     
-    if kwargs.experiment == 'synthetic':
+    if kwargs.data == 'synthetic':
         dataset = SynthData(kwargs, experiment=kwargs.exp_name)
-    elif kwargs.experiment == 'mnist':
+    elif kwargs.data == 'mnist':
         dataset = MnistData(calibration=kwargs.calibration)
-    elif kwargs.experiment == 'cifar10':
+    elif kwargs.data == 'cifar10':
         dataset = Cifar10Data(calibration=kwargs.calibration)
-    elif kwargs.experiment == 'cifar10_ood':
+    elif kwargs.data == 'cifar10_ood':
         dataset = Cifar10OODData(calibration=kwargs.calibration)
-    elif kwargs.experiment == 'cifar10_longtail':
+    elif kwargs.data == 'cifar10_longtail':
         dataset = Cifar10LongTailData(calibration=kwargs.calibration)
-    elif kwargs.experiment == 'cifar100':
+    elif kwargs.data == 'cifar100':
         dataset = Cifar100Data(calibration=kwargs.calibration)    
-    elif kwargs.experiment == 'cifar100_longtail':
+    elif kwargs.data == 'cifar100_longtail':
         dataset = Cifar100LongTailData(calibration=kwargs.calibration)
-    elif kwargs.experiment == 'Imagenet':
+    elif kwargs.data == 'Imagenet':
         dataset = ImagenetData(calibration=kwargs.calibration)
-    elif kwargs.experiment == 'imagenet_ood':
+    elif kwargs.data == 'imagenet_ood':
         dataset = ImagenetOODData(calibration=kwargs.calibration)
-    elif kwargs.experiment == 'imagenet_longtail':
+    elif kwargs.data == 'imagenet_longtail':
         dataset = ImagenetLongTailData(calibration=kwargs.calibration)    
     
     os.makedirs(f"checkpoints/{kwargs.exp_name}/{kwargs.data}", exist_ok=True)    
     os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}", exist_ok=True)   
-    path_model = "models/{}/{}/model_{}_seed-{}_ep-{}.pt".format(
+    path_model = "checkpoints/{}/{}/calibrator_seed-{}_ep-{}.pt".format(
             kwargs.exp_name,
             kwargs.data,
             seed,
@@ -57,7 +57,7 @@ def calibrate(kwargs, wandb_logger):
             total_epochs           
         )
     
-    pl_model = AuxTrainer(kwargs.model, num_classes=kwargs.dataset.num_classes)    
+    pl_model = AuxTrainer(kwargs.models, num_classes=kwargs.dataset.num_classes)    
     
     print(F'BEGIN CALIBRATION FOR {total_epochs} EPOCHS WITH SEED {seed}!')        
     trainer = pl.Trainer(
@@ -70,7 +70,7 @@ def calibrate(kwargs, wandb_logger):
             deterministic=True,
             callbacks=[
                 EarlyStopping(
-                    monitor="val_loss",
+                    monitor="val_total_loss",
                     patience=10,
                     mode="min",
                     verbose=False,
@@ -78,8 +78,8 @@ def calibrate(kwargs, wandb_logger):
                 )]
         )
     start = time.time()
-    trainer.fit(pl_model, dataset.data_train_loader,
-                    dataset.data_val_loader)
+    trainer.fit(pl_model, dataset.data_train_cal_loader,
+                    dataset.data_val_cal_loader)
     train_time = time.time() - start
     print(train_time)
     torch.save(pl_model.model.state_dict(), path_model)

@@ -4,6 +4,7 @@ defaults:
 model: mlp
 temperature: 1.0
 use_acc: True
+epochs: 30
 
 optimizer:
   name: adam

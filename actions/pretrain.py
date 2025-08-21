@@ -16,7 +16,7 @@ def pretrain(kwargs, wandb_logger):
     
     seed = kwargs.seed
     pl.seed_everything(seed, workers=True)  
-    total_epochs = kwargs.epochs
+    total_epochs = kwargs.models.epochs
     cuda_device = kwargs.cuda_device
     
     if kwargs.data == 'synthetic':
@@ -66,7 +66,7 @@ def pretrain(kwargs, wandb_logger):
         
     os.makedirs(f"checkpoints/{kwargs.exp_name}/{kwargs.data}", exist_ok=True)    
     os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}", exist_ok=True)    
-    path_model = "checkpoints/{}/{}/model_seed-{}_ep-{}_tmp_{}.pt".format(
+    path_model = "checkpoints/{}/{}/classifier_seed-{}_ep-{}_tmp_{}.pt".format(
             kwargs.exp_name,
             kwargs.data,
             seed,

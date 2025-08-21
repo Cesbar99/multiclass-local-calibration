@@ -26,7 +26,7 @@ class SynthTab(pl.LightningModule):
         x, y = batch
         logits = self(x)
         loss = F.cross_entropy(logits, y)
-        self.log("train_loss", loss)
+        self.log("train_loss", loss, on_epoch=True, on_step=True, prog_bar=True)
         if self.use_acc:            
             self.acc_train(logits, y)
             self.log('train_acc', self.acc_train, on_epoch=True, on_step=True, prog_bar=True)
@@ -38,7 +38,7 @@ class SynthTab(pl.LightningModule):
         val_loss = F.cross_entropy(logits, y)
         #preds = torch.argmax(logits, dim=1)
         #acc = (preds == y).float().mean()
-        self.log("val_loss", val_loss)
+        self.log("val_loss", val_loss, on_epoch=True, on_step=True, prog_bar=True)
         if self.use_acc:            
             self.acc_val(logits, y)
             self.log('val_acc', self.acc_val, on_epoch=True, on_step=False, prog_bar=True)

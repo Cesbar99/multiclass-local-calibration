@@ -12,7 +12,6 @@ class ClearCacheCallback(Callback):
     def on_train_epoch_end(self, trainer, pl_module):
         torch.cuda.empty_cache()
 
-
 def get_raw_res(raws):
     preds = torch.cat([raws[j]["preds"].cpu() for j in range(len(raws))])
     #probs = torch.cat([raws[j]["probs"].cpu() for j in range(len(raws))])

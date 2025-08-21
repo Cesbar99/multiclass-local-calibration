@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - models: mlp
+  - models: calibrator #mlp
   - dataset: synthetic
 
 # Global parameters
@@ -10,6 +10,13 @@ resume_training: False
 offline: False
 device: cuda
 cuda_device: 0
+
+# Checkpoints
+checkpoint:
+  data: synthetic
+  seed: 42
+  epochs: 30
+  temperature: 1.0
 
 # main commands
 pretrain: False

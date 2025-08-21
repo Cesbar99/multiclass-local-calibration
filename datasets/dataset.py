@@ -49,7 +49,7 @@ class ClassificationDataset(Dataset):
 
 
 class SynthData(Dataset):
-    def __init__(self, kwargs, experiment=None):
+    def __init__(self, kwargs, experiment=None):        
         if experiment == 'pre-train':        
             self.generatePretrainingSynthData(num_features = kwargs.num_features,
                                     num_classes = kwargs.num_classes,
@@ -118,18 +118,18 @@ class SynthData(Dataset):
         
     def generateCalibrationSynthData(self, kwargs):
         test_results = "results/{}/{}/raw_results_train_cal_seed-{}_ep-{}_tmp_{}.csv".format(
-            kwargs.exp_name,
-            kwargs.data,
-            kwargs.seed,
-            kwargs.epochs,
-            kwargs.models.temperature            
+            'pre-train',
+            kwargs.checkpoint.data,
+            kwargs.checkpoint.seed,
+            kwargs.checkpoint.epochs,
+            kwargs.checkpoint.temperature            
         )
         cal_results = "results/{}/{}/raw_results_eval_cal_seed-{}_ep-{}_tmp_{}.csv".format(
-            kwargs.exp_name,
-            kwargs.data,
-            kwargs.seed,
-            kwargs.epochs,
-            kwargs.models.temperature            
+            'pre-train',
+            kwargs.checkpoint.data,
+            kwargs.checkpoint.seed,
+            kwargs.checkpoint.epochs,
+            kwargs.checkpoint.temperature            
         )
         
         # Load your data
@@ -141,7 +141,7 @@ class SynthData(Dataset):
         y_train_cal = df_train_calibration_data["true"].values
         p_train_cal = df_train_calibration_data["preds"].values
 
-        X_eval_cal_full = df_eval_calibration_data.drop(columns=["true"]).values
+        X_eval_cal_full = df_eval_calibration_data.drop(columns=["true", "preds"]).values
         y_eval_cal_full = df_eval_calibration_data["true"].values
         p_eval_cal_full = df_eval_calibration_data["preds"].values
 
@@ -170,19 +170,19 @@ class SynthData(Dataset):
         p_val_cal = torch.tensor(p_val_cal, dtype=torch.long)
 
         # Create datasets
-        train_cal_set = CalibrationDataset(X_train_cal, y_train_cal, num_classes=kwargs.num_classes)
-        test_cal_set = CalibrationDataset(X_test_cal, y_test_cal, num_classes=kwargs.num_classes)
-        val_cal_set = CalibrationDataset(X_val_cal, y_val_cal, num_classes=kwargs.num_classes)
+        train_cal_set = CalibrationDataset(X_train_cal, y_train_cal,p_train_cal, num_classes=kwargs.dataset.num_classes)
+        test_cal_set = CalibrationDataset(X_test_cal, y_test_cal, p_test_cal, num_classes=kwargs.dataset.num_classes)
+        val_cal_set = CalibrationDataset(X_val_cal, y_val_cal, p_val_cal, num_classes=kwargs.dataset.num_classes)
         
         # Create data loaders
         self.data_train_cal_loader = DataLoader(
-            train_cal_set, batch_size=kwargs.batch_size, shuffle=True, num_workers=8, pin_memory=True
+            train_cal_set, batch_size=kwargs.dataset.batch_size, shuffle=True, num_workers=8, pin_memory=True
         )
         self.data_test_cal_loader = DataLoader(
-            test_cal_set, batch_size=kwargs.batch_size, shuffle=False, num_workers=8, pin_memory=True
+            test_cal_set, batch_size=kwargs.dataset.batch_size, shuffle=False, num_workers=8, pin_memory=True
         )
         self.data_val_cal_loader = DataLoader(
-            val_cal_set, batch_size=kwargs.batch_size, shuffle=False, num_workers=8, pin_memory=True
+            val_cal_set, batch_size=kwargs.dataset.batch_size, shuffle=False, num_workers=8, pin_memory=True
         )
 
         print("Loading synthetic data for calibration complete")

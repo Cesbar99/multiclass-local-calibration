@@ -9,7 +9,7 @@ def categorical_cross_entropy(probs, targets, eps=1e-8):
     return -torch.sum(targets * torch.log(probs), dim=1).mean()
 
 def compute_multiclass_kl_divergence(p2, p1, y_one_hot, num_classes, js_distance=False,
-                                     entropy_factor=1, eps=1e-4, model_confident='under'):
+                                     entropy_factor=1, eps=1e-4):
     # Clip values to avoid log(0)
     p2 = torch.clamp(p2, eps, 1 - eps)
     p1 = torch.clamp(p1, eps, 1 - eps)
@@ -86,8 +86,8 @@ class AuxTrainer(pl.LightningModule):
     def __init__(self, kwargs, num_classes):              
         super().__init__()
         self.model = AuxiliaryMLP(hidden_dim=kwargs.hidden_dim, latent_dim=num_classes, log_var_initializer=kwargs.log_var_initializer)
-        self.num_classes = num_classes
-        self.lr = kwargs.lr
+        self.num_classes = num_classes        
+        self.optimizer_cfg = kwargs.optimizer
         self.alpha1 = kwargs.alpha1
         self.alpha2 = kwargs.alpha2
         self.lambda_kl = kwargs.lambda_kl
@@ -98,8 +98,7 @@ class AuxTrainer(pl.LightningModule):
         self.sampling = kwargs.sampling
         self.predict_labels = kwargs.predict_labels
         self.use_empirical_freqs = kwargs.use_empirical_freqs
-        self.js_distance = kwargs.js_distance
-        self.model_confident = kwargs.model_confident
+        self.js_distance = kwargs.js_distance        
 
     def forward(self, x):
         return self.model(x)
@@ -120,7 +119,7 @@ class AuxTrainer(pl.LightningModule):
         log_std = latents[:, self.num_classes:]
         stddev = F.softplus(log_std)
         sigma = stddev ** 2
-        avg_variance = torch.mean(sigma, dim=0)
+        avg_variance = torch.mean(sigma) #dim=0
 
         # Reparameterization
         epsilon = torch.randn_like(means)
@@ -135,7 +134,7 @@ class AuxTrainer(pl.LightningModule):
 
         # KL divergence
         kl_loss = compute_multiclass_kl_divergence(p2, p1, y_one_hot, self.num_classes,
-                                                   self.js_distance, self.entropy_factor, model_confident=self.model_confident)
+                                                   self.js_distance, self.entropy_factor)
 
         # Constraint loss
         new_preds = torch.argmax(probs_hat, dim=1)
@@ -156,10 +155,10 @@ class AuxTrainer(pl.LightningModule):
                       self.alpha1 * constraint_loss +
                       self.alpha2 * avg_variance ** 2)
 
-        self.log("train_total_loss", total_loss)
-        self.log("train_kl_loss", kl_loss)
-        self.log("train_constraint_loss", constraint_loss)
-        self.log("train_constraint", constraint)
+        self.log("train_total_loss", total_loss, on_epoch=True, on_step=True, prog_bar=True)
+        self.log("train_kl_loss", kl_loss, on_epoch=True, on_step=True, prog_bar=True)
+        self.log("train_constraint_loss", constraint_loss, on_epoch=True, on_step=True, prog_bar=True)
+        self.log("train_constraint", constraint, on_epoch=True, on_step=True, prog_bar=True)
 
         return total_loss
     
@@ -179,7 +178,7 @@ class AuxTrainer(pl.LightningModule):
         log_std = latents[:, self.num_classes:]
         stddev = F.softplus(log_std)
         sigma = stddev ** 2
-        avg_variance = torch.mean(sigma, dim=0)
+        avg_variance = torch.mean(sigma)
 
         # Reparameterization
         epsilon = torch.randn_like(means)
@@ -194,7 +193,7 @@ class AuxTrainer(pl.LightningModule):
 
         # KL divergence
         kl_loss = compute_multiclass_kl_divergence(p2, p1, y_one_hot, self.num_classes,
-                                                   self.js_distance, self.entropy_factor, model_confident=self.model_confident)
+                                                   self.js_distance, self.entropy_factor)
 
         # Constraint loss
         new_preds = torch.argmax(probs_hat, dim=1)
@@ -215,12 +214,10 @@ class AuxTrainer(pl.LightningModule):
                       self.alpha1 * constraint_loss +
                       self.alpha2 * avg_variance ** 2)
 
-        self.log("val_total_loss", total_loss)
-        self.log("val_kl_loss", kl_loss)
-        self.log("val_constraint_loss", constraint_loss)
-        self.log("val_constraint", constraint)
-
-        return total_loss
+        self.log("val_total_loss", total_loss, on_epoch=True, on_step=True, prog_bar=True)
+        self.log("val_kl_loss", kl_loss, on_epoch=True, on_step=True, prog_bar=True)
+        self.log("val_constraint_loss", constraint_loss, on_epoch=True, on_step=True, prog_bar=True)
+        self.log("val_constraint", constraint, on_epoch=True, on_step=True, prog_bar=True)        
 
     def configure_optimizers(self):
         opt_name = self.optimizer_cfg.name.lower()
@@ -274,7 +271,7 @@ class AuxTrainer(pl.LightningModule):
         return {
             "preds": preds,            
             "true": target,
-            "new_ogits": new_logits,
+            "logits": new_logits,
         }
     
     

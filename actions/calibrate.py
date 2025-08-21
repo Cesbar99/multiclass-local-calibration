@@ -22,7 +22,7 @@ def calibrate(kwargs, wandb_logger):
     pl.seed_everything(seed, workers=True)  
     
     if kwargs.experiment == 'synthetic':
-        dataset = SynthData(calibration=kwargs.calibration)
+        dataset = SynthData(kwargs, experiment=kwargs.exp_name)
     elif kwargs.experiment == 'mnist':
         dataset = MnistData(calibration=kwargs.calibration)
     elif kwargs.experiment == 'cifar10':

@@ -20,7 +20,7 @@ def pretrain(kwargs, wandb_logger):
     cuda_device = kwargs.cuda_device
     
     if kwargs.data == 'synthetic':
-        dataset = SynthData(kwargs.dataset)
+        dataset = SynthData(kwargs.dataset, experiment=kwargs.exp_name)
         pl_model = SynthTab(input_dim=kwargs.dataset.num_features,            
                             output_dim=kwargs.dataset.num_classes,
                             temperature=kwargs.models.temperature,
@@ -64,23 +64,23 @@ def pretrain(kwargs, wandb_logger):
         dataset = ImagenetLongTailData()  
         pl_model = ImagenetLongTailModel()    
         
-    os.makedirs(f"models/{kwargs.exp_name}/{kwargs.data}", exist_ok=True)    
+    os.makedirs(f"checkpoints/{kwargs.exp_name}/{kwargs.data}", exist_ok=True)    
     os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}", exist_ok=True)    
-    path_model = "models/{}/{}/model_seed-{}_ep-{}_tmp_{}.pt".format(
+    path_model = "checkpoints/{}/{}/model_seed-{}_ep-{}_tmp_{}.pt".format(
             kwargs.exp_name,
             kwargs.data,
             seed,
             total_epochs,
             kwargs.models.temperature
         )
-    raw_results_path_test = "results/{}/{}/raw_results_test_seed-{}_ep-{}_tmp_{}.csv".format(
+    raw_results_path_train_cal = "results/{}/{}/raw_results_train_cal_seed-{}_ep-{}_tmp_{}.csv".format(
             kwargs.exp_name,
             kwargs.data,
             seed,
             total_epochs,
             kwargs.models.temperature            
         )
-    raw_results_path_cal = "results/{}/{}/raw_results_cal_seed-{}_ep-{}_tmp_{}.csv".format(
+    raw_results_path_eval_cal = "results/{}/{}/raw_results_eval_cal_seed-{}_ep-{}_tmp_{}.csv".format(
             kwargs.exp_name,
             kwargs.data,
             seed,
@@ -113,13 +113,13 @@ def pretrain(kwargs, wandb_logger):
     print(train_time)
     torch.save(pl_model.model.state_dict(), path_model)
     
-    raws = trainer.predict(pl_model, dataset.data_test_loader)
+    raws = trainer.predict(pl_model, dataset.data_train_cal_loader)
     res = get_raw_res(raws)
-    res.to_csv(raw_results_path_test, index=False)
+    res.to_csv(raw_results_path_train_cal, index=False)
     
-    raws = trainer.predict(pl_model, dataset.data_cal_loader)
+    raws = trainer.predict(pl_model, dataset.data_eval_cal_loader)
     res = get_raw_res(raws)
-    res.to_csv(raw_results_path_cal, index=False)
+    res.to_csv(raw_results_path_eval_cal, index=False)
     
     print("PRE-TRAINING OVER!")
     print("START TESTING!")

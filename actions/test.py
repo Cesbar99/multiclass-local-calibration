@@ -18,14 +18,14 @@ def test(kwargs):
     cal_file_name = 'multicalss_calibration_'+'cal'+'.png'
     save_path = kwargs.save_path_calibration_plots
     os.makedirs(save_path, exist_ok=True)    
-    test_results = "results/{}/{}/raw_results_test_seed-{}_ep-{}_tmp_{}.csv".format(
+    test_results = "results/{}/{}/raw_results_train_cal_seed-{}_ep-{}_tmp_{}.csv".format(
             kwargs.exp_name,
             kwargs.data,
             kwargs.seed,
             kwargs.epochs,
             kwargs.models.temperature            
         )
-    cal_results = "results/{}/{}/raw_results_cal_seed-{}_ep-{}_tmp_{}.csv".format(
+    cal_results = "results/{}/{}/raw_results_eval_cal_seed-{}_ep-{}_tmp_{}.csv".format(
             kwargs.exp_name,
             kwargs.data,
             kwargs.seed,

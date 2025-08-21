@@ -107,7 +107,7 @@ class AuxTrainer(pl.LightningModule):
     def forward(self, x):
         return self.model(x)
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch):
         init_logits, y_one_hot, init_preds, init_preds_one_hot = batch
 
         # Add noise

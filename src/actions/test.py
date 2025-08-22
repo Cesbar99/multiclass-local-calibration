@@ -7,16 +7,13 @@ from sklearn.preprocessing import StandardScaler
 from utils.utils import *
 
 def test(kwargs):
-    #scaler = StandardScaler()
-    if kwargs.exp_name not in ['pre-train', 'calibrate']:
-        raise ValueError(f"Explicitly provide 'exp_name' argument from CLI when testing! Allowed values are 'pre-train' and 'calibrate'. Instead '{kwargs.exp_name}' was given!")
-    
-    elif kwargs.exp_name == 'pre-train':
+    #scaler = StandardScaler()    
+    if kwargs.exp_name == 'pre-train':
         n_bins = kwargs.n_bins_calibration_metrics        
-        appendix =  kwargs.exp_name + '_' + kwargs.data + '_' + f'{kwargs.checkpoint.num_classes}' + '_classes_' + f'{kwargs.checkpoint.num_features}'
-        test_file_name = 'multicalss_calibration_' + appendix + '_train_cal'+'.png'                
-        cal_file_name = 'multicalss_calibration_' + appendix + '_eval_cal'+'.png'        
-        save_path = kwargs.save_path_calibration_plots
+        appendix =  kwargs.exp_name + '_' + kwargs.data + '_' + f'{kwargs.checkpoint.num_classes}_classes_' + f'{kwargs.checkpoint.num_features}_features'
+        test_file_name = 'multicalss_calibration_train_cal'+'.png'                
+        cal_file_name = 'multicalss_calibration_eval_cal'+'.png'        
+        save_path = join(kwargs.save_path_calibration_plots, appendix)
         os.makedirs(save_path, exist_ok=True)    
         test_results = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_tmp_{}.csv".format(
                 kwargs.exp_name,
@@ -75,9 +72,9 @@ def test(kwargs):
         df = pd.DataFrame(results)
 
         # Specify your directory and filename
-        output_dir = "results/calibration_metrics"
+        output_dir = join(kwargs.save_path_calibration_metrics, appendix)
         os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, "metric_" + appendix + "_train_cal_.csv")
+        output_file = os.path.join(output_dir, "metric_train_cal_.csv")
 
         # Save to CSV
         df.to_csv(output_file, index=False)  
@@ -94,9 +91,9 @@ def test(kwargs):
         df = pd.DataFrame(results)
 
         # Specify your directory and filename
-        output_dir = "results/calibration_metrics"
+        output_dir = join(kwargs.save_path_calibration_metrics, appendix)
         os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, "metric_" + appendix + "_eval_cal_.csv")
+        output_file = os.path.join(output_dir, "metric_eval_cal_.csv")
 
         # Save to CSV
         df.to_csv(output_file, index=False)  
@@ -108,10 +105,14 @@ def test(kwargs):
         multiclass_calibration_plot(y_true_cal_, probs_cal, n_bins=n_bins, save_path=save_path, filename=cal_file_name)\
             
     elif kwargs.exp_name == 'calibrate':
+        if kwargs.calibrate:
+            total_epochs = kwargs.models.epochs
+        else:
+            total_epochs =  kwargs.checkpoint.epochs
         n_bins = kwargs.n_bins_calibration_metrics
-        appendix = kwargs.exp_name + '_' + kwargs.data + '_' + f'{kwargs.checkpoint.num_classes}' + '_classes_' + f'{kwargs.checkpoint.num_features}' + '_test'
-        test_file_name = 'multicalss_calibration_' + appendix + + '.png'        
-        save_path = kwargs.save_path_calibration_plots
+        appendix = kwargs.exp_name + '_' + kwargs.data + '_' + f'{kwargs.checkpoint.num_classes}_classes_' + f'{kwargs.checkpoint.num_features}_features'
+        test_file_name = 'multicalss_calibration_test' + '.png'        
+        save_path = join(kwargs.save_path_calibration_plots, appendix)
         os.makedirs(save_path, exist_ok=True)    
         test_results = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
                 kwargs.exp_name,
@@ -119,7 +120,7 @@ def test(kwargs):
                 kwargs.checkpoint.num_classes,
                 kwargs.checkpoint.num_features,
                 kwargs.checkpoint.seed,
-                kwargs.checkpoint.epochs,                
+                total_epochs,                
             )        
         
         # Load your data
@@ -151,9 +152,9 @@ def test(kwargs):
         df = pd.DataFrame(results)
 
         # Specify your directory and filename
-        output_dir = "results/calibration_metrics"
+        output_dir = join(kwargs.save_path_calibration_metrics, appendix)
         os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, 'metric_' + appendix + '.csv')
+        output_file = os.path.join(output_dir, 'metrics.csv') #'metric_' + appendix + 
 
         # Save to CSV
         df.to_csv(output_file, index=False)        

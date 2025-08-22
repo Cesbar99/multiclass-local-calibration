@@ -193,19 +193,25 @@ def random_label_smoothing(one_hot_labels, smoothing=0.1):
 
     return smoothed_labels
 
+######### WHEN TRAINING OV-RIDE DEFUALT CHECKPOINT DICT WITH ACTUAL USED VALUES #########   
 def fix_default_checkpoint(kwargs):
-    to_ret = {}
-    for key in kwargs.checkpoint:
-        print(key)
-        if key in kwargs:
-            to_ret[key] = kwargs[key]
-        else:
-            if key in kwargs.models:
-                to_ret[key] = kwargs.models[key]
+    if kwargs.pretrain:
+        to_ret = {}
+        for key in kwargs.checkpoint:
+            print(key)
+            if key in kwargs:
+                to_ret[key] = kwargs[key]
             else:
-                if key in kwargs.dataset:
-                    to_ret[key] = kwargs.dataset[key]
+                if key in kwargs.models:
+                    to_ret[key] = kwargs.models[key]
                 else:
-                    raise ValueError(f'Key: {key} present in config.checkpoint not found in main, dataset and models config structure!')                
+                    if key in kwargs.dataset:
+                        to_ret[key] = kwargs.dataset[key]
+                    else:
+                        raise ValueError(f'Key: {key} present in config.checkpoint not found in main, dataset and models config structure!')
+    else:
+        to_ret = kwargs.checkpoint
+        for key in kwargs.checkpoint:
+            if key ==  'epochs':
+                to_ret['epochs'] = kwargs.models.epochs               
     return to_ret
-        

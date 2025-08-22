@@ -1,10 +1,10 @@
 defaults:
   - _self_
 
-model: mlp
+model: mnist_cnn
 temperature: 1.0
 use_acc: True
-epochs: 30
+epochs: 10
 
 optimizer:
   name: adam

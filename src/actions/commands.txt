@@ -1,0 +1,8 @@
+USEFUL COMMANDS
+
+pre-train on synthetic data: CUDA_VISIBLE_DEVICES=1 python -u run.py exp_name=pre-train pretrain=True models=mlp dataset.num_classes=5 dataset.num_features=10
+
+calibrate on synthetic data: CUDA_VISIBLE_DEVICES=1 python -u run.py exp_name=calibrate pretrain=False calibrate=True checkpoint.num_classes=5 checkpoint.num_features=10 checkpoint.epochs=30
+
+test on syntetic data: CUDA_VISIBLE_DEVICES=1 python -u run.py exp_name=calibrate pretrain=False calibrate=False test=True checkpoint.num_classes=5 checkpoint.num_features=10 checkpoint.epochs=30 checkpoint.seed=42 checkpoint.temperature=1
+

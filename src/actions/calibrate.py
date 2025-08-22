@@ -42,7 +42,7 @@ def calibrate(kwargs, wandb_logger):
     elif kwargs.data == 'imagenet_longtail':
         dataset = ImagenetLongTailData(calibration=kwargs.calibration)    
     
-    os.makedirs(f"checkpoints/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
+    os.makedirs(f"checkpoints/{kwargs.exp_name}/{kwargs.data}_{kwargs.checkpoint.num_classes}_classes_{kwargs.checkpoint.num_features}_features", exist_ok=True)    
     os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}_{kwargs.checkpoint.num_classes}_classes_{kwargs.checkpoint.num_features}_features", exist_ok=True)    
     path_model = "checkpoints/{}/{}_{}_classes_{}_features/calibrator_seed-{}_ep-{}.pt".format(
             kwargs.exp_name,
@@ -61,7 +61,7 @@ def calibrate(kwargs, wandb_logger):
             total_epochs           
         )
     
-    pl_model = AuxTrainer(kwargs.models, num_classes=kwargs.dataset.num_classes)    
+    pl_model = AuxTrainer(kwargs.models, num_classes=kwargs.checkpoint.num_classes)    
     
     print(F'BEGIN CALIBRATION FOR {total_epochs} EPOCHS WITH SEED {seed}!')        
     trainer = pl.Trainer(
@@ -74,10 +74,10 @@ def calibrate(kwargs, wandb_logger):
             deterministic=True,
             callbacks=[
                 EarlyStopping(
-                    monitor="val_total_loss",
-                    patience=10,
+                    monitor="val_total",
+                    patience=5,
                     mode="min",
-                    verbose=False,
+                    verbose=True,
                     min_delta=0.0,
                 )]
         )
@@ -93,7 +93,7 @@ def calibrate(kwargs, wandb_logger):
     res.to_csv(raw_results_path_test_cal, index=False)
 
     print("CALIBRATION OVER!")
-    print("START TESTING!")
+    print("START TESTING!")        
     test(kwargs)
     
     

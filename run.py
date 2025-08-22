@@ -12,14 +12,17 @@ from datetime import datetime
 import os
 import sys
 import wandb
-
-def main(cfg):
     
-    kwargs = OmegaConf.create(cfg)  
+def main(cfg: DictConfig):
+    
+    kwargs = cfg #OmegaConf.create(cfg)  
     
     now = datetime.now()
     start = time.time()
     pl.seed_everything(kwargs.seed)
+        
+    dataset_name = kwargs.data
+    model_name = kwargs.models_map[dataset_name]
     
     base_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
     base_dir = os.path.join(os.path.dirname(os.path.dirname(base_dir)), 'result')
@@ -37,22 +40,21 @@ def main(cfg):
     if kwargs.pretrain:
         kwargs.exp_name = 'pre-train'
         if kwargs.dataset.batch_size is None:
-            kwargs.dataset.batch_size = kwargs.batch_size_map.get(kwargs.exp_name, 32)  # fallback default
+            kwargs.dataset.batch_size = kwargs.batch_size_map.get(kwargs.exp_name, 32)  # fallback default        
         kwargs.checkpoint = fix_default_checkpoint(kwargs)
         print("Pretraining model...")
         pretrain(kwargs, wandb_logger)
         # Pretrain the model here if needed
         # This is a placeholder for pretraining logic
     elif kwargs.test:
-        #kwargs.exp_name = 'test'
         print("Testing model...")
         test(kwargs)
         # Logic to resume training from a checkpoint
         # This is a placeholder for resuming logic
-    elif kwargs.calibrate:
+    elif kwargs.calibrate:        
         kwargs.exp_name = 'calibrate'
         if kwargs.dataset.batch_size is None:
-            kwargs.dataset.batch_size = kwargs.batch_size_map.get(kwargs.exp_name, 512)  # fallback default
+            kwargs.dataset.batch_size = kwargs.batch_size_map.get(kwargs.exp_name, 512)  # fallback default        
         print("Calibrating model with {kwargs.calibration_method} technique...")
         calibrate(kwargs, wandb_logger)
         # Logic to calibrate the model
@@ -66,8 +68,38 @@ def main(cfg):
     print('Total running time: {:.0f}h {:.0f}m'.
         format(time_elapsed // 3600, (time_elapsed % 3600)//60))
     
-@hydra.main(config_path='./src/configs', config_name='config_local', version_base=None)
-def main_entry(cfg: DictConfig):                      
+#@hydra.main(config_path='./src/configs', config_name='config_local', version_base=None)
+def main_entry():            
+    
+    cli_overrides = [arg for arg in sys.argv[1:] if "=" in arg]
+    
+    with initialize(config_path="./src/configs", version_base=None):
+        cfg = compose(config_name="config_local", overrides=cli_overrides)
+        
+        dataset_name = cfg.data
+        if cfg.pretrain:
+            model_name = cfg.models_map[cfg.data].strip()
+            print('model name: ', model_name)
+            full_overrides = cli_overrides + [f"dataset={dataset_name}", f"models={model_name}"]
+            cfg = compose(config_name="config_local", overrides=full_overrides)
+        elif cfg.calibrate:
+            model_name = 'calibrator'
+            full_overrides = cli_overrides + [f"dataset={dataset_name}", f"models={model_name}"]
+            cfg = compose(config_name="config_local", overrides=full_overrides)
+        elif cfg.test:
+            if cfg.exp_name not in ['pre-train', 'calibrate']:
+                raise ValueError(f"Explicitly provide 'exp_name' argument from CLI when testing! Allowed values are 'pre-train' and 'calibrate'. Instead '{cfg.exp_name}' was given!")                 
+            elif cfg.exp_name == 'pre-train':
+                full_overrides = cli_overrides + [f"dataset={dataset_name}", f"models={model_name}"]
+                model_name = cfg.models_map[cfg.data]
+                cfg = compose(config_name="config_local", overrides=full_overrides)
+            elif cfg.exp_name == 'calibrate':
+                full_overrides = cli_overrides + [f"dataset={dataset_name}", f"models={model_name}"]
+                model_name = 'calibrator'
+                cfg = compose(config_name="config_local", overrides=full_overrides)
+    
+    print("Resolved model config:", cfg.models)
+    print(OmegaConf.to_yaml(cfg))            
     main(cfg) #main(cfg, split) #main(**OmegaConf.to_container(cfg, resolve=True) )
     
 

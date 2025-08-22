@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import pytorch_lightning as pl
 
 
 class ScaledLogits(nn.Module):
@@ -54,9 +53,39 @@ class DeepMLP(nn.Module):
 
 
 class MnistArch(nn.Module):
-    def __init__():
-        super().__init__()
-        pass
+    def __init__(self, temperature=1.0):        
+        super(MnistArch, self).__init__()
+        self.num_channels = 1
+        self.image_size = 28
+        self.num_labels = 10
+
+        layers = [
+            nn.Conv2d(1, 32, kernel_size=3, padding=0),
+            nn.ReLU(),
+            nn.Conv2d(32, 32, kernel_size=3, padding=0),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2),
+
+            nn.Conv2d(32, 64, kernel_size=3, padding=0),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, kernel_size=3, padding=0),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2),
+
+            nn.Flatten(),
+            nn.Linear(64 * 4 * 4, 200),  # After convs and pooling, image size is reduced
+            nn.ReLU(),
+            nn.Linear(200, 200),
+            nn.ReLU(),
+            nn.Linear(200, 10)
+        ]        
+        
+        self.model = nn.Sequential(*layers)
+        self.scaler = ScaledLogits(temperature)
+
+    def forward(self, x):
+        logits = self.model(x) 
+        return self.scaler(logits)   
     
 class Cifar10Arch(nn.Module):
     def __init__():

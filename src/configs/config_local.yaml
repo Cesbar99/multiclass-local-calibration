@@ -1,7 +1,12 @@
 defaults:
   - _self_
-  - models: calibrator #mlp
-  - dataset: synthetic
+  - models: null
+  - dataset: null
+
+# These are placeholders that will be overridden
+#dataset2: null
+#models2: null
+
 
 # Global parameters
 seed: 42
@@ -40,11 +45,15 @@ use_wand: True
 # testing and calibration metrics
 n_bins_calibration_metrics: 15
 save_path_calibration_plots: /home/barbera/calibration/localibration/results/plots/
+save_path_calibration_metrics: /home/barbera/calibration/localibration/results/metrics/
 
 # default behaviour for batch size
 batch_size_map:
-  pretraining: 32
-  calibration: 512
+  pre-train: 32
+  calibrate: 512
 
-
+# default models for experiment
+models_map:
+  mnist: mnist_cnn
+  synthetic: mlp
 

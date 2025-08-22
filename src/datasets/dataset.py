@@ -1,10 +1,90 @@
 import torch
 import torch.nn.functional as F
+from torchvision import datasets, transforms
 from sklearn.datasets import make_classification
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset, DataLoader
 import pandas as pd
+from utils.utils import *
+
+
+def generateCalibrationSynthData(kwargs):
+    temperature = str(int(kwargs.checkpoint.temperature))
+    test_results = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_tmp_{}.csv".format(
+        'pre-train',
+        kwargs.checkpoint.data,
+        kwargs.checkpoint.num_classes,
+        kwargs.checkpoint.num_features,
+        kwargs.checkpoint.seed,
+        kwargs.checkpoint.epochs,
+        temperature            
+    )
+    cal_results = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_seed-{}_ep-{}_tmp_{}.csv".format(
+        'pre-train',
+        kwargs.checkpoint.data,
+        kwargs.checkpoint.num_classes,
+        kwargs.checkpoint.num_features,
+        kwargs.checkpoint.seed,
+        kwargs.checkpoint.epochs,
+        temperature
+    )
+    
+    # Load your data
+    df_train_calibration_data = pd.read_csv(test_results)
+    df_eval_calibration_data = pd.read_csv(cal_results)
+    
+    # Extract features and labels
+    X_train_cal = df_train_calibration_data.drop(columns=["true", "preds"]).values
+    y_train_cal = df_train_calibration_data["true"].values
+    p_train_cal = df_train_calibration_data["preds"].values
+
+    X_eval_cal_full = df_eval_calibration_data.drop(columns=["true", "preds"]).values
+    y_eval_cal_full = df_eval_calibration_data["true"].values
+    p_eval_cal_full = df_eval_calibration_data["preds"].values
+
+    # Split into 90% test and 10% val
+    X_test_cal, X_val_cal, y_test_cal, y_val_cal, p_test_cal, p_val_cal = train_test_split(X_eval_cal_full,
+                                                                                            y_eval_cal_full,
+                                                                                            p_eval_cal_full,
+                                                                                            test_size=0.1,
+                                                                                            random_state=kwargs.seed,
+                                                                                            stratify=y_eval_cal_full
+                                                                                            )
+
+    
+    print(f'Learn Calibration shape: {X_train_cal.shape}, Validation shape: {X_val_cal.shape}, Test Calibration shape: {X_test_cal.shape}')
+    # Convert to PyTorch tensors
+    X_train_cal = torch.tensor(X_train_cal, dtype=torch.float32)
+    y_train_cal = torch.tensor(y_train_cal, dtype=torch.long)
+    p_train_cal = torch.tensor(p_train_cal, dtype=torch.long)
+
+    X_test_cal = torch.tensor(X_test_cal, dtype=torch.float32)
+    y_test_cal = torch.tensor(y_test_cal, dtype=torch.long)
+    p_test_cal = torch.tensor(p_test_cal, dtype=torch.long)
+    
+    X_val_cal = torch.tensor(X_val_cal, dtype=torch.float32)
+    y_val_cal = torch.tensor(y_val_cal, dtype=torch.long)
+    p_val_cal = torch.tensor(p_val_cal, dtype=torch.long)
+
+    # Create datasets
+    train_cal_set = CalibrationDataset(X_train_cal, y_train_cal,p_train_cal, num_classes=kwargs.checkpoint.num_classes)
+    test_cal_set = CalibrationDataset(X_test_cal, y_test_cal, p_test_cal, num_classes=kwargs.checkpoint.num_classes)
+    val_cal_set = CalibrationDataset(X_val_cal, y_val_cal, p_val_cal, num_classes=kwargs.checkpoint.num_classes)
+    
+    # Create data loaders
+    data_train_cal_loader = DataLoader(
+        train_cal_set, batch_size=kwargs.dataset.batch_size, shuffle=True, num_workers=8, pin_memory=True
+    )
+    data_test_cal_loader = DataLoader(
+        test_cal_set, batch_size=kwargs.dataset.batch_size, shuffle=False, num_workers=8, pin_memory=True
+    )
+    data_val_cal_loader = DataLoader(
+        val_cal_set, batch_size=kwargs.dataset.batch_size, shuffle=False, num_workers=8, pin_memory=True
+    )
+
+    return data_train_cal_loader, data_test_cal_loader, data_val_cal_loader 
+
 
 class CalibrationDataset(Dataset):
     def __init__(self, X, y, p, num_classes, transforms_fn=None):
@@ -47,7 +127,6 @@ class ClassificationDataset(Dataset):
         y = self.y[idx]
         return x, y
 
-
 class SynthData(Dataset):
     def __init__(self, kwargs, experiment=None):        
         if experiment == 'pre-train':        
@@ -61,7 +140,8 @@ class SynthData(Dataset):
                                     batch_size = kwargs.batch_size,
                                     random_state = kwargs.random_state)      
         elif experiment == 'calibrate':
-            self.generateCalibrationSynthData(kwargs)    
+            self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationSynthData(kwargs) 
+            print("Loading synthetic data for calibration complete")   
 
     def generatePretrainingSynthData(self, num_features,
                                 num_classes,
@@ -114,81 +194,55 @@ class SynthData(Dataset):
         self.data_val_loader   = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
         self.data_train_cal_loader  = DataLoader(train_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
         
-        print("Loading synthetic data for pre-training complete")
-        
-    def generateCalibrationSynthData(self, kwargs):
-        test_results = "results/{}/{}/raw_results_train_cal_seed-{}_ep-{}_tmp_{}.csv".format(
-            'pre-train',
-            kwargs.checkpoint.data,
-            kwargs.checkpoint.seed,
-            kwargs.checkpoint.epochs,
-            kwargs.checkpoint.temperature            
-        )
-        cal_results = "results/{}/{}/raw_results_eval_cal_seed-{}_ep-{}_tmp_{}.csv".format(
-            'pre-train',
-            kwargs.checkpoint.data,
-            kwargs.checkpoint.seed,
-            kwargs.checkpoint.epochs,
-            kwargs.checkpoint.temperature            
-        )
-        
-        # Load your data
-        df_train_calibration_data = pd.read_csv(test_results)
-        df_eval_calibration_data = pd.read_csv(cal_results)
-        
-        # Extract features and labels
-        X_train_cal = df_train_calibration_data.drop(columns=["true", "preds"]).values
-        y_train_cal = df_train_calibration_data["true"].values
-        p_train_cal = df_train_calibration_data["preds"].values
-
-        X_eval_cal_full = df_eval_calibration_data.drop(columns=["true", "preds"]).values
-        y_eval_cal_full = df_eval_calibration_data["true"].values
-        p_eval_cal_full = df_eval_calibration_data["preds"].values
-
-        # Split into 90% test and 10% val
-        X_test_cal, X_val_cal, y_test_cal, y_val_cal, p_test_cal, p_val_cal = train_test_split(X_eval_cal_full,
-                                                                                               y_eval_cal_full,
-                                                                                               p_eval_cal_full,
-                                                                                               test_size=0.1,
-                                                                                               random_state=kwargs.seed,
-                                                                                               stratify=y_eval_cal_full
-                                                                                               )
-
-        
-        print(f'Learn Calibration shape: {X_train_cal.shape}, Validation shape: {X_val_cal.shape}, Test Calibration shape: {X_test_cal.shape}')
-        # Convert to PyTorch tensors
-        X_train_cal = torch.tensor(X_train_cal, dtype=torch.float32)
-        y_train_cal = torch.tensor(y_train_cal, dtype=torch.long)
-        p_train_cal = torch.tensor(p_train_cal, dtype=torch.long)
-
-        X_test_cal = torch.tensor(X_test_cal, dtype=torch.float32)
-        y_test_cal = torch.tensor(y_test_cal, dtype=torch.long)
-        p_test_cal = torch.tensor(p_test_cal, dtype=torch.long)
-        
-        X_val_cal = torch.tensor(X_val_cal, dtype=torch.float32)
-        y_val_cal = torch.tensor(y_val_cal, dtype=torch.long)
-        p_val_cal = torch.tensor(p_val_cal, dtype=torch.long)
-
-        # Create datasets
-        train_cal_set = CalibrationDataset(X_train_cal, y_train_cal,p_train_cal, num_classes=kwargs.dataset.num_classes)
-        test_cal_set = CalibrationDataset(X_test_cal, y_test_cal, p_test_cal, num_classes=kwargs.dataset.num_classes)
-        val_cal_set = CalibrationDataset(X_val_cal, y_val_cal, p_val_cal, num_classes=kwargs.dataset.num_classes)
-        
-        # Create data loaders
-        self.data_train_cal_loader = DataLoader(
-            train_cal_set, batch_size=kwargs.dataset.batch_size, shuffle=True, num_workers=8, pin_memory=True
-        )
-        self.data_test_cal_loader = DataLoader(
-            test_cal_set, batch_size=kwargs.dataset.batch_size, shuffle=False, num_workers=8, pin_memory=True
-        )
-        self.data_val_cal_loader = DataLoader(
-            val_cal_set, batch_size=kwargs.dataset.batch_size, shuffle=False, num_workers=8, pin_memory=True
-        )
-
-        print("Loading synthetic data for calibration complete")
+        print("Loading synthetic data for pre-training complete")            
             
-def MnistData():
-    pass
+class MnistData(Dataset):    
+    def __init__(self, kwargs, experiment=None):        
+        if experiment == 'pre-train':        
+            self.generatePretrainingMnistData(
+                                    batch_size = kwargs.batch_size,
+                                    random_state = kwargs.random_state)      
+        elif experiment == 'calibrate':
+            self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationSynthData(kwargs) 
+            print("Loading synthetic data for calibration complete")   
+
+    def generatePretrainingMnistData(self, 
+                                batch_size,
+                                random_state):                        
+        
+        transform = transforms.ToTensor()
+        mnist_dataset = datasets.MNIST(root="./data", train=True, download=True, transform=transform)
+
+        # 🧪 Convert to NumPy arrays
+        X = mnist_dataset.data.numpy().astype(np.float32) / 255.0  # Normalize to [0,1]
+        X = np.expand_dims(X, axis=1)  # Add channel dimension: (N, 1, 28, 28)
+        y = np.array(mnist_dataset.targets)
+        
+        X_train, X_train_cal, y_train, y_train_cal = train_test_split(X, y, test_size=0.5, random_state=random_state)        
+        X_eval_cal, X_train_cal, y_eval_cal, y_train_cal = train_test_split(X_train_cal, y_train_cal, test_size=0.1668, random_state=random_state)        
+        X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.1668, random_state=random_state)
+        
+        print(f'Train shape: {X_train.shape}, Learn Calibration shape: {X_train_cal.shape}, Validation shape: {X_val.shape}, Eval Calibration shape: {X_eval_cal.shape}')
+        X_train = torch.tensor(X_train, dtype=torch.float32)
+        y_train = torch.tensor(y_train, dtype=torch.long) 
+        X_train_cal = torch.tensor(X_train_cal, dtype=torch.float32)
+        y_train_cal = torch.tensor(y_train_cal, dtype=torch.long) 
+        X_eval_cal = torch.tensor(X_eval_cal, dtype=torch.float32)
+        y_eval_cal = torch.tensor(y_eval_cal, dtype=torch.long) 
+        X_val = torch.tensor(X_val, dtype=torch.float32)
+        y_val = torch.tensor(y_val, dtype=torch.long) 
+        
+        train_set = ClassificationDataset(X_train, y_train)
+        eval_cal_set   = ClassificationDataset(X_eval_cal, y_eval_cal)
+        val_set   = ClassificationDataset(X_val, y_val)
+        train_cal_set  = ClassificationDataset(X_train_cal, y_train_cal)
+
+        self.data_train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True,)
+        self.data_eval_cal_loader   = DataLoader(eval_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        self.data_val_loader   = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        self.data_train_cal_loader  = DataLoader(train_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        
+        print("Loading synthetic data for pre-training complete")    
 
 def Cifar10Data():
     pass

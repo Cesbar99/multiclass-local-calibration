@@ -33,8 +33,8 @@ def pretrain(kwargs, wandb_logger):
                         )
         
     elif kwargs.data == 'mnist':
-        dataset = MnistData()
-        pl_model = MnistModel()
+        dataset = MnistData(kwargs.dataset, experiment=kwargs.exp_name)
+        pl_model = MnistModel(kwargs.models)
         
     elif kwargs.data == 'cifar10':
         dataset = Cifar10Data()
@@ -98,7 +98,7 @@ def pretrain(kwargs, wandb_logger):
             kwargs.models.temperature            
         )
         
-    print(F'BEGIN TRAINING FOR {total_epochs} EPOCHS WITH SEED {seed}!')        
+    print(F'BEGIN PRE-TRAINING FOR {total_epochs} EPOCHS WITH SEED {seed} AND {kwargs.models.temperature} TEMPERATURE!')        
     trainer = pl.Trainer(
             max_epochs=total_epochs,
             accelerator="cuda",

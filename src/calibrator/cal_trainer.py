@@ -1,6 +1,6 @@
-import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
+import pytorch_lightning as pl
 from utils.utils import *
 from calibrator.local_net import *
 
@@ -155,10 +155,10 @@ class AuxTrainer(pl.LightningModule):
                       self.alpha1 * constraint_loss +
                       self.alpha2 * avg_variance ** 2)
 
-        self.log("train_total_loss", total_loss, on_epoch=True, on_step=True, prog_bar=True)
-        self.log("train_kl_loss", kl_loss, on_epoch=True, on_step=True, prog_bar=True)
-        self.log("train_constraint_loss", constraint_loss, on_epoch=True, on_step=True, prog_bar=True)
-        self.log("train_constraint", constraint, on_epoch=True, on_step=True, prog_bar=True)
+        self.log("train_total", total_loss, on_epoch=True, on_step=False, prog_bar=True)
+        self.log("train_kl", kl_loss, on_epoch=True, on_step=False, prog_bar=True)
+        self.log("train_con_loss", constraint_loss, on_epoch=False, on_step=True, prog_bar=False)
+        self.log("train_constraint", constraint, on_epoch=False, on_step=True, prog_bar=True)
 
         return total_loss
     
@@ -214,10 +214,10 @@ class AuxTrainer(pl.LightningModule):
                       self.alpha1 * constraint_loss +
                       self.alpha2 * avg_variance ** 2)
 
-        self.log("val_total_loss", total_loss, on_epoch=True, on_step=True, prog_bar=True)
-        self.log("val_kl_loss", kl_loss, on_epoch=True, on_step=True, prog_bar=True)
-        self.log("val_constraint_loss", constraint_loss, on_epoch=True, on_step=True, prog_bar=True)
-        self.log("val_constraint", constraint, on_epoch=True, on_step=True, prog_bar=True)        
+        self.log("val_total", total_loss, on_epoch=True, on_step=False, prog_bar=True)
+        self.log("val_kl", kl_loss, on_epoch=True, on_step=False, prog_bar=True)
+        self.log("val_con_loss", constraint_loss, on_epoch=True, on_step=False, prog_bar=False)
+        self.log("val_constraint", constraint, on_epoch=True, on_step=False, prog_bar=True)        
 
     def configure_optimizers(self):
         opt_name = self.optimizer_cfg.name.lower()

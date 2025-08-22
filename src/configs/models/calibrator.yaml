@@ -16,7 +16,7 @@ alpha1: 10.                # Classification contraint penalty
 alpha2: 0.                 # Switch-off variance penalty
 lambda_kl: 10.             # KL-divergence hyperparameter
 entropy_factor: 0.         # Control peakness of entropy of model confidence. 
-epochs: 30                 # Number of epochs
+epochs: 100                 # Number of epochs
 noise: 0.                  # Std of normal distribution to sample noise to add to input logits to improve generalisation
 smoothing: 0.              # Random label-smootihng parameter to improve on sparse data (many classes -> more sparse matrices!) 4.5e-2
 logits_scaling: 1.         # Scaling logits to make softmax more picked for stable gumbel-softmax sampling of argmax to ensure calssification constraint

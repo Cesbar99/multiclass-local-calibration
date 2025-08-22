@@ -206,5 +206,6 @@ def fix_default_checkpoint(kwargs):
                 if key in kwargs.dataset:
                     to_ret[key] = kwargs.dataset[key]
                 else:
-                    raise ValueError(f'Key: {key} present in config.checkpoint not found in main, dataset and models config structure!')
+                    raise ValueError(f'Key: {key} present in config.checkpoint not found in main, dataset and models config structure!')                
+    return to_ret
         

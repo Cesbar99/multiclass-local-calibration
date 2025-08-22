@@ -1,6 +1,6 @@
 import torch
 import torchmetrics
-from models.networks.networks import *
+from algorithms.networks.networks import *
 
 class SynthTab(pl.LightningModule):
     def __init__(self, input_dim, output_dim, temperature, optimizer_cfg, use_acc):
@@ -38,7 +38,7 @@ class SynthTab(pl.LightningModule):
         val_loss = F.cross_entropy(logits, y)
         #preds = torch.argmax(logits, dim=1)
         #acc = (preds == y).float().mean()
-        self.log("val_loss", val_loss, on_epoch=True, on_step=True, prog_bar=True)
+        self.log("val_loss", val_loss, on_epoch=True, on_step=False, prog_bar=True)
         if self.use_acc:            
             self.acc_val(logits, y)
             self.log('val_acc', self.acc_val, on_epoch=True, on_step=False, prog_bar=True)

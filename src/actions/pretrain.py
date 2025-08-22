@@ -1,7 +1,11 @@
+import sys 
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
-from models.networks.networks import *
-from models.trainers.trainers import *
+from algorithms.networks.networks import *
+from algorithms.trainers.trainers import *
 import hydra
 from hydra import initialize, compose
 from hydra.core.global_hydra import GlobalHydra
@@ -64,30 +68,36 @@ def pretrain(kwargs, wandb_logger):
         dataset = ImagenetLongTailData()  
         pl_model = ImagenetLongTailModel()    
         
-    os.makedirs(f"checkpoints/{kwargs.exp_name}/{kwargs.data}", exist_ok=True)    
-    os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}", exist_ok=True)    
-    path_model = "checkpoints/{}/{}/classifier_seed-{}_ep-{}_tmp_{}.pt".format(
+    os.makedirs(f"checkpoints/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
+    os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
+    path_model = "checkpoints/{}/{}_{}_classes_{}_features/classifier_seed-{}_ep-{}_tmp_{}.pt".format(
             kwargs.exp_name,
             kwargs.data,
+            kwargs.dataset.num_classes,
+            kwargs.dataset.num_features,
             seed,
             total_epochs,
             kwargs.models.temperature
         )
-    raw_results_path_train_cal = "results/{}/{}/raw_results_train_cal_seed-{}_ep-{}_tmp_{}.csv".format(
+    raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_tmp_{}.csv".format(
             kwargs.exp_name,
             kwargs.data,
+            kwargs.dataset.num_classes,
+            kwargs.dataset.num_features,
             seed,
             total_epochs,
             kwargs.models.temperature            
         )
-    raw_results_path_eval_cal = "results/{}/{}/raw_results_eval_cal_seed-{}_ep-{}_tmp_{}.csv".format(
+    raw_results_path_eval_cal = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_seed-{}_ep-{}_tmp_{}.csv".format(
             kwargs.exp_name,
             kwargs.data,
+            kwargs.dataset.num_classes,
+            kwargs.dataset.num_features,
             seed,
             total_epochs,
             kwargs.models.temperature            
         )
-                
+        
     print(F'BEGIN TRAINING FOR {total_epochs} EPOCHS WITH SEED {seed}!')        
     trainer = pl.Trainer(
             max_epochs=total_epochs,

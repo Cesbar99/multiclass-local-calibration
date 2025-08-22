@@ -1,7 +1,7 @@
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
-from models.networks.networks import *
-from models.trainers.trainers import *
+from algorithms.networks.networks import *
+from algorithms.trainers.trainers import *
 import hydra
 from hydra import initialize, compose
 from hydra.core.global_hydra import GlobalHydra
@@ -42,17 +42,21 @@ def calibrate(kwargs, wandb_logger):
     elif kwargs.data == 'imagenet_longtail':
         dataset = ImagenetLongTailData(calibration=kwargs.calibration)    
     
-    os.makedirs(f"checkpoints/{kwargs.exp_name}/{kwargs.data}", exist_ok=True)    
-    os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}", exist_ok=True)   
-    path_model = "checkpoints/{}/{}/calibrator_seed-{}_ep-{}.pt".format(
+    os.makedirs(f"checkpoints/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
+    os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}_{kwargs.checkpoint.num_classes}_classes_{kwargs.checkpoint.num_features}_features", exist_ok=True)    
+    path_model = "checkpoints/{}/{}_{}_classes_{}_features/calibrator_seed-{}_ep-{}.pt".format(
             kwargs.exp_name,
             kwargs.data,
+            kwargs.checkpoint.num_classes,
+            kwargs.checkpoint.num_features,
             seed,
             total_epochs
         )
-    raw_results_path_test_cal = "results/{}/{}/raw_results_test_cal_seed-{}_ep-{}.csv".format(
+    raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
             kwargs.exp_name,
             kwargs.data,
+            kwargs.checkpoint.num_classes,
+            kwargs.checkpoint.num_features,
             seed,
             total_epochs           
         )

@@ -17,6 +17,8 @@ checkpoint:
   seed: 42
   epochs: 30
   temperature: 1.0
+  num_classes: 5
+  num_features: 10
 
 # main commands
 pretrain: False

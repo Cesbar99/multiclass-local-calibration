@@ -1,5 +1,4 @@
 import pytorch_lightning as pl
-from src.models import networks, trainers
 import hydra
 from hydra import initialize, compose
 from hydra.core.global_hydra import GlobalHydra
@@ -34,12 +33,12 @@ def main(cfg):
     else:
         wandb_logger = WandbLogger(name=exp_name, project='Test', entity=kwargs.wandb_entity, save_dir=base_dir, offline=kwargs.offline)
     kwargs.wandb_id = wandb_logger.version
-    
-    default_batch_sizes = {"pre-training": 32, "calibration": 1024}    
+        
     if kwargs.pretrain:
         kwargs.exp_name = 'pre-train'
         if kwargs.dataset.batch_size is None:
-            kwargs.dataset.batch_size = kwargs.default_batch_sizes.get(kwargs.exp_name, 32)  # fallback default
+            kwargs.dataset.batch_size = kwargs.batch_size_map.get(kwargs.exp_name, 32)  # fallback default
+        kwargs.checkpoint = fix_default_checkpoint(kwargs)
         print("Pretraining model...")
         pretrain(kwargs, wandb_logger)
         # Pretrain the model here if needed
@@ -53,7 +52,7 @@ def main(cfg):
     elif kwargs.calibrate:
         kwargs.exp_name = 'calibrate'
         if kwargs.dataset.batch_size is None:
-            kwargs.dataset.batch_size = default_batch_sizes.get(kwargs.exp_name, 512)  # fallback default
+            kwargs.dataset.batch_size = kwargs.batch_size_map.get(kwargs.exp_name, 512)  # fallback default
         print("Calibrating model with {kwargs.calibration_method} technique...")
         calibrate(kwargs, wandb_logger)
         # Logic to calibrate the model
@@ -67,7 +66,7 @@ def main(cfg):
     print('Total running time: {:.0f}h {:.0f}m'.
         format(time_elapsed // 3600, (time_elapsed % 3600)//60))
     
-@hydra.main(config_path='./configs', config_name='config_local', version_base=None)
+@hydra.main(config_path='./src/configs', config_name='config_local', version_base=None)
 def main_entry(cfg: DictConfig):                      
     main(cfg) #main(cfg, split) #main(**OmegaConf.to_container(cfg, resolve=True) )
     

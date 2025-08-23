@@ -100,16 +100,16 @@ def calibrate(kwargs, wandb_logger):
             logger=wandb_logger,
             check_val_every_n_epoch=5,
             #gradient_clip_val=5,
-            deterministic=True)
-        #     callbacks=[
-        #         EarlyStopping(
-        #             monitor="val_total",
-        #             patience=5,
-        #             mode="min",
-        #             verbose=True,
-        #             min_delta=0.0,
-        #         )]
-        # )
+            deterministic=True,
+             callbacks=[
+                 EarlyStopping(
+                     monitor="val_total",
+                     patience=5,
+                     mode="min",
+                     verbose=True,
+                     min_delta=0.0,
+                 )]
+         )
     start = time.time()
     trainer.fit(pl_model, dataset.data_train_cal_loader,
                     dataset.data_val_cal_loader)

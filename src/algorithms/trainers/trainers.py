@@ -206,7 +206,12 @@ class MedMnistModel(pl.LightningModule):
 
     def configure_optimizers(self):
         opt_name = self.optimizer_cfg.name.lower()
-        lr = self.optimizer_cfg.lr
+        sched_name = self.optimizer_cfg.scheduler
+        #lr = self.optimizer_cfg.lr
+        params = [
+            {"params": self.model.resnet50.fc.parameters(), "lr": self.optimizer_cfg.lr_fc},
+            {"params": self.model.resnet50.layer4.parameters(), "lr": self.optimizer_cfg.lr_layer4}
+        ]        
         wd = self.optimizer_cfg.get("weight_decay", 0.0)
 
         # Dynamically get the optimizer class
@@ -215,12 +220,31 @@ class MedMnistModel(pl.LightningModule):
             raise ValueError(f"Unsupported optimizer: {opt_name}")
 
         # Build kwargs dynamically
-        optimizer_kwargs = {"lr": lr, "weight_decay": wd}
-        if opt_name == "sgd":
-            optimizer_kwargs["momentum"] = self.optimizer_cfg.get("momentum", 0.9)
+        #optimizer_kwargs = {"lr": lr, "weight_decay": wd}
+        #if opt_name == "sgd":
+        #    optimizer_kwargs["momentum"] = self.optimizer_cfg.get("momentum", 0.9)
 
-        optimizer = optimizer_class(self.parameters(), **optimizer_kwargs)
-        return optimizer
+        #optimizer = optimizer_class(self.parameters(), **optimizer_kwargs)
+        optimizer = optimizer_class(params, weight_decay=wd)
+        
+        # Add scheduler here
+        scheduler_class = getattr(torch.optim.lr_scheduler, sched_name, None)
+        
+        if scheduler_class is None: 
+            return {
+            "optimizer": optimizer}
+        else:
+            scheduler = scheduler_class(optimizer, step_size=self.optimizer_cfg.step_size, gamma=self.optimizer_cfg.gamma)
+            return {
+                "optimizer": optimizer,
+                "lr_scheduler": {
+                    "scheduler": scheduler,
+                    "interval": "epoch",  # Step every epoch
+                    "frequency": 1        # Apply every epoch
+                }
+            }                                    
+
+        #return optimizer
     
     def predict_step(self, batch):
         """

@@ -341,9 +341,11 @@ class MedMnistData(Dataset):
                                 batch_size,
                                 random_state):                        
         l_transforms = [
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomRotation(10),
             transforms.Resize((224, 224)) if size < 224 else transforms.Lambda(lambda x: x),
             transforms.Grayscale(num_output_channels=3),  # Convert to 3-channel RGB
-            transforms.ToTensor(),                        # Now tensor will be [3, H, W]
+            transforms.ToTensor(), 
             transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                 std=[0.229, 0.224, 0.225])
         ]

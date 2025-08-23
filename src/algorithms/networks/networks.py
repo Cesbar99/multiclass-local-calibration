@@ -94,8 +94,13 @@ class TissueMNISTResNet50(nn.Module):
 
     def __init__(self, temperature=1.0, num_labels=8):
         super(TissueMNISTResNet50, self).__init__()      
+        self.scaler = ScaledLogits(temperature)
         self.resnet50 = models.resnet50(weights='IMAGENET1K_V2')
         self.num_features = self.resnet50.fc.in_features
+        self.resnet50.layer4 = nn.Sequential(
+            self.resnet50.layer4,
+            nn.Dropout(p=0.2)
+        )
         self.resnet50.fc = nn.Sequential(
                 nn.Dropout(p=0.1),                
                 nn.Linear(self.num_features, num_labels))
@@ -104,7 +109,7 @@ class TissueMNISTResNet50(nn.Module):
         for param in self.resnet50.parameters():
             param.requires_grad = False        
         for name, param in self.resnet50.named_parameters():
-            if 'layer4' in name or 'fc' in name:
+            if 'layer4' in name or 'fc' in name: #
                 param.requires_grad = True
 
     def repr(self, x):

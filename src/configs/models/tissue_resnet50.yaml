@@ -8,7 +8,12 @@ epochs: 10
 
 optimizer:
   name: adam
-  lr: 1e-3 #1e-2
-  weight_decay: 0. #0.0001
+  lr_fc: 5e-4
+  lr_layer4: 1e-4
+  weight_decay: 5e-4
+  scheduler: StepLR
+  step_size: 5
+  gamma: 0.5
+
 
   

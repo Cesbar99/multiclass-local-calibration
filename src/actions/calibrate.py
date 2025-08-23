@@ -97,10 +97,10 @@ def calibrate(kwargs, wandb_logger):
                      min_delta=0.0,
                  ),
                  ModelCheckpoint(
-                    monitor="val_loss",                                                                                             # Metric to track
+                    monitor="val_total",                                                                                            # Metric to track
                     mode="min",                                                                                                     # Lower is better
                     save_top_k=1,                                                                                                   # Only keep the best model
-                    filename=f"classifier_seed-{seed}_ep-{total_epochs}_tmp_{kwargs.models.temperature}.pt",                        # Static filename (no epoch suffix)
+                    filename=f"classifier_seed-{seed}_ep-{total_epochs}.pt",                                                        # Static filename (no epoch suffix)
                     dirpath=path,                                                                                                   # Save in your existing checkpoint folder
                     save_weights_only=True,                                                                                         # Save only weights (not full LightningModule)
                     auto_insert_metric_name=False,                                                                                  # Prevent metric name in filename

@@ -22,9 +22,13 @@ def calibrate(kwargs, wandb_logger):
     pl.seed_everything(seed, workers=True)  
     
     if kwargs.data == 'synthetic':
-        dataset = SynthData(kwargs, experiment=kwargs.exp_name)
+        dataset = SynthData(kwargs, experiment=kwargs.exp_name)        
     elif kwargs.data == 'mnist':
-        dataset = MnistData(calibration=kwargs.calibration)
+        if kwargs.dataset.variant:
+            kwargs.data = kwargs.data + '_' + kwargs.dataset.variant                        
+        dataset = MnistData(kwargs, experiment=kwargs.exp_name)
+    elif kwargs.data == 'tissue':
+        dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)        
     elif kwargs.data == 'cifar10':
         dataset = Cifar10Data(calibration=kwargs.calibration)
     elif kwargs.data == 'cifar10_ood':
@@ -42,27 +46,52 @@ def calibrate(kwargs, wandb_logger):
     elif kwargs.data == 'imagenet_longtail':
         dataset = ImagenetLongTailData(calibration=kwargs.calibration)    
     
-    os.makedirs(f"checkpoints/{kwargs.exp_name}/{kwargs.data}_{kwargs.checkpoint.num_classes}_classes_{kwargs.checkpoint.num_features}_features", exist_ok=True)    
-    os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}_{kwargs.checkpoint.num_classes}_classes_{kwargs.checkpoint.num_features}_features", exist_ok=True)    
-    path_model = "checkpoints/{}/{}_{}_classes_{}_features/calibrator_seed-{}_ep-{}.pt".format(
-            kwargs.exp_name,
-            kwargs.data,
-            kwargs.checkpoint.num_classes,
-            kwargs.checkpoint.num_features,
-            seed,
-            total_epochs
-        )
-    raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
-            kwargs.exp_name,
-            kwargs.data,
-            kwargs.checkpoint.num_classes,
-            kwargs.checkpoint.num_features,
-            seed,
-            total_epochs           
-        )
     
-    pl_model = AuxTrainer(kwargs.models, num_classes=kwargs.checkpoint.num_classes)    
-    
+    if kwargs.data == 'synthetic':
+        os.makedirs(f"checkpoints/{kwargs.exp_name}/{kwargs.data}_{kwargs.checkpoint.num_classes}_classes_{kwargs.checkpoint.num_features}_features", exist_ok=True)    
+        os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}_{kwargs.checkpoint.num_classes}_classes_{kwargs.checkpoint.num_features}_features", exist_ok=True)    
+        
+        pl_model = AuxTrainer(kwargs.models, num_classes=kwargs.checkpoint.num_classes)    
+        
+        path_model = "checkpoints/{}/{}_{}_classes_{}_features/calibrator_seed-{}_ep-{}.pt".format(
+                kwargs.exp_name,
+                kwargs.data,
+                kwargs.checkpoint.num_classes,
+                kwargs.checkpoint.num_features,
+                seed,
+                total_epochs
+            )
+        raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
+                kwargs.exp_name,
+                kwargs.data,
+                kwargs.checkpoint.num_classes,
+                kwargs.checkpoint.num_features,
+                seed,
+                total_epochs           
+            )        
+    else:        
+        os.makedirs(f"checkpoints/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
+        os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
+        
+        pl_model = AuxTrainer(kwargs.models, num_classes=kwargs.dataset.num_classes)    
+        
+        path_model = "checkpoints/{}/{}_{}_classes_{}_features/calibrator_seed-{}_ep-{}.pt".format(
+                kwargs.exp_name,
+                kwargs.data,
+                kwargs.dataset.num_classes,
+                kwargs.dataset.num_features,
+                seed,
+                total_epochs
+            )
+        raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
+                kwargs.exp_name,
+                kwargs.data,
+                kwargs.dataset.num_classes,
+                kwargs.dataset.num_features,
+                seed,
+                total_epochs           
+            )
+        
     print(F'BEGIN CALIBRATION FOR {total_epochs} EPOCHS WITH SEED {seed}!')        
     trainer = pl.Trainer(
             max_epochs=total_epochs,
@@ -71,16 +100,16 @@ def calibrate(kwargs, wandb_logger):
             logger=wandb_logger,
             check_val_every_n_epoch=5,
             #gradient_clip_val=5,
-            deterministic=True,
-            callbacks=[
-                EarlyStopping(
-                    monitor="val_total",
-                    patience=5,
-                    mode="min",
-                    verbose=True,
-                    min_delta=0.0,
-                )]
-        )
+            deterministic=True)
+        #     callbacks=[
+        #         EarlyStopping(
+        #             monitor="val_total",
+        #             patience=5,
+        #             mode="min",
+        #             verbose=True,
+        #             min_delta=0.0,
+        #         )]
+        # )
     start = time.time()
     trainer.fit(pl_model, dataset.data_train_cal_loader,
                     dataset.data_val_cal_loader)

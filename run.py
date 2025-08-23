@@ -71,35 +71,45 @@ def main(cfg: DictConfig):
 #@hydra.main(config_path='./src/configs', config_name='config_local', version_base=None)
 def main_entry():            
     
-    cli_overrides = [arg for arg in sys.argv[1:] if "=" in arg]
-    
+    #cli_overrides = [arg for arg in sys.argv[1:] if "=" in arg]
+    excluded_keys = {"dataset", "models"}
+    init_overrides = [
+        arg for arg in sys.argv[1:]
+        if "=" in arg and arg.split(".")[0] not in excluded_keys
+    ]
+    second_overrides = [
+        arg for arg in sys.argv[1:]
+        if "=" in arg and arg.split(".")[0] in excluded_keys
+    ]
     with initialize(config_path="./src/configs", version_base=None):
-        cfg = compose(config_name="config_local", overrides=cli_overrides)
+                
+        cfg = compose(config_name="config_local", overrides=init_overrides)
         
         dataset_name = cfg.data
         if cfg.pretrain:
-            model_name = cfg.models_map[cfg.data].strip()
-            print('model name: ', model_name)
-            full_overrides = cli_overrides + [f"dataset={dataset_name}", f"models={model_name}"]
+            model_name = cfg.models_map[cfg.data].strip()            
+            full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides
             cfg = compose(config_name="config_local", overrides=full_overrides)
+            
         elif cfg.calibrate:
             model_name = 'calibrator'
-            full_overrides = cli_overrides + [f"dataset={dataset_name}", f"models={model_name}"]
+            full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides            
             cfg = compose(config_name="config_local", overrides=full_overrides)
+            
         elif cfg.test:
             if cfg.exp_name not in ['pre-train', 'calibrate']:
                 raise ValueError(f"Explicitly provide 'exp_name' argument from CLI when testing! Allowed values are 'pre-train' and 'calibrate'. Instead '{cfg.exp_name}' was given!")                 
+            
             elif cfg.exp_name == 'pre-train':
-                full_overrides = cli_overrides + [f"dataset={dataset_name}", f"models={model_name}"]
+                full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides
                 model_name = cfg.models_map[cfg.data]
                 cfg = compose(config_name="config_local", overrides=full_overrides)
+                
             elif cfg.exp_name == 'calibrate':
-                full_overrides = cli_overrides + [f"dataset={dataset_name}", f"models={model_name}"]
+                full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides
                 model_name = 'calibrator'
                 cfg = compose(config_name="config_local", overrides=full_overrides)
-    
-    print("Resolved model config:", cfg.models)
-    print(OmegaConf.to_yaml(cfg))            
+             
     main(cfg) #main(cfg, split) #main(**OmegaConf.to_container(cfg, resolve=True) )
     
 

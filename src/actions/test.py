@@ -8,7 +8,10 @@ from utils.utils import *
 
 def test(kwargs):
     #scaler = StandardScaler()    
-    if kwargs.exp_name == 'pre-train':
+    if kwargs.data == 'mnist' and kwargs.dataset.variant:
+            kwargs.data = kwargs.data + '_' + kwargs.dataset.variant 
+            
+    if kwargs.exp_name == 'pre-train':                     
         n_bins = kwargs.n_bins_calibration_metrics        
         appendix =  kwargs.exp_name + '_' + kwargs.data + '_' + f'{kwargs.checkpoint.num_classes}_classes_' + f'{kwargs.checkpoint.num_features}_features'
         test_file_name = 'multicalss_calibration_train_cal'+'.png'                
@@ -17,7 +20,7 @@ def test(kwargs):
         os.makedirs(save_path, exist_ok=True)    
         test_results = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_tmp_{}.csv".format(
                 kwargs.exp_name,
-                kwargs.checkpoint.data,
+                kwargs.data,
                 kwargs.checkpoint.num_classes,
                 kwargs.checkpoint.num_features,
                 kwargs.checkpoint.seed,
@@ -26,7 +29,7 @@ def test(kwargs):
             )
         cal_results = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_seed-{}_ep-{}_tmp_{}.csv".format(
                 kwargs.exp_name,
-                kwargs.checkpoint.data,
+                kwargs.data,
                 kwargs.checkpoint.num_classes,
                 kwargs.checkpoint.num_features,
                 kwargs.checkpoint.seed,
@@ -109,20 +112,33 @@ def test(kwargs):
             total_epochs = kwargs.models.epochs
         else:
             total_epochs =  kwargs.checkpoint.epochs
-        n_bins = kwargs.n_bins_calibration_metrics
-        appendix = kwargs.exp_name + '_' + kwargs.data + '_' + f'{kwargs.checkpoint.num_classes}_classes_' + f'{kwargs.checkpoint.num_features}_features'
-        test_file_name = 'multicalss_calibration_test' + '.png'        
-        save_path = join(kwargs.save_path_calibration_plots, appendix)
-        os.makedirs(save_path, exist_ok=True)    
-        test_results = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
-                kwargs.exp_name,
-                kwargs.checkpoint.data,
-                kwargs.checkpoint.num_classes,
-                kwargs.checkpoint.num_features,
-                kwargs.checkpoint.seed,
-                total_epochs,                
-            )        
-        
+        n_bins = kwargs.n_bins_calibration_metrics        
+        if kwargs.data == 'synthetic':
+            appendix = kwargs.exp_name + '_' + kwargs.data + '_' + f'{kwargs.checkpoint.num_classes}_classes_' + f'{kwargs.checkpoint.num_features}_features'
+            test_file_name = 'multicalss_calibration_test' + '.png'        
+            save_path = join(kwargs.save_path_calibration_plots, appendix)
+            os.makedirs(save_path, exist_ok=True)    
+            test_results = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
+                    kwargs.exp_name,
+                    kwargs.data,
+                    kwargs.checkpoint.num_classes,
+                    kwargs.checkpoint.num_features,
+                    kwargs.checkpoint.seed,
+                    total_epochs,                
+                )        
+        else:
+            appendix = kwargs.exp_name + '_' + kwargs.data + '_' + f'{kwargs.dataset.num_classes}_classes_' + f'{kwargs.dataset.num_features}_features'
+            test_file_name = 'multicalss_calibration_test' + '.png'        
+            save_path = join(kwargs.save_path_calibration_plots, appendix)
+            os.makedirs(save_path, exist_ok=True)    
+            test_results = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
+                    kwargs.exp_name,
+                    kwargs.data,
+                    kwargs.dataset.num_classes,
+                    kwargs.dataset.num_features,
+                    kwargs.checkpoint.seed,
+                    total_epochs,                
+                )       
         # Load your data
         df_test = pd.read_csv(test_results)        
 

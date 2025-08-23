@@ -15,22 +15,6 @@ from calibrator.cal_trainer import *
 from calibrator.local_net import *
 
 
-class VerboseModelCheckpoint(ModelCheckpoint):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._last_best_score = None
-
-    def on_validation_end(self, trainer, pl_module):
-        super().on_validation_end(trainer, pl_module)
-
-        # Check if a new best model was saved
-        if self.best_model_score is not None:
-            if self._last_best_score is None or self.best_model_score < self._last_best_score:
-                current_epoch = trainer.current_epoch
-                print(f"\nNew best model saved at epoch {current_epoch}: {self.best_model_path} with val_total = {self.best_model_score:.4f}\n")
-                self._last_best_score = self.best_model_score
-
-
 def calibrate(kwargs, wandb_logger):
     
     seed = kwargs.seed
@@ -65,19 +49,12 @@ def calibrate(kwargs, wandb_logger):
     
     
     if kwargs.data == 'synthetic':
-        os.makedirs(f"checkpoints/{kwargs.exp_name}/{kwargs.data}_{kwargs.checkpoint.num_classes}_classes_{kwargs.checkpoint.num_features}_features", exist_ok=True)    
+        path = f"checkpoints/{kwargs.exp_name}/{kwargs.data}_{kwargs.checkpoint.num_classes}_classes_{kwargs.checkpoint.num_features}_features"
+        os.makedirs(path, exist_ok=True)    
         os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}_{kwargs.checkpoint.num_classes}_classes_{kwargs.checkpoint.num_features}_features", exist_ok=True)    
         
         pl_model = AuxTrainer(kwargs.models, num_classes=kwargs.checkpoint.num_classes)    
-        
-        path_model = "checkpoints/{}/{}_{}_classes_{}_features/calibrator_seed-{}_ep-{}.pt".format(
-                kwargs.exp_name,
-                kwargs.data,
-                kwargs.checkpoint.num_classes,
-                kwargs.checkpoint.num_features,
-                seed,
-                total_epochs
-            )
+
         raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
                 kwargs.exp_name,
                 kwargs.data,
@@ -87,19 +64,12 @@ def calibrate(kwargs, wandb_logger):
                 total_epochs           
             )        
     else:        
-        os.makedirs(f"checkpoints/{kwargs.exp_name}/", exist_ok=True) #/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", )    
+        path = f"checkpoints/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features/"
+        os.makedirs(path, exist_ok=True) 
         os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
         
         pl_model = AuxTrainer(kwargs.models, num_classes=kwargs.dataset.num_classes)    
         
-        path_model = "checkpoints/{}/{}_{}_classes_{}_features/calibrator_seed-{}_ep-{}.pt".format(
-                kwargs.exp_name,
-                kwargs.data,
-                kwargs.dataset.num_classes,
-                kwargs.dataset.num_features,
-                seed,
-                total_epochs
-            )
         raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
                 kwargs.exp_name,
                 kwargs.data,
@@ -126,16 +96,18 @@ def calibrate(kwargs, wandb_logger):
                      verbose=True,
                      min_delta=0.0,
                  ),
-                 VerboseModelCheckpoint(
-                    monitor="val_total",                                                                                            # Metric to track
+                 ModelCheckpoint(
+                    monitor="val_loss",                                                                                             # Metric to track
                     mode="min",                                                                                                     # Lower is better
                     save_top_k=1,                                                                                                   # Only keep the best model
-                    filename=f"{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features",          # Static filename (no epoch suffix)
-                    dirpath=os.path.dirname(f'checkpoints/{kwargs.exp_name}/'),                                                     # Save in your existing checkpoint folder
+                    filename=f"classifier_seed-{seed}_ep-{total_epochs}_tmp_{kwargs.models.temperature}.pt",                        # Static filename (no epoch suffix)
+                    dirpath=path,                                                                                                   # Save in your existing checkpoint folder
                     save_weights_only=True,                                                                                         # Save only weights (not full LightningModule)
                     auto_insert_metric_name=False,                                                                                  # Prevent metric name in filename
                     every_n_epochs=1,                                                                                               # Run every epoch                    
-                )   
+                    enable_version_counter=False,
+                    verbose=True
+                ) 
             ]
          )
     start = time.time()
@@ -145,6 +117,7 @@ def calibrate(kwargs, wandb_logger):
     print(train_time)
     #torch.save(pl_model.model.state_dict(), path_model)
     best_model_path = trainer.checkpoint_callback.best_model_path
+    print(F'LOADING CHECKPOINT FILE {best_model_path}')
     checkpoint = torch.load(best_model_path)
     pl_model.load_state_dict(checkpoint['state_dict'])
 

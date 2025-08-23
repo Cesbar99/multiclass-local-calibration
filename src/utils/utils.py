@@ -6,12 +6,27 @@ import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.calibration import calibration_curve
-from pytorch_lightning.callbacks import Callback
+from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 
 class ClearCacheCallback(Callback):
     def on_train_epoch_end(self, trainer, pl_module):
         torch.cuda.empty_cache()
 
+class VerboseModelCheckpoint(ModelCheckpoint):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._last_best_score = None
+
+    def on_validation_end(self, trainer, pl_module):
+        super().on_validation_end(trainer, pl_module)
+
+        # Check if a new best model was saved
+        if self.best_model_score is not None:
+            if self._last_best_score is None or self.best_model_score < self._last_best_score:
+                current_epoch = trainer.current_epoch
+                print(f"\nNew best model saved at epoch {current_epoch}: {self.best_model_path} with val_total = {self.best_model_score:.4f}\n")
+                self._last_best_score = self.best_model_score
+                
 def get_raw_res(raws):
     preds = torch.cat([raws[j]["preds"].cpu() for j in range(len(raws))])
     #probs = torch.cat([raws[j]["probs"].cpu() for j in range(len(raws))])

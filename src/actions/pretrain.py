@@ -73,8 +73,9 @@ def pretrain(kwargs, wandb_logger):
     elif kwargs.data == 'imagenet_longtail':
         dataset = ImagenetLongTailData()  
         pl_model = ImagenetLongTailModel()    
-        
-    os.makedirs(f"checkpoints/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
+    
+    path = f"checkpoints/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features/"    
+    os.makedirs(path, exist_ok=True) 
     os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
     path_model = "checkpoints/{}/{}_{}_classes_{}_features/classifier_seed-{}_ep-{}_tmp_{}.pt".format(
             kwargs.exp_name,
@@ -113,21 +114,38 @@ def pretrain(kwargs, wandb_logger):
             check_val_every_n_epoch=1,            
             deterministic=True,
             callbacks=[
-                EarlyStopping(
-                    monitor="val_loss",
-                    patience=5,
-                    mode="min",
-                    verbose=True,
-                    min_delta=0.0,
-                ), 
-                ClearCacheCallback()]
-        )
+                 EarlyStopping(
+                     monitor="val_loss",
+                     patience=5,
+                     mode="min",
+                     verbose=True,
+                     min_delta=0.0,
+                 ),
+                 ModelCheckpoint(
+                    monitor="val_loss",                                                                                             # Metric to track
+                    mode="min",                                                                                                     # Lower is better
+                    save_top_k=1,                                                                                                   # Only keep the best model
+                    filename=f"classifier_seed-{seed}_ep-{total_epochs}_tmp_{kwargs.models.temperature}.pt",                        # Static filename (no epoch suffix)
+                    dirpath=path,                                                                                                   # Save in your existing checkpoint folder
+                    save_weights_only=True,                                                                                         # Save only weights (not full LightningModule)
+                    auto_insert_metric_name=False,                                                                                  # Prevent metric name in filename
+                    every_n_epochs=1,                                                                                               # Run every epoch                    
+                    enable_version_counter=False,
+                    verbose=True
+                ) ,
+                ClearCacheCallback()  
+            ]
+         )
     start = time.time()
     trainer.fit(pl_model, dataset.data_train_loader,
                     dataset.data_val_loader)
     train_time = time.time() - start
     print(train_time)
-    torch.save(pl_model.model.state_dict(), path_model)
+    #torch.save(pl_model.model.state_dict(), path_model)
+    best_model_path = trainer.checkpoint_callback.best_model_path
+    print(F'LOADING CHECKPOINT FILE {best_model_path}')
+    checkpoint = torch.load(best_model_path)
+    pl_model.load_state_dict(checkpoint['state_dict'])
     
     raws = trainer.predict(pl_model, dataset.data_train_cal_loader)
     res = get_raw_res(raws)

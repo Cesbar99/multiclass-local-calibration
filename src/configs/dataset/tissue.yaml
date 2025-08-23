@@ -3,4 +3,4 @@ num_classes : 8 # 10 classes but fixed no need to specify
 random_state : 42
 batch_size : 128 # 1024 for calibration and 32 for pre-training
 variant: #'awgn', 'motion_blur', 'reduced_contrast'
-size: 28
+size: 224

@@ -12,7 +12,7 @@ optimizer:
 # calibration hyper-parameters
 log_var_initializer: 1.    # Control initial variance. less classes -> smaller values. If sampling is true set to small values to initialize encodings close to inputs
 hidden_dim: 256            # Size of hidden layer of calibrating net
-alpha1: 10.                # Classification contraint penalty
+alpha1: 15.                 # Classification contraint penalty
 alpha2: 0.                 # Switch-off variance penalty
 lambda_kl: 10.             # KL-divergence hyperparameter
 entropy_factor: 0.         # Control peakness of entropy of model confidence. 

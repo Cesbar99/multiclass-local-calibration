@@ -13,6 +13,9 @@ from medmnist import TissueMNIST, PathMNIST, INFO
 from torch.utils.data import random_split
 import os
 from tiny_imagenet_torch import TinyImageNet
+from datasets import load_dataset
+from PIL import Image
+import io
 
 def generateCalibrationData(kwargs):
     #temperature = str(int(kwargs.checkpoint.temperature))
@@ -137,19 +140,26 @@ class CalibrationDataset(Dataset):
 
 
 class ClassificationDataset(Dataset):
-    def __init__(self, X, y, transforms_fn=None):
-        self.X = torch.tensor(X, dtype=torch.float32)
+    def __init__(self, X, y, transforms_fn=None, as_array=False):
+        if as_array:
+            self.X = X #torch.tensor(X, dtype=torch.float32)        
+        else:
+            self.X = torch.tensor(X, dtype=torch.float32)        
         self.y = torch.tensor(y, dtype=torch.long)  # one-hot encoded
         self.transforms_fn = transforms_fn
+        self.as_array = as_array
 
     def __len__(self):
         return len(self.X)
 
     def __getitem__(self, idx):
+        x = self.X[idx]   
+        if self.as_array:                         
+            x = Image.fromarray((x * 255).astype(np.uint8)) if x.max() <= 1.0 else Image.fromarray(x.astype(np.uint8))
+
         if self.transforms_fn is not None:
-            x = self.transforms_fn(self.X[idx])
-        else:
-            x = self.X[idx]
+            x = self.transforms_fn(x)
+            
         y = self.y[idx]
         return x, y
 
@@ -391,13 +401,161 @@ class MedMnistData(Dataset):
         print("Loading TissueMnist data for pre-training complete") 
 
 
-def Cifar10Data():
-    pass
+class Cifar10Data(Dataset):    
+    def __init__(self, kwargs, experiment=None, name='cifar10'):       
+        self.name = name   
+        if experiment == 'pre-train':                          
+            self.generatePretrainingCifar10Data(
+                                    batch_size = kwargs.batch_size,
+                                    random_state = kwargs.random_state)      
+        elif experiment == 'calibrate':
+                self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationData(kwargs) 
+        print("Loading synthetic data for calibration complete")   
+
+    def generatePretrainingCifar10Data(self, 
+                                batch_size,
+                                random_state):  
+        data_dir =  f"./data/{self.name.upper()}"                     
+        os.makedirs(data_dir, exist_ok=True)
+        generator = torch.Generator().manual_seed(random_state)
+        
+        l_transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor()
+        ])
+        full_train = datasets.CIFAR10(root=data_dir, train=True, 
+                                        transform=l_transform, download=True)
+        
+        train_size = int(0.45 * len(full_train))
+        val_size = int(0.1 * len(full_train))
+        eval_cal_size = len(full_train) - train_size - val_size
+        train_set, val_set, eval_cal_set = random_split(full_train, [train_size, val_size, eval_cal_size], generator=generator)
+
+        train_cal_set = datasets.CIFAR10(root=data_dir, train=False, 
+                                        transform=l_transform, download=True)
+        
+        print(f'Train shape: {len(train_set)}, Learn Calibration shape: {len(train_cal_set)}, Validation shape: {len(val_set)}, Eval Calibration shape: {len(eval_cal_set)}')
+
+        self.data_train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True,)
+        self.data_eval_cal_loader   = DataLoader(eval_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        self.data_val_loader   = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        self.data_train_cal_loader  = DataLoader(train_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        
+        print("Loading CIFAR10 data for pre-training complete") 
+
+
+class Cifar10LongTailData(Dataset):    
+    def __init__(self, kwargs, experiment=None, name='cifar10LT'):       
+        self.name = name   
+        if experiment == 'pre-train':                          
+            self.generatePretrainingCifar10Data(
+                                    batch_size = kwargs.batch_size,
+                                    random_state = kwargs.random_state)      
+        elif experiment == 'calibrate':
+                self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationData(kwargs) 
+        print("Loading synthetic data for calibration complete")   
+
+    def generatePretrainingCifar10Data(self, 
+                                batch_size,
+                                random_state):  
+        
+        data_dir =  f"./data/{self.name.upper()}"      
+        full_train = pd.read_parquet(join(data_dir, "train.parquet"))
+        
+        # Convert images to numpy arrays
+        images = []
+        labels = []
+
+        for _, row in full_train.iterrows():
+            arr = Image.open(io.BytesIO(row["img"]["bytes"]))  # decode from bytes
+            arr = np.array(arr)
+            # Normalize only if it's uint8
+            if arr.dtype == np.uint8:
+                arr = arr.astype(np.float32) / 255.0
+            else:
+                arr = arr.astype(np.float32)            
+            images.append(arr)
+            labels.append(row["label"])
+
+        X = np.stack(images)  # shape: (N, 32, 32, 3)
+        y = np.array(labels)  # shape: (N,)    
+
+        X_train, X_train_cal, y_train, y_train_cal = train_test_split(X, y, test_size=0.5, random_state=random_state, stratify=y)
+        #X_eval_cal, X_train_cal, y_eval_cal, y_train_cal = train_test_split(X_train_cal, y_train_cal, test_size=0.1668, random_state=random_state, stratify=y_train_cal)        
+        X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.1, random_state=random_state, stratify=y_train)        
+        
+        full_train_cal = pd.read_parquet(join(data_dir, "test.parquet"))
+        
+        # Convert images to numpy arrays
+        images = []
+        labels = []
+
+        for _, row in full_train_cal.iterrows():
+            arr = Image.open(io.BytesIO(row["img"]["bytes"]))  # decode from bytes
+            arr = np.array(arr)
+            # Normalize only if it's uint8
+            if arr.dtype == np.uint8:
+                arr = arr.astype(np.float32) / 255.0
+            else:
+                arr = arr.astype(np.float32)            
+            images.append(arr)
+            labels.append(row["label"])
+
+        X_eval_cal = np.stack(images)  # shape: (N, 32, 32, 3)
+        y_eval_cal = np.array(labels)  # shape: (N,)    
+
+        print(f'Train shape: {X_train.shape}, Learn Calibration shape: {X_train_cal.shape}, Validation shape: {X_val.shape}, Eval Calibration shape: {X_eval_cal.shape}')
+        #X_train = torch.tensor(X_train, dtype=torch.float32)
+        #y_train = torch.tensor(y_train, dtype=torch.long) 
+        #X_train_cal = torch.tensor(X_train_cal, dtype=torch.float32)
+        #y_train_cal = torch.tensor(y_train_cal, dtype=torch.long) 
+        #X_eval_cal = torch.tensor(X_eval_cal, dtype=torch.float32)
+        #y_eval_cal = torch.tensor(y_eval_cal, dtype=torch.long) 
+        #X_val = torch.tensor(X_val, dtype=torch.float32)
+        #y_val = torch.tensor(y_val, dtype=torch.long) 
+        
+        print_class_distribution("Train", y_train)
+        print_class_distribution("Validation", y_val)
+        print_class_distribution("Learn Calibration", y_train_cal)
+        print_class_distribution("Eval Calibration", y_eval_cal)
+        
+        train_transforms = transforms.Compose([
+            transforms.Resize((224, 224)),               # match ViT input size
+            transforms.RandomHorizontalFlip(p=0.5),      # common for CIFAR
+            transforms.RandomCrop(224, padding=4),       # adds spatial jitter
+            transforms.ColorJitter(0.4, 0.4, 0.4, 0.1),  # brightness, contrast, saturation, hue
+            transforms.RandomRotation(15),               # small rotations
+            transforms.RandomGrayscale(p=0.1),           # sometimes grayscale
+            transforms.ToTensor(),
+            transforms.Normalize(                        # use ImageNet mean/std for ViT
+                mean=[0.485, 0.456, 0.406], 
+                std=[0.229, 0.224, 0.225]
+            )
+        ])
+
+        val_transforms = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=[0.485, 0.456, 0.406], 
+                std=[0.229, 0.224, 0.225]
+            )
+        ])
+        
+        train_set = ClassificationDataset(X_train, y_train, transforms_fn=train_transforms)
+        eval_cal_set   = ClassificationDataset(X_eval_cal, y_eval_cal, transforms_fn=val_transforms)
+        val_set   = ClassificationDataset(X_val, y_val, transforms_fn=val_transforms)
+        train_cal_set  = ClassificationDataset(X_train_cal, y_train_cal, transforms_fn=val_transforms)
+
+        self.data_train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True,)
+        self.data_eval_cal_loader   = DataLoader(eval_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        self.data_val_loader   = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        self.data_train_cal_loader  = DataLoader(train_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        
+        print("Loading CIFAR10-Long-Tail data for pre-training complete")      
+
 
 def Cifar10OODData():
-    pass
-
-def Cifar10LongTailData():
     pass
 
 def Cifar100Data():

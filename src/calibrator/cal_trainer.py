@@ -220,18 +220,19 @@ class AuxTrainer(pl.LightningModule):
         self.log("val_constraint", constraint, on_epoch=True, on_step=False, prog_bar=True)        
 
     def configure_optimizers(self):
-        opt_name = self.optimizer_cfg.name.lower()
+        opt_name = self.optimizer_cfg.name #.lower()
+        opt_name = opt_name[0].upper() + opt_name[1:]
         lr = self.optimizer_cfg.lr
-        wd = self.optimizer_cfg.get("weight_decay", 0.0)
-
+        wd = self.optimizer_cfg.get("weight_decay", 0.0)        
+        
         # Dynamically get the optimizer class
-        optimizer_class = getattr(torch.optim, opt_name.capitalize(), None)
+        optimizer_class = getattr(torch.optim, opt_name, None)
         if optimizer_class is None:
             raise ValueError(f"Unsupported optimizer: {opt_name}")
 
         # Build kwargs dynamically
         optimizer_kwargs = {"lr": lr, "weight_decay": wd}
-        if opt_name == "sgd":
+        if opt_name == "SGD":
             optimizer_kwargs["momentum"] = self.optimizer_cfg.get("momentum", 0.9)
 
         optimizer = optimizer_class(self.parameters(), **optimizer_kwargs)

@@ -8,7 +8,7 @@ from hydra.core.global_hydra import GlobalHydra
 from omegaconf import DictConfig, open_dict, OmegaConf
 import time
 from utils.utils import *
-from datasets.dataset import *
+from data_sets.dataset import *
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, LearningRateMonitor
 from actions.test import test
 from calibrator.cal_trainer import *
@@ -33,11 +33,11 @@ def calibrate(kwargs, wandb_logger):
     elif kwargs.data == 'path':
         dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)       
     elif kwargs.data == 'cifar10':
-        dataset = Cifar10Data(calibration=kwargs.calibration)
+        dataset = Cifar10Data(kwargs, experiment=kwargs.exp_name)
     elif kwargs.data == 'cifar10_ood':
         dataset = Cifar10OODData(calibration=kwargs.calibration)
-    elif kwargs.data == 'cifar10_longtail':
-        dataset = Cifar10LongTailData(calibration=kwargs.calibration)
+    elif kwargs.data == 'cifar10LT':
+        dataset = Cifar10LongTailData(kwargs, experiment=kwargs.exp_name)
     elif kwargs.data == 'cifar100':
         dataset = Cifar100Data(calibration=kwargs.calibration)    
     elif kwargs.data == 'cifar100_longtail':
@@ -102,7 +102,7 @@ def calibrate(kwargs, wandb_logger):
                     monitor="val_total",                                                                                            # Metric to track
                     mode="min",                                                                                                     # Lower is better
                     save_top_k=1,                                                                                                   # Only keep the best model
-                    filename=f"classifier_seed-{seed}_ep-{total_epochs}.pt",                                                        # Static filename (no epoch suffix)
+                    filename=f"classifier_seed-{seed}_ep-{total_epochs}",                                                        # Static filename (no epoch suffix)
                     dirpath=path,                                                                                                   # Save in your existing checkpoint folder
                     save_weights_only=True,                                                                                         # Save only weights (not full LightningModule)
                     auto_insert_metric_name=False,                                                                                  # Prevent metric name in filename

@@ -192,17 +192,65 @@ class PathMnistVit(nn.Module):
         return self.scaler(logits)       
     
     
-class Cifar10Arch(nn.Module):
-    def __init__():
-        super().__init__()
-        pass
+class Cifar10Vit(nn.Module):
+    """Model for just classification.
+    The architecture of our model is the same as standard DenseNet121
+    """
+
+    def __init__(self, temperature=1.0, num_labels=10):
+        super(Cifar10Vit, self).__init__()      
+        self.scaler = ScaledLogits(temperature)
+        self.vit = timm.create_model('vit_base_patch16_224', pretrained=True, num_classes=num_labels, in_chans=3)
+        print(self.vit)
+        
+        # Freeze all parameters
+        for param in self.vit.parameters():
+            param.requires_grad = False
+
+        # Unfreeze last transformer block
+        for name, param in self.vit.named_parameters():
+            if 'blocks.11' in name:
+                param.requires_grad = True
+
+        # Unfreeze classifier head
+        for param in self.vit.get_classifier().parameters():
+            param.requires_grad = True
+
+    def forward(self, x):
+        logits = self.vit(x)                
+        return self.scaler(logits)   
+    
+    
+class Cifar10LTVit(nn.Module):
+    """Model for just classification.
+    The architecture of our model is the same as standard DenseNet121
+    """
+
+    def __init__(self, temperature=1.0, num_labels=10):
+        super(Cifar10LTVit, self).__init__()      
+        self.scaler = ScaledLogits(temperature)
+        self.vit = timm.create_model('vit_base_patch16_224', pretrained=True, num_classes=num_labels, in_chans=3)
+        print(self.vit)
+        
+        # Freeze all parameters
+        for param in self.vit.parameters():
+            param.requires_grad = False
+
+        # Unfreeze last transformer block
+        for name, param in self.vit.named_parameters():
+            if 'blocks.11' in name:
+                param.requires_grad = True
+
+        # Unfreeze classifier head
+        for param in self.vit.get_classifier().parameters():
+            param.requires_grad = True
+
+    def forward(self, x):
+        logits = self.vit(x)                
+        return self.scaler(logits)    
+    
     
 class Cifar10OODArch(nn.Module):
-    def __init__():
-        super().__init__()
-        pass
-
-class Cifar10LongTailArch(nn.Module):
     def __init__():
         super().__init__()
         pass

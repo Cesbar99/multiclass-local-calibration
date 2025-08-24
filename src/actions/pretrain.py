@@ -12,7 +12,7 @@ from hydra.core.global_hydra import GlobalHydra
 from omegaconf import DictConfig, open_dict, OmegaConf
 import time
 from utils.utils import *
-from datasets.dataset import *
+from data_sets.dataset import *
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, LearningRateMonitor
 from actions.test import test
 
@@ -47,16 +47,16 @@ def pretrain(kwargs, wandb_logger):
         pl_model = MedMnistModel(kwargs.models)
         
     elif kwargs.data == 'cifar10':
-        dataset = Cifar10Data()
-        pl_model = Cifar10Model()
+        dataset = Cifar10Data(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data)
+        pl_model = Cifar10Model(kwargs.models)
         
+    elif kwargs.data == 'cifar10LT':
+        dataset = Cifar10LongTailData(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data)
+        pl_model = Cifar10LongTailModel(kwargs.models)
+    
     elif kwargs.data == 'cifar10_ood':
         dataset = Cifar10OODData()
         pl_model = Cifar10OODModel()
-        
-    elif kwargs.data == 'cifar10_longtail':
-        dataset = Cifar10LongTailData()
-        pl_model = Cifar10LongTailModel()
         
     elif kwargs.data == 'cifar100':
         dataset = Cifar100Data()        

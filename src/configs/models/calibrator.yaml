@@ -4,8 +4,8 @@ defaults:
 model: calibrator
 
 optimizer:
-  name: adam
-  lr: 1e-2
+  name: SGD #adam
+  lr: 1e-3
   weight_decay: 0. #0.0001
 
   
@@ -24,3 +24,4 @@ sampling: False            # If true uses parametrised varances to to add noise 
 use_empirical_freqs: True  # If true computes cross-entropy with empirical frequencies about of each point in place else uses softmax of new latent encodings 
 predict_labels: True       # If true computes cross-entropy with true labels else uses predicted labels of frozen model
 js_distance: True          # If true copmutes JS distance in place of kl divergence between model scroes and kernel estimates
+

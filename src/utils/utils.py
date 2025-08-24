@@ -7,10 +7,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.calibration import calibration_curve
 from pytorch_lightning.callbacks import Callback, ModelCheckpoint
+from torchvision import transforms
+from sklearn.model_selection import train_test_split
+from collections import Counter
+
 
 class ClearCacheCallback(Callback):
     def on_train_epoch_end(self, trainer, pl_module):
         torch.cuda.empty_cache()
+
 
 class VerboseModelCheckpoint(ModelCheckpoint):
     def __init__(self, *args, **kwargs):
@@ -26,6 +31,7 @@ class VerboseModelCheckpoint(ModelCheckpoint):
                 current_epoch = trainer.current_epoch
                 print(f"\nNew best model saved at epoch {current_epoch}: {self.best_model_path} with val_total = {self.best_model_score:.4f}\n")
                 self._last_best_score = self.best_model_score
+       
                 
 def get_raw_res(raws):
     preds = torch.cat([raws[j]["preds"].cpu() for j in range(len(raws))])
@@ -47,6 +53,7 @@ def get_raw_res(raws):
     raw_res = pd.concat([raw_res, tmp], axis=1)    
     return raw_res
 
+
 def create_logdir(name: str, resume_training: bool, wandb_logger):
     basepath = os.path.dirname(os.path.abspath(sys.argv[0]))
     basepath = os.path.join(os.path.dirname(os.path.dirname(basepath)), 'result')
@@ -58,6 +65,7 @@ def create_logdir(name: str, resume_training: bool, wandb_logger):
         raise Exception(f'Run {run_name} already exists. Please delete the folder {logdir} or choose a different run name.')
     os.makedirs(logdir,exist_ok=True)
     return logdir
+
 
 def compute_multiclass_calibration_metrics(probs: torch.Tensor, y_true: torch.Tensor, n_bins: int = 15, full_ece: bool = False):
     """
@@ -118,6 +126,7 @@ def compute_multiclass_calibration_metrics(probs: torch.Tensor, y_true: torch.Te
     avg_brier = sum(briers) / len(briers)
 
     return avg_ece, avg_mce, avg_brier
+
 
 def multiclass_calibration_plot(y_true, probs, n_bins=15, save_path="calibration_plots", filename="multiclass_calibration.png"):
     """
@@ -208,6 +217,7 @@ def random_label_smoothing(one_hot_labels, smoothing=0.1):
 
     return smoothed_labels
 
+
 ######### WHEN TRAINING OV-RIDE DEFUALT CHECKPOINT DICT WITH ACTUAL USED VALUES #########   
 def fix_default_checkpoint(kwargs):
     if kwargs.pretrain:
@@ -230,3 +240,38 @@ def fix_default_checkpoint(kwargs):
             if key ==  'epochs':
                 to_ret['epochs'] = kwargs.models.epochs               
     return to_ret
+
+
+def apply_transform(example):
+    transform = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.ToTensor()
+    ])
+    example['image'] = transform(example['image'])
+    return example
+
+
+def stratified_split(dataset, train_ratio=0.45, val_ratio=0.1, seed=42):
+    labels = [example['label'] for example in dataset]
+    indices = list(range(len(dataset)))
+
+    # First split: train vs temp (val + eval_cal)
+    train_idx, temp_idx, _, temp_labels = train_test_split(
+        indices, labels, stratify=labels, test_size=(1 - train_ratio), random_state=seed
+    )
+
+    # Second split: val vs eval_cal
+    val_ratio_adjusted = val_ratio / (1 - train_ratio)
+    val_idx, eval_cal_idx = train_test_split(
+        temp_idx, stratify=temp_labels, test_size=(1 - val_ratio_adjusted), random_state=seed
+    )
+
+    return train_idx, val_idx, eval_cal_idx
+
+
+def print_class_distribution(name, labels_tensor):
+    label_counts = Counter(labels_tensor.tolist())
+    print(f"\n📊 Class distribution in {name}:")
+    for cls in sorted(label_counts):
+        print(f"  Class {cls}: {label_counts[cls]} samples")
+

@@ -50,7 +50,7 @@ save_path_calibration_metrics: /home/barbera/calibration/localibration/results/m
 # default behaviour for batch size
 batch_size_map:
   pre-train: 32
-  calibrate: 512
+  calibrate: 1024 #512
 
 # default models for experiment
 models_map:
@@ -58,6 +58,5 @@ models_map:
   synthetic: mlp
   tissue: tissue_vit #tissue_resnet50
   path: path_vit
-
-
-  
+  cifar10: cifar10_vit
+  cifar10LT: cifar10LT_vit

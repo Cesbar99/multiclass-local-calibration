@@ -39,7 +39,11 @@ def pretrain(kwargs, wandb_logger):
         pl_model = MnistModel(kwargs.models)
     
     elif kwargs.data == 'tissue':
-        dataset = MedMnistData(kwargs.dataset, experiment=kwargs.exp_name)
+        dataset = MedMnistData(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data)
+        pl_model = MedMnistModel(kwargs.models)    
+        
+    elif kwargs.data == 'path':
+        dataset = MedMnistData(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data)
         pl_model = MedMnistModel(kwargs.models)
         
     elif kwargs.data == 'cifar10':

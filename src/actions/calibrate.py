@@ -29,7 +29,9 @@ def calibrate(kwargs, wandb_logger):
             kwargs.data = kwargs.data + '_' + kwargs.dataset.variant                        
         dataset = MnistData(kwargs, experiment=kwargs.exp_name)
     elif kwargs.data == 'tissue':
-        dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)        
+        dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)   
+    elif kwargs.data == 'path':
+        dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)       
     elif kwargs.data == 'cifar10':
         dataset = Cifar10Data(calibration=kwargs.calibration)
     elif kwargs.data == 'cifar10_ood':

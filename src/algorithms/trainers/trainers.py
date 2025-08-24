@@ -172,13 +172,18 @@ class MedMnistModel(pl.LightningModule):
         self.optimizer_cfg = kwargs.optimizer
         self.use_acc = kwargs.use_acc
                     
-        self.model = TissueMNISTResNet50(self.temperature)
-        task = 'multiclass'
+        if kwargs.model == 'tissue_vit':
+            self.model = TissueMnistVit(self.temperature)
+            num_classes = 8
+        elif kwargs.model == 'path_vit':
+            self.model = PathMnistVit(self.temperature)
+            num_classes = 9
         
+        task = 'multiclass'        
         if self.use_acc:
-            self.acc_train = torchmetrics.Accuracy(task=task, num_classes=8) # CHANGE IF NEEDED
-            self.acc_val = torchmetrics.Accuracy(task=task, num_classes=8) # CHANGE IF NEEDED
-        self.acc_test = torchmetrics.Accuracy(task=task, num_classes=8) # CHANGE IF NEEDED
+            self.acc_train = torchmetrics.Accuracy(task=task, num_classes=num_classes) # CHANGE IF NEEDED
+            self.acc_val = torchmetrics.Accuracy(task=task, num_classes=num_classes) # CHANGE IF NEEDED
+        self.acc_test = torchmetrics.Accuracy(task=task, num_classes=num_classes) # CHANGE IF NEEDED
 
     def forward(self, x):
         return self.model(x)
@@ -207,11 +212,11 @@ class MedMnistModel(pl.LightningModule):
     def configure_optimizers(self):
         opt_name = self.optimizer_cfg.name.lower()
         sched_name = self.optimizer_cfg.scheduler
-        #lr = self.optimizer_cfg.lr
-        params = [
-            {"params": self.model.resnet50.fc.parameters(), "lr": self.optimizer_cfg.lr_fc},
-            {"params": self.model.resnet50.layer4.parameters(), "lr": self.optimizer_cfg.lr_layer4}
-        ]        
+        lr = self.optimizer_cfg.lr
+        # params = [
+        #     {"params": self.model.vit.fc.parameters(), "lr": self.optimizer_cfg.lr_fc},
+        #     {"params": self.model.vit.layer4.parameters(), "lr": self.optimizer_cfg.lr_layer4}
+        # ]        
         wd = self.optimizer_cfg.get("weight_decay", 0.0)
 
         # Dynamically get the optimizer class
@@ -220,16 +225,21 @@ class MedMnistModel(pl.LightningModule):
             raise ValueError(f"Unsupported optimizer: {opt_name}")
 
         # Build kwargs dynamically
-        #optimizer_kwargs = {"lr": lr, "weight_decay": wd}
-        #if opt_name == "sgd":
-        #    optimizer_kwargs["momentum"] = self.optimizer_cfg.get("momentum", 0.9)
+        optimizer_kwargs = {"lr": lr, "weight_decay": wd}
+        if opt_name == "sgd":
+            optimizer_kwargs["momentum"] = self.optimizer_cfg.get("momentum", 0.9)
 
-        #optimizer = optimizer_class(self.parameters(), **optimizer_kwargs)
-        optimizer = optimizer_class(params, weight_decay=wd)
+        optimizer = optimizer_class(self.parameters(), **optimizer_kwargs)
+        #optimizer = optimizer_class(params, weight_decay=wd)
         
         # Add scheduler here
-        scheduler_class = getattr(torch.optim.lr_scheduler, sched_name, None)
-        
+        if isinstance(sched_name, str) and sched_name:
+            scheduler_class = getattr(torch.optim.lr_scheduler, sched_name, None)
+            if scheduler_class is None:
+                raise ValueError(f"Trying to pass an argument to learning rate scheduler which is inalid! '{sched_name}' was given!")
+        else:
+            scheduler_class = None
+
         if scheduler_class is None: 
             return {
             "optimizer": optimizer}

@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
+import timm
+
 
 class ScaledLogits(nn.Module):
     def __init__(self, temperature=1.0):
@@ -131,8 +133,65 @@ class TissueMNISTResNet50(nn.Module):
     def forward(self, x):
         logits = self.resnet50(x)
         return self.scaler(logits)  
-            
-            
+         
+                        
+class TissueMnistVit(nn.Module):
+    """Model for just classification.
+    The architecture of our model is the same as standard DenseNet121
+    """
+
+    def __init__(self, temperature=1.0, num_labels=8):
+        super(TissueMnistVit, self).__init__()      
+        self.scaler = ScaledLogits(temperature)
+        self.vit = timm.create_model('vit_base_patch16_224', pretrained=True, num_classes=num_labels, in_chans=1)
+        print(self.vit)
+        
+        # Freeze all parameters
+        for param in self.vit.parameters():
+            param.requires_grad = False
+
+        # Unfreeze last transformer block
+        for name, param in self.vit.named_parameters():
+            if 'blocks.11' in name:
+                param.requires_grad = True
+
+        # Unfreeze classifier head
+        for param in self.vit.get_classifier().parameters():
+            param.requires_grad = True
+
+    def forward(self, x):
+        logits = self.vit(x)                
+        return self.scaler(logits)          
+    
+class PathMnistVit(nn.Module):
+    """Model for just classification.
+    The architecture of our model is the same as standard DenseNet121
+    """
+
+    def __init__(self, temperature=1.0, num_labels=9):
+        super(PathMnistVit, self).__init__()      
+        self.scaler = ScaledLogits(temperature)
+        self.vit = timm.create_model('vit_base_patch16_224', pretrained=True, num_classes=num_labels, in_chans=3)
+        print(self.vit)
+        
+        # Freeze all parameters
+        for param in self.vit.parameters():
+            param.requires_grad = False
+
+        # Unfreeze last transformer block
+        for name, param in self.vit.named_parameters():
+            if 'blocks.11' in name:
+                param.requires_grad = True
+
+        # Unfreeze classifier head
+        for param in self.vit.get_classifier().parameters():
+            param.requires_grad = True
+
+    def forward(self, x):
+        logits = self.vit(x)                
+        return self.scaler(logits)       
+    
+    
 class Cifar10Arch(nn.Module):
     def __init__():
         super().__init__()

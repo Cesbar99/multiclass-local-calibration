@@ -56,4 +56,8 @@ batch_size_map:
 models_map:
   mnist: mnist_cnn
   synthetic: mlp
-  tissue: tissue_resnet50
+  tissue: tissue_vit #tissue_resnet50
+  path: path_vit
+
+
+  

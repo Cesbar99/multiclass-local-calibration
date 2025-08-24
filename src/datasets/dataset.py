@@ -9,9 +9,10 @@ import pandas as pd
 from utils.utils import *
 from scipy.io import loadmat
 import medmnist
-from medmnist import TissueMNIST, INFO
+from medmnist import TissueMNIST, PathMNIST, INFO
 from torch.utils.data import random_split
 import os
+from tiny_imagenet_torch import TinyImageNet
 
 def generateCalibrationData(kwargs):
     #temperature = str(int(kwargs.checkpoint.temperature))
@@ -328,7 +329,8 @@ class MnistData(Dataset):
                         
 
 class MedMnistData(Dataset):    
-    def __init__(self, kwargs, experiment=None, name='tissue'):          
+    def __init__(self, kwargs, experiment=None, name='path'):         
+        self.name = name 
         if experiment == 'pre-train':                     
             self.generatePretrainingMedMnistData(size=kwargs.size,
                                 batch_size = kwargs.batch_size,
@@ -340,18 +342,18 @@ class MedMnistData(Dataset):
     def generatePretrainingMedMnistData(self, size,
                                 batch_size,
                                 random_state):                        
-        l_transforms = [
-            transforms.RandomHorizontalFlip(),
-            transforms.RandomRotation(10),
-            transforms.Resize((224, 224)) if size < 224 else transforms.Lambda(lambda x: x),
-            transforms.Grayscale(num_output_channels=3),  # Convert to 3-channel RGB
-            transforms.ToTensor(), 
-            transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                std=[0.229, 0.224, 0.225])
-        ]
+        l_transforms = [transforms.ToTensor()]
+            #transforms.RandomHorizontalFlip(),
+            #transforms.RandomRotation(10),
+            #transforms.Resize((224, 224)) if size < 224 else transforms.Lambda(lambda x: x),
+            #transforms.Grayscale(num_output_channels=3),  # Convert to 3-channel RGB
+            #transforms.ToTensor(), 
+            #transforms.Normalize(mean=[0.485, 0.456, 0.406],
+            #                    std=[0.229, 0.224, 0.225])
+        #]
 
         # Remove any None or identity transforms
-        l_transforms = [t for t in l_transforms if not isinstance(t, transforms.Lambda)]
+        #l_transforms = [t for t in l_transforms if not isinstance(t, transforms.Lambda)]
 
         trans = transforms.Compose(l_transforms)
 
@@ -359,17 +361,25 @@ class MedMnistData(Dataset):
         print(f"Dataset source information : MedMNIST v{medmnist.__version__} @ {medmnist.HOMEPAGE}")
         info = INFO['tissuemnist']
         print(info['description'])
-        os.makedirs("./data/TISSUE/data_train", exist_ok=True)
-        os.makedirs("./data/TISSUE/data_val", exist_ok=True)
-        os.makedirs("./data/TISSUE/data_test", exist_ok=True)
-
-        train_set = TissueMNIST(root="./data/TISSUE/data_train", split="train", transform=trans, download=True, size=size) #, as_rgb=self.as_rgb) #165k        
-        train_size = len(train_set)
-        half_size = train_size // 2        
+        os.makedirs(f"./data/{self.name.upper()}/data_train", exist_ok=True)
+        os.makedirs(f"./data/{self.name.upper()}/data_val", exist_ok=True)
+        os.makedirs(f"./data/{self.name.upper()}/data_test", exist_ok=True)
         generator = torch.Generator().manual_seed(random_state)
-        train_set, eval_cal_set = random_split(train_set, [half_size, train_size - half_size], generator=generator) #82.5K BOTH  
-        val_set = TissueMNIST(root="./data/TISSUE/data_val", split="val", transform=trans, download=True, size=size) #, as_rgb=self.as_rgb) #20k
-        train_cal_set = TissueMNIST(root="./data/TISSUE/data_test", split="test", transform=trans, download=True, size=size) #, as_rgb=self.as_rgb) #40k
+        
+        if self.name == 'tissue':
+            train_set = TissueMNIST(root="./data/TISSUE/data_train", split="train", transform=trans, download=True, size=size) #, as_rgb=self.as_rgb) #165k        
+            train_size = len(train_set)
+            half_size = train_size // 2                    
+            train_set, eval_cal_set = random_split(train_set, [half_size, train_size - half_size], generator=generator) #82.5k BOTH  
+            val_set = TissueMNIST(root="./data/TISSUE/data_val", split="val", transform=trans, download=True, size=size) #, as_rgb=self.as_rgb) #20k
+            train_cal_set = TissueMNIST(root="./data/TISSUE/data_test", split="test", transform=trans, download=True, size=size) #, as_rgb=self.as_rgb) #40k
+        elif self.name == 'path':
+            train_set = PathMNIST(root="./data/PATH/data_train", split="train", transform=trans, download=True, size=size) #, as_rgb=self.as_rgb) #89kk        
+            train_size = len(train_set)
+            half_size = train_size // 2                    
+            train_set, eval_cal_set = random_split(train_set, [half_size, train_size - half_size], generator=generator) #45k BOTH  
+            val_set = PathMNIST(root="./data/PATH/data_test", split="test", transform=trans, download=True, size=size) #, as_rgb=self.as_rgb) #7k
+            train_cal_set = PathMNIST(root="./data/PATH/data_val", split="val", transform=trans, download=True, size=size) #, as_rgb=self.as_rgb) #10k
                 
         print(f'Train shape: {len(train_set)}, Learn Calibration shape: {len(train_cal_set)}, Validation shape: {len(val_set)}, Eval Calibration shape: {len(eval_cal_set)}')
 

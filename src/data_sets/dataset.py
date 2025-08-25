@@ -61,10 +61,16 @@ def generateCalibrationData(kwargs):
     
     # Load your data
     df_train_calibration_data = pd.read_csv(test_results)
-    df_eval_calibration_data = pd.read_csv(cal_results)
-    
+    df_eval_calibration_data = pd.read_csv(cal_results)    
+
     # Extract features and labels
     X_train_cal = df_train_calibration_data.drop(columns=["true", "preds"]).values
+    std_per_column = np.std(X_train_cal, axis=0)
+    print("Standard deviation per column:")
+    print(std_per_column)
+    print("Mean standard deviation per column:")
+    print(np.mean(std_per_column))
+    
     y_train_cal = df_train_calibration_data["true"].values
     p_train_cal = df_train_calibration_data["preds"].values
 

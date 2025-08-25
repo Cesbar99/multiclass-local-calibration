@@ -91,32 +91,34 @@ def calibrate(kwargs, wandb_logger):
             #gradient_clip_val=5,
             deterministic=True,
             callbacks=[
-                 EarlyStopping(
-                     monitor="val_total",
-                     patience=5,
-                     mode="min",
-                     verbose=True,
-                     min_delta=0.0,
-                 ),
-                 ModelCheckpoint(
-                    monitor="val_total",                                                                                            # Metric to track
-                    mode="min",                                                                                                     # Lower is better
-                    save_top_k=1,                                                                                                   # Only keep the best model
-                    filename=f"classifier_seed-{seed}_ep-{total_epochs}",                                                        # Static filename (no epoch suffix)
-                    dirpath=path,                                                                                                   # Save in your existing checkpoint folder
-                    save_weights_only=True,                                                                                         # Save only weights (not full LightningModule)
-                    auto_insert_metric_name=False,                                                                                  # Prevent metric name in filename
-                    every_n_epochs=1,                                                                                               # Run every epoch                    
-                    enable_version_counter=False,
-                    verbose=True
-                ) 
-            ]
+                  EarlyStopping(
+                      monitor="val_kl",
+                      patience=40,
+                      mode="min",
+                      verbose=True,
+                      min_delta=0.0,
+                  ),
+                  ModelCheckpoint(
+                     monitor="val_kl",                                                                                            # Metric to track
+                     mode="min",                                                                                                     # Lower is better
+                     save_top_k=1,                                                                                                   # Only keep the best model
+                     filename=f"classifier_seed-{seed}_ep-{total_epochs}",                                                        # Static filename (no epoch suffix)
+                     dirpath=path,                                                                                                   # Save in your existing checkpoint folder
+                     save_weights_only=True,                                                                                         # Save only weights (not full LightningModule)
+                     auto_insert_metric_name=False,                                                                                  # Prevent metric name in filename
+                     every_n_epochs=1,                                                                                               # Run every epoch                    
+                     enable_version_counter=False,
+                     verbose=True
+                 ) 
+             ]
          )
     start = time.time()
     trainer.fit(pl_model, dataset.data_train_cal_loader,
                     dataset.data_val_cal_loader)
     train_time = time.time() - start
     print(train_time)
+    
+    #path_model = join(path, f"classifier_seed-{seed}_ep-{total_epochs}")
     #torch.save(pl_model.model.state_dict(), path_model)
     best_model_path = trainer.checkpoint_callback.best_model_path
     print(F'LOADING CHECKPOINT FILE {best_model_path}')

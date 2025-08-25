@@ -195,6 +195,23 @@ def multiclass_calibration_plot(y_true, probs, n_bins=15, save_path="calibration
     print(f"Calibration plot saved to: {full_path}")
 
 
+def label_smoothing(one_hot_labels: torch.Tensor, smoothing: float) -> torch.Tensor:
+    '''
+    Applies label smoothing to one-hot encoded labels.
+
+    Args:
+        one_hot_labels (torch.Tensor): Tensor of shape (batch_size, num_classes)
+        smoothing (float): Smoothing factor between 0 and 1
+
+    Returns:
+        torch.Tensor: Smoothed labels of same shape
+    '''
+    assert 0.0 <= smoothing < 1.0, "Smoothing must be in [0, 1)"
+    num_classes = one_hot_labels.size(1)
+    smooth_labels = one_hot_labels * (1.0 - smoothing) + smoothing / num_classes
+    return smooth_labels
+
+
 def random_label_smoothing(one_hot_labels, smoothing=0.1):
     """
     Applies random label smoothing to one-hot encoded labels using PyTorch.

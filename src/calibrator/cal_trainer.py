@@ -8,8 +8,7 @@ def categorical_cross_entropy(probs, targets, eps=1e-8):
     probs = torch.clamp(probs, eps, 1.0 - eps)  # avoid log(0)
     return -torch.sum(targets * torch.log(probs), dim=1).mean()
 
-def compute_multiclass_kl_divergence(p2, p1, y_one_hot, num_classes, js_distance=False,
-                                     entropy_factor=1, eps=1e-4):
+def compute_multiclass_kl_divergence(p2, p1, num_classes, eps=1e-4):
     # Clip values to avoid log(0)
     p2 = torch.clamp(p2, eps, 1 - eps)
     p1 = torch.clamp(p1, eps, 1 - eps)
@@ -25,15 +24,15 @@ def compute_multiclass_kl_divergence(p2, p1, y_one_hot, num_classes, js_distance
     js_divergence = torch.maximum(js_divergence, torch.tensor(eps, device=js_divergence.device))
 
     # JS distance
-    kl = torch.sqrt(js_divergence)
+    js_dist = torch.sqrt(js_divergence)
 
     # Entropy-based weighting (currently unused, but placeholder kept)
     weights = 1.0
 
     if num_classes == 2:
-        to_ret = torch.sum(kl * weights, dim=0, keepdim=True)[0]
+        to_ret = torch.sum(js_dist * weights, dim=0, keepdim=True)[0]
     else:
-        to_ret = torch.mean(torch.mean(kl * weights, dim=0, keepdim=True), dim=1)[0]
+        to_ret = torch.mean(torch.mean(js_dist * weights, dim=0, keepdim=True), dim=1)[0]
 
     return to_ret
 
@@ -88,8 +87,10 @@ class AuxTrainer(pl.LightningModule):
         self.model = AuxiliaryMLP(hidden_dim=kwargs.hidden_dim, latent_dim=num_classes, log_var_initializer=kwargs.log_var_initializer)
         self.num_classes = num_classes        
         self.optimizer_cfg = kwargs.optimizer
+        self.init_alpha1 = kwargs.alpha1
         self.alpha1 = kwargs.alpha1
         self.alpha2 = kwargs.alpha2
+        self.init_lambda_kl = kwargs.lambda_kl
         self.lambda_kl = kwargs.lambda_kl
         self.entropy_factor = kwargs.entropy_factor
         self.noise = kwargs.noise
@@ -98,12 +99,13 @@ class AuxTrainer(pl.LightningModule):
         self.sampling = kwargs.sampling
         self.predict_labels = kwargs.predict_labels
         self.use_empirical_freqs = kwargs.use_empirical_freqs
-        self.js_distance = kwargs.js_distance        
+        self.js_distance = kwargs.js_distance   
+        self.interpolation_epochs = kwargs.interpolation_epochs     
 
     def forward(self, x):
         return self.model(x)
 
-    def training_step(self, batch):
+    def training_step(self, batch):                
         init_logits, y_one_hot, init_preds, init_preds_one_hot = batch        
 
         # Add noise
@@ -111,7 +113,7 @@ class AuxTrainer(pl.LightningModule):
         noisy_logits = init_logits + self.noise * epsilon
 
         # Optional label smoothing        
-        noisy_y_one_hot = random_label_smoothing(y_one_hot, self.smoothing) if self.smoothing else y_one_hot
+        noisy_y_one_hot = label_smoothing(y_one_hot, self.smoothing) if self.smoothing else y_one_hot #random_label_smoothing
 
         # Forward pass
         latents = self(noisy_logits)
@@ -133,8 +135,7 @@ class AuxTrainer(pl.LightningModule):
         p1 = multiclass_neighborhood_class0_prob(means, z_hat, sigma=sigma, y=noisy_y_one_hot) 
 
         # KL divergence
-        kl_loss = compute_multiclass_kl_divergence(p2, p1, y_one_hot, self.num_classes,
-                                                   self.js_distance, self.entropy_factor)
+        kl_loss = compute_multiclass_kl_divergence(p2, p1, self.num_classes)
 
         # Constraint loss
         new_preds = torch.argmax(probs_hat, dim=1)
@@ -150,15 +151,18 @@ class AuxTrainer(pl.LightningModule):
         else:
             scores = p2
         constraint_loss = categorical_cross_entropy(scores, target) #F.cross_entropy(quantity, torch.argmax(target, dim=1))
+        if self.current_epoch < self.interpolation_epochs:
+            self.interpolate_weights()
 
         total_loss = (self.lambda_kl * kl_loss +
                       self.alpha1 * constraint_loss +
                       self.alpha2 * avg_variance ** 2)
 
         self.log("train_total", total_loss, on_epoch=True, on_step=False, prog_bar=True)
-        self.log("train_kl", kl_loss, on_epoch=True, on_step=False, prog_bar=True)
-        self.log("train_con_loss", constraint_loss, on_epoch=False, on_step=True, prog_bar=False)
-        self.log("train_constraint", constraint, on_epoch=False, on_step=True, prog_bar=True)
+        self.log("train_kl", kl_loss, on_epoch=True, on_step=False, prog_bar=False)
+        self.log("train_con_loss", constraint_loss, on_epoch=True, on_step=False, prog_bar=True)
+        self.log("train_constraint", constraint, on_epoch=True, on_step=False, prog_bar=False)
+        self.log("lambda_kl", self.lambda_kl, on_epoch=True, on_step=False, prog_bar=False)
 
         return total_loss
     
@@ -170,7 +174,7 @@ class AuxTrainer(pl.LightningModule):
         noisy_logits = init_logits + self.noise * epsilon
 
         # Optional label smoothing        
-        noisy_y_one_hot = random_label_smoothing(y_one_hot, self.smoothing) if self.smoothing else y_one_hot
+        noisy_y_one_hot = label_smoothing(y_one_hot, self.smoothing) if self.smoothing else y_one_hot
 
         # Forward pass
         latents = self(noisy_logits)
@@ -192,8 +196,7 @@ class AuxTrainer(pl.LightningModule):
         p1 = multiclass_neighborhood_class0_prob(means, z_hat, sigma=sigma, y=noisy_y_one_hot) 
 
         # KL divergence
-        kl_loss = compute_multiclass_kl_divergence(p2, p1, y_one_hot, self.num_classes,
-                                                   self.js_distance, self.entropy_factor)
+        kl_loss = compute_multiclass_kl_divergence(p2, p1, self.num_classes)
 
         # Constraint loss
         new_preds = torch.argmax(probs_hat, dim=1)
@@ -209,15 +212,15 @@ class AuxTrainer(pl.LightningModule):
         else:
             scores = p2
         constraint_loss = categorical_cross_entropy(scores, target) #F.cross_entropy(quantity, torch.argmax(target, dim=1))
-
+        
         total_loss = (self.lambda_kl * kl_loss +
                       self.alpha1 * constraint_loss +
-                      self.alpha2 * avg_variance ** 2)
-
+                      self.alpha2 * avg_variance ** 2)        
+            
         self.log("val_total", total_loss, on_epoch=True, on_step=False, prog_bar=True)
         self.log("val_kl", kl_loss, on_epoch=True, on_step=False, prog_bar=True)
         self.log("val_con_loss", constraint_loss, on_epoch=True, on_step=False, prog_bar=False)
-        self.log("val_constraint", constraint, on_epoch=True, on_step=False, prog_bar=True)        
+        self.log("val_constraint", constraint, on_epoch=True, on_step=False, prog_bar=True)                        
 
     def configure_optimizers(self):
         opt_name = self.optimizer_cfg.name #.lower()
@@ -275,4 +278,14 @@ class AuxTrainer(pl.LightningModule):
             "logits": new_logits,
         }
     
-    
+    def interpolate_weights(self):
+        epoch = self.current_epoch
+        total_epochs = self.interpolation_epochs
+        start_ratio = self.init_lambda_kl
+        end_ratio = 10 #self.init_alpha1
+        ratio = start_ratio + (end_ratio - start_ratio) * (epoch / total_epochs)
+        self.lambda_kl = ratio
+        self.alpha1 = end_ratio
+       
+       
+        

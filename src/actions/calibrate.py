@@ -23,7 +23,9 @@ def calibrate(kwargs, wandb_logger):
     pl.seed_everything(seed, workers=True)  
     
     if kwargs.data == 'synthetic':
-        dataset = SynthData(kwargs, experiment=kwargs.exp_name)        
+        dataset = SynthData(kwargs, experiment=kwargs.exp_name)  
+    elif kwargs.data == 'covtype':
+        dataset = CovTypeData(kwargs, experiment=kwargs.exp_name)                    
     elif kwargs.data == 'mnist':
         if kwargs.dataset.variant:
             kwargs.data = kwargs.data + '_' + kwargs.dataset.variant                        
@@ -93,7 +95,7 @@ def calibrate(kwargs, wandb_logger):
             callbacks=[
                   EarlyStopping(
                       monitor="val_kl",
-                      patience=40,
+                      patience=10,
                       mode="min",
                       verbose=True,
                       min_delta=0.0,

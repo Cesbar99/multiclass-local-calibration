@@ -498,6 +498,118 @@ class Cifar10LongTailModel(pl.LightningModule):
             "logits": logits,
         }
     
+
+class CovTypeModel(pl.LightningModule):
+    def __init__(self, kwargs, numerical_features, category_counts):
+        super().__init__()        
+        self.temperature = kwargs.temperature
+        self.optimizer_cfg = kwargs.optimizer
+        self.use_acc = kwargs.use_acc
+        num_classes = 7 # CHANGE IF NEEDED
+        if kwargs.model == 'covtype_resmlp':
+            self.model = ResMLP(input_dim=12, hidden_dim=128, num_classes=num_classes, depth=12) #
+        else:
+            CovType_FTT(numerical_features=numerical_features, category_counts=category_counts, temperature=self.temperature, num_labels=num_classes)                   
+            
+        task = 'multiclass'        
+        if self.use_acc:
+            self.acc_train = torchmetrics.Accuracy(task=task, num_classes=num_classes) # CHANGE IF NEEDED
+            self.acc_val = torchmetrics.Accuracy(task=task, num_classes=num_classes) # CHANGE IF NEEDED
+        self.acc_test = torchmetrics.Accuracy(task=task, num_classes=num_classes) # CHANGE IF NEEDED
+
+    def forward(self, x):        
+        return self.model(x)
+
+    def training_step(self, batch):
+        x, y = batch
+        #y = y.squeeze(1)
+        logits = self(x)
+        loss = F.cross_entropy(logits, y)
+        self.log("train_loss", loss, on_epoch=True, on_step=True, prog_bar=True)
+        if self.use_acc:            
+            self.acc_train(logits, y)
+            self.log('train_acc', self.acc_train, on_epoch=True, on_step=True, prog_bar=True)
+        return loss
+
+    def validation_step(self, batch):
+        x, y = batch
+        #y = y.squeeze(1)
+        logits = self(x)
+        val_loss = F.cross_entropy(logits, y)
+        self.log("val_loss", val_loss, on_epoch=True, on_step=False, prog_bar=True)
+        if self.use_acc:                          
+            self.acc_val(logits, y)
+            self.log('val_acc', self.acc_val, on_epoch=True, on_step=False, prog_bar=True)
+
+    def configure_optimizers(self):
+        opt_name = self.optimizer_cfg.name.lower()
+        sched_name = self.optimizer_cfg.scheduler
+        lr = self.optimizer_cfg.lr
+        # params = [
+        #     {"params": self.model.vit.fc.parameters(), "lr": self.optimizer_cfg.lr_fc},
+        #     {"params": self.model.vit.layer4.parameters(), "lr": self.optimizer_cfg.lr_layer4}
+        # ]        
+        wd = self.optimizer_cfg.get("weight_decay", 0.0)
+
+        # Dynamically get the optimizer class
+        optimizer_class = getattr(torch.optim, opt_name.capitalize(), None)
+        if optimizer_class is None:
+            raise ValueError(f"Unsupported optimizer: {opt_name}")
+
+        # Build kwargs dynamically
+        optimizer_kwargs = {"lr": lr, "weight_decay": wd}
+        if opt_name == "sgd":
+            optimizer_kwargs["momentum"] = self.optimizer_cfg.get("momentum", 0.9)
+
+        optimizer = optimizer_class(self.parameters(), **optimizer_kwargs)
+        #optimizer = optimizer_class(params, weight_decay=wd)
+        
+        # Add scheduler here
+        if isinstance(sched_name, str) and sched_name:
+            scheduler_class = getattr(torch.optim.lr_scheduler, sched_name, None)
+            if scheduler_class is None:
+                raise ValueError(f"Trying to pass an argument to learning rate scheduler which is inalid! '{sched_name}' was given!")
+        else:
+            scheduler_class = None
+
+        if scheduler_class is None: 
+            return {
+            "optimizer": optimizer}
+        else:
+            scheduler = scheduler_class(optimizer, step_size=self.optimizer_cfg.step_size, gamma=self.optimizer_cfg.gamma)
+            return {
+                "optimizer": optimizer,
+                "lr_scheduler": {
+                    "scheduler": scheduler,
+                    "interval": "epoch",  # Step every epoch
+                    "frequency": 1        # Apply every epoch
+                }
+            }                                    
+
+        #return optimizer
+    
+    def predict_step(self, batch):
+        """
+        Prediction step for a batch of data.
+        :param batch:
+        A tuple containing the input data `x`, target labels `y`, and feedback `h`.
+        :param batch_idx:
+        Index of the batch in the current epoch.
+        :param dataloader_idx:
+        Index of the dataloader (default is 0).
+        :return:
+            A dictionary containing the predictions, probabilities, feedback, true labels, rejection score, and selection status.
+        """
+        x, y = batch  # assuming batch = (x, y, h)
+
+        logits = self(x)        
+        preds = torch.argmax(logits, dim=-1).view(-1,1)
+        target = y
+        return {
+            "preds": preds,            
+            "true": target,
+            "logits": logits,
+        }
             
 class Cifar10OODModel(nn.Module):
     def __init__():

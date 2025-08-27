@@ -17,7 +17,7 @@ from datasets import load_dataset
 from PIL import Image
 import io
 
-def generateCalibrationData(kwargs):
+def generateCalibrationData(kwargs, dataname=None):
     #temperature = str(int(kwargs.checkpoint.temperature))
 
     if kwargs.data == 'synthetic':   
@@ -168,6 +168,21 @@ class ClassificationDataset(Dataset):
             
         y = self.y[idx]
         return x, y
+    
+class CovTypeClassificationDataset(Dataset):
+    def __init__(self, X_num, X_cat, y):
+        self.X_num = torch.tensor(X_num, dtype=torch.float32)  
+        self.X_cat = torch.tensor(X_cat, dtype=torch.long)         
+        self.y = torch.tensor(y, dtype=torch.long)  # one-hot encoded                
+
+    def __len__(self):
+        return len(self.y)
+
+    def __getitem__(self, idx):
+        x_num = self.X_num[idx]           
+        x_cat = self.X_cat[idx]           
+        y = self.y[idx]
+        return (x_cat, x_num), y    
 
 class SynthData(Dataset):
     def __init__(self, kwargs, experiment=None, name='synthetic'):        
@@ -216,7 +231,7 @@ class SynthData(Dataset):
         X_eval_cal, X_train_cal, y_eval_cal, y_train_cal = train_test_split(X_train_cal, y_train_cal, test_size=0.1668, random_state=random_state)        
         X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.1668, random_state=random_state)
         #y_train_oh = F.one_hot(y_train, num_classes=num_classes) #to_categorical(y_train, num_classes)
-
+      
         print(f'Train shape: {X_train.shape}, Learn Calibration shape: {X_train_cal.shape}, Validation shape: {X_val.shape}, Eval Calibration shape: {X_eval_cal.shape}')
         X_train = torch.tensor(X_train, dtype=torch.float32)
         y_train = torch.tensor(y_train, dtype=torch.long) 
@@ -230,7 +245,7 @@ class SynthData(Dataset):
         train_set = ClassificationDataset(X_train, y_train)
         eval_cal_set   = ClassificationDataset(X_eval_cal, y_eval_cal)
         val_set   = ClassificationDataset(X_val, y_val)
-        train_cal_set  = ClassificationDataset(X_train_cal, y_train_cal)
+        train_cal_set  = ClassificationDataset(X_train_cal, y_train_cal)       
 
         self.data_train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True,)
         self.data_eval_cal_loader   = DataLoader(eval_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
@@ -239,6 +254,82 @@ class SynthData(Dataset):
         
         print("Loading synthetic data for pre-training complete")            
             
+            
+class CovTypeData(Dataset):
+    def __init__(self, kwargs, experiment=None, name='covtype'):        
+        self.dataname = name
+        if experiment == 'pre-train':        
+            self.generatePretrainingCovTypeData(batch_size = kwargs.batch_size,
+                                    random_state = kwargs.random_state)      
+        elif experiment == 'calibrate':
+            self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationData(kwargs, dataname=self.dataname) 
+            print("Loading synthetic data for calibration complete")   
+
+    def generatePretrainingCovTypeData(self, 
+                                batch_size,
+                                random_state):        
+        
+        forest_cover_type = pd.read_csv('./data/COVERTYPE/covtype.csv') 
+        self.categorical_features = ['Wilderness', 'Soil']        
+        self.numerical_features = []
+        for col in forest_cover_type.columns:
+            if col != 'Cover_Type':
+                if not ( col.startswith('Wilderness') or col.startswith('Soil_Type') ):                    
+                    self.numerical_features.append(col)
+                 
+        forest_cover_type['Wilderness'] = forest_cover_type[[col for col in forest_cover_type.columns if col.startswith('Wilderness')]].idxmax(axis=1).apply(lambda x: int(''.join(filter(str.isdigit, x)))-1)
+        forest_cover_type['Soil'] = forest_cover_type[[col for col in forest_cover_type.columns if col.startswith('Soil_Type')]].idxmax(axis=1).apply(lambda x: int(''.join(filter(str.isdigit, x)))-1)
+        forest_cover_type.drop(columns=[col for col in forest_cover_type.columns if col.startswith('Wilderness_Area') or col.startswith('Soil_Type')], inplace=True)        
+        self.category_counts = tuple(forest_cover_type[feature].nunique() for feature in self.categorical_features)
+        print(forest_cover_type.head(5))
+        
+        X_num = forest_cover_type.drop(columns=self.categorical_features+['Cover_Type'])
+        X_cat = forest_cover_type.drop(columns=self.numerical_features+['Cover_Type'])
+        y = forest_cover_type['Cover_Type'].values - 1 # from 0 to 6 not from 1 to 7!!!!
+
+        X_num = StandardScaler().fit_transform(X_num)  # normalize input        
+        X_cat_array = X_cat.values
+        X = np.concatenate([X_num, X_cat_array], axis=1)
+
+        X_train, X_train_cal, y_train, y_train_cal = train_test_split(X, y, test_size=0.5, random_state=random_state)
+        X_eval_cal, X_train_cal, y_eval_cal, y_train_cal = train_test_split(X_train_cal, y_train_cal, test_size=0.16, random_state=random_state)        
+        X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.16, random_state=random_state)   
+        print(f'Train shape: {X_train.shape}, Learn Calibration shape: {X_train_cal.shape}, Validation shape: {X_val.shape}, Eval Calibration shape: {X_eval_cal.shape}')
+        
+        X_train_num = X_train[:, :-2]
+        X_train_cat = X_train[:, -2:]
+        X_val_num = X_val[:, :-2]
+        X_val_cat = X_val[:, -2:]
+        X_train_cal_num = X_train_cal[:, :-2]
+        X_train_cal_cat = X_train_cal[:, -2:]
+        X_eval_cal_num = X_eval_cal[:, :-2]
+        X_eval_cal_cat = X_eval_cal[:, -2:]
+                  
+        X_train_num = torch.tensor(X_train_num, dtype=torch.float32)
+        X_train_cat = torch.tensor(X_train_cat, dtype=torch.float32)
+        y_train = torch.tensor(y_train, dtype=torch.long) 
+        X_train_cal_num = torch.tensor(X_train_cal_num, dtype=torch.float32)
+        X_train_cal_cat = torch.tensor(X_train_cal_cat, dtype=torch.float32)
+        y_train_cal = torch.tensor(y_train_cal, dtype=torch.long) 
+        X_eval_cal_num = torch.tensor(X_eval_cal_num, dtype=torch.float32)
+        X_eval_cal_cat = torch.tensor(X_eval_cal_cat, dtype=torch.float32)
+        y_eval_cal = torch.tensor(y_eval_cal, dtype=torch.long) 
+        X_val_num = torch.tensor(X_val_num, dtype=torch.float32)
+        X_val_cat = torch.tensor(X_val_cat, dtype=torch.float32)
+        y_val = torch.tensor(y_val, dtype=torch.long) 
+        
+        train_set = CovTypeClassificationDataset(X_train_num, X_train_cat, y_train)
+        eval_cal_set   = CovTypeClassificationDataset(X_eval_cal_num, X_eval_cal_cat, y_eval_cal)
+        val_set   = CovTypeClassificationDataset(X_val_num, X_val_cat, y_val)
+        train_cal_set  = CovTypeClassificationDataset(X_train_cal_num, X_train_cal_cat, y_train_cal)             
+
+        self.data_train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True,)
+        self.data_eval_cal_loader   = DataLoader(eval_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        self.data_val_loader   = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        self.data_train_cal_loader  = DataLoader(train_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        
+        print("Loading synthetic data for pre-training complete")                      
+
             
 class MnistData(Dataset):    
     def __init__(self, kwargs, experiment=None, name='mnist'):          

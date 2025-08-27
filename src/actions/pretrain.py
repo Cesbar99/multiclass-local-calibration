@@ -32,6 +32,10 @@ def pretrain(kwargs, wandb_logger):
                             use_acc=kwargs.models.use_acc
                         )
         
+    elif kwargs.data == 'covtype':
+        dataset = CovTypeData(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data)
+        pl_model = CovTypeModel(kwargs.models, dataset.numerical_features, dataset.category_counts)
+        
     elif kwargs.data == 'mnist':
         if kwargs.dataset.variant:
             kwargs.data = kwargs.data + '_' + kwargs.dataset.variant            

@@ -2,15 +2,25 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
+import numpy as np
+from omegaconf import ListConfig
+
 
 class AuxiliaryMLP(pl.LightningModule):
     def __init__(self, hidden_dim=64, latent_dim=2, log_var_initializer=0.01):
         super().__init__()
         self.latent_dim = latent_dim
-
-        # Equivalent to log_var_initializer in TensorFlow
-        var_init = torch.log(torch.tensor(log_var_initializer, dtype=torch.float32))
-
+                
+        if isinstance(log_var_initializer, (float, int, torch.Tensor)) and not hasattr(log_var_initializer, '__len__'):
+            # Scalar case: fill with the same value
+            var_tensor = torch.full((latent_dim,), log_var_initializer)
+        elif isinstance(log_var_initializer, (ListConfig, list, tuple, np.ndarray, torch.Tensor)):
+            # Vector case: convert to tensor and validate shape
+            var_tensor = torch.tensor(log_var_initializer, dtype=torch.float32)
+            if var_tensor.shape[0] != latent_dim:
+                raise ValueError(f"Length of var_init ({var_tensor.shape[0]}) must match latent_dim ({latent_dim})")
+        else:
+            raise TypeError("var_init must be a float, int, list, tuple, or tensor")        
         # Small weight initialization
         small_init = nn.init.normal_
 
@@ -25,7 +35,7 @@ class AuxiliaryMLP(pl.LightningModule):
         # Bias initialization: [0.0]*latent_dim + [var_init]*latent_dim
         bias_init = torch.cat([
             torch.zeros(latent_dim),
-            torch.full((latent_dim,), var_init)
+            var_tensor
         ])
         with torch.no_grad():
             self.dense8.bias.copy_(bias_init)

@@ -17,5 +17,5 @@ js_distance: True          # If true copmutes JS distance in place of kl diverge
 interpolation_epochs: 0.   # Number of epochs for lambda_kl to drop to alpha1. To not interolate set as 0                                                                #
 
 
-Early stop metric: val_kl, Model checkpoint metric: val_kl
+Early stop: metric=val_kl,patience=40, Model checkpoint metric: val_kl 
 ########################################

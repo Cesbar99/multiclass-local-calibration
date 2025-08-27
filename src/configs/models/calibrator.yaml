@@ -8,6 +8,9 @@ optimizer:
   lr: 1e-3
   weight_decay: 0. #0.0001
 
+loss:
+  name: #focal
+  gamma: 2
   
 # calibration hyper-parameters                                                                                                                                                                                        
 log_var_initializer: 1.    # Control initial variance. less classes -> smaller values. If sampling is true set to small values to initialize encodings close to inputs   #   

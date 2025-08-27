@@ -4,6 +4,18 @@ import pytorch_lightning as pl
 from utils.utils import *
 from calibrator.local_net import *
 
+
+class FocalLoss(nn.Module):
+    def __init__(self, gamma=2.0):
+        super().__init__()
+        self.gamma = gamma
+
+    def forward(self, logits, targets):
+        ce_loss = F.cross_entropy(logits, targets, reduction='none')
+        pt = torch.exp(-ce_loss)
+        focal_loss = ((1 - pt) ** self.gamma) * ce_loss
+        return focal_loss.mean()
+
 def categorical_cross_entropy(probs, targets, eps=1e-8):
     probs = torch.clamp(probs, eps, 1.0 - eps)  # avoid log(0)
     return -torch.sum(targets * torch.log(probs), dim=1).mean()
@@ -84,6 +96,9 @@ def multiclass_neighborhood_class0_prob(means, z_hat, sigma, y, eps=1e-6):
 class AuxTrainer(pl.LightningModule):
     def __init__(self, kwargs, num_classes):              
         super().__init__()
+        self.loss_name = kwargs.loss.name
+        if self.loss_name == 'focal':
+            self.loss_fn = FocalLoss(gamma=kwargs.loss.gamma)
         self.model = AuxiliaryMLP(hidden_dim=kwargs.hidden_dim, latent_dim=num_classes, log_var_initializer=kwargs.log_var_initializer)
         self.num_classes = num_classes        
         self.optimizer_cfg = kwargs.optimizer
@@ -150,7 +165,12 @@ class AuxTrainer(pl.LightningModule):
             scores = p1
         else:
             scores = p2
-        constraint_loss = categorical_cross_entropy(scores, target) #F.cross_entropy(quantity, torch.argmax(target, dim=1))
+            
+        if self.loss_name == 'focal':
+            constraint_loss = self.loss_fn(scores, target) # focal variant of opur loss
+        else:    
+            constraint_loss = categorical_cross_entropy(scores, target) #F.cross_entropy(quantity, torch.argmax(target, dim=1))
+            
         if self.current_epoch < self.interpolation_epochs:
             self.interpolate_weights()
 
@@ -211,7 +231,11 @@ class AuxTrainer(pl.LightningModule):
             scores = p1
         else:
             scores = p2
-        constraint_loss = categorical_cross_entropy(scores, target) #F.cross_entropy(quantity, torch.argmax(target, dim=1))
+        
+        if self.loss_name == 'focal':
+            constraint_loss = self.loss_fn(scores, target) #F.cross_entropy(quantity, torch.argmax(target, dim=1))
+        else:    
+            constraint_loss = categorical_cross_entropy(scores, target) #F.cross_entropy(quantity, torch.argmax(target, dim=1))
         
         total_loss = (self.lambda_kl * kl_loss +
                       self.alpha1 * constraint_loss +

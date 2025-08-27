@@ -61,4 +61,4 @@ models_map:
   cifar10: cifar10_vit
   cifar10LT: cifar10LT_vit
   covtype: covtype_resmlp #covtype_ftt
-
+  otto: otto_resmlp #otto_ftt 

@@ -1,15 +1,10 @@
 defaults:
   - _self_
 
-model: covtype_resmlp
+model: otto_ftt
 temperature: 1.0
 use_acc: True
 epochs: 10
-depth: 12
-dropout: 0
-loss:  
-  name: # focal
-  gamma: 2
 
 optimizer:
   name: adam

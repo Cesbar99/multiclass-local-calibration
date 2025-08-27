@@ -35,6 +35,10 @@ def pretrain(kwargs, wandb_logger):
     elif kwargs.data == 'covtype':
         dataset = CovTypeData(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data)
         pl_model = CovTypeModel(kwargs.models, dataset.numerical_features, dataset.category_counts)
+    
+    elif kwargs.data == 'otto':
+        dataset = OttoData(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data)
+        pl_model = OttoModel(kwargs.models, dataset.numerical_features)        
         
     elif kwargs.data == 'mnist':
         if kwargs.dataset.variant:
@@ -152,10 +156,11 @@ def pretrain(kwargs, wandb_logger):
     #torch.save(pl_model.model.state_dict(), path_model)
     best_model_path = trainer.checkpoint_callback.best_model_path
     print(F'LOADING CHECKPOINT FILE {best_model_path}')
+    #best_model_path = '/home/barbera/calibration/localibration/checkpoints/pre-train/otto_9_classes_None_features/classifier_seed-42_ep-100_tmp_1.0.pt.ckpt'
     checkpoint = torch.load(best_model_path)
     pl_model.load_state_dict(checkpoint['state_dict'])
     
-    raws = trainer.predict(pl_model, dataset.data_train_cal_loader)
+    raws = trainer.predict(pl_model, dataset.data_train_cal_loader) #dataset.data_train_cal_loader
     res = get_raw_res(raws)
     res.to_csv(raw_results_path_train_cal, index=False)
     

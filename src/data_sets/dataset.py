@@ -168,7 +168,22 @@ class ClassificationDataset(Dataset):
             
         y = self.y[idx]
         return x, y
-    
+        
+class OttoClassificationDataset(Dataset):
+    def __init__(self, X, y):        
+        self.X = torch.tensor(X, dtype=torch.float32)       
+        self.X_cat = torch.empty((self.X.shape[0], 0), dtype=torch.long) 
+        self.y = torch.tensor(y, dtype=torch.long)  # one-hot encoded
+        
+    def __len__(self):
+        return len(self.y)
+
+    def __getitem__(self, idx):
+        x_num = self.X[idx]           
+        x_cat = self.X_cat[idx]           
+        y = self.y[idx]
+        return (x_cat, x_num), y 
+        
 class CovTypeClassificationDataset(Dataset):
     def __init__(self, X_num, X_cat, y):
         self.X_num = torch.tensor(X_num, dtype=torch.float32)  
@@ -183,6 +198,7 @@ class CovTypeClassificationDataset(Dataset):
         x_cat = self.X_cat[idx]           
         y = self.y[idx]
         return (x_cat, x_num), y    
+
 
 class SynthData(Dataset):
     def __init__(self, kwargs, experiment=None, name='synthetic'):        
@@ -328,9 +344,59 @@ class CovTypeData(Dataset):
         self.data_val_loader   = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
         self.data_train_cal_loader  = DataLoader(train_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
         
-        print("Loading synthetic data for pre-training complete")                      
+        print("Loading covtype data for pre-training complete")                      
 
-            
+         
+class OttoData(Dataset):
+    def __init__(self, kwargs, experiment=None, name='otto'):        
+        self.dataname = name
+        if experiment == 'pre-train':        
+            self.generatePretrainingOttoData(batch_size = kwargs.batch_size,
+                                    random_state = kwargs.random_state)      
+        elif experiment == 'calibrate':
+            self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationData(kwargs, dataname=self.dataname) 
+            print("Loading synthetic data for calibration complete")   
+
+    def generatePretrainingOttoData(self, 
+                                batch_size,
+                                random_state):        
+        
+        otto = pd.read_csv('./data/OTTO/train.csv')  # 60k obs                        
+        
+        X = otto.drop(columns=['id', 'target'])    
+        self.numerical_features = X.shape[1]    
+        otto['target_int'] = otto['target'].map(lambda x: int(x.split('_')[1]))
+        y = otto['target_int'].values - 1 # from 0 to 8 not from 1 to 9!!!!
+
+        X = StandardScaler().fit_transform(X)  # normalize input                        
+
+        X_train, X_train_cal, y_train, y_train_cal = train_test_split(X, y, test_size=0.5, random_state=random_state)
+        X_eval_cal, X_train_cal, y_eval_cal, y_train_cal = train_test_split(X_train_cal, y_train_cal, test_size=0.16, random_state=random_state)        
+        X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.16, random_state=random_state)   
+        print(f'Train shape: {X_train.shape}, Learn Calibration shape: {X_train_cal.shape}, Validation shape: {X_val.shape}, Eval Calibration shape: {X_eval_cal.shape}')
+                
+        X_train = torch.tensor(X_train, dtype=torch.float32)
+        y_train = torch.tensor(y_train, dtype=torch.long) 
+        X_train_cal = torch.tensor(X_train_cal, dtype=torch.float32)
+        y_train_cal = torch.tensor(y_train_cal, dtype=torch.long) 
+        X_eval_cal = torch.tensor(X_eval_cal, dtype=torch.float32)
+        y_eval_cal = torch.tensor(y_eval_cal, dtype=torch.long) 
+        X_val = torch.tensor(X_val, dtype=torch.float32)
+        y_val = torch.tensor(y_val, dtype=torch.long) 
+        
+        train_set = OttoClassificationDataset(X_train, y_train)
+        eval_cal_set   = OttoClassificationDataset(X_eval_cal, y_eval_cal)
+        val_set   = OttoClassificationDataset(X_val, y_val)
+        train_cal_set  = OttoClassificationDataset(X_train_cal, y_train_cal)          
+
+        self.data_train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True,)
+        self.data_eval_cal_loader   = DataLoader(eval_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        self.data_val_loader   = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        self.data_train_cal_loader  = DataLoader(train_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        
+        print("Loading otto data for pre-training complete")   
+        
+                
 class MnistData(Dataset):    
     def __init__(self, kwargs, experiment=None, name='mnist'):          
         if experiment == 'pre-train':   

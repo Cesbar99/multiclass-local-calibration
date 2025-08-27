@@ -256,13 +256,15 @@ class ResidualBlock(nn.Module):
         self.fc2 = nn.Linear(dim, dim)
         self.norm1 = nn.LayerNorm(dim)
         self.norm2 = nn.LayerNorm(dim)
-        self.dropout = nn.Dropout(dropout)
+        if self.dropout:
+            self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
         residual = x
         x = self.norm1(x)
         x = F.relu(self.fc1(x))
-        x = self.dropout(x)
+        if self.dropout:
+            x = self.dropout(x)
         x = self.norm2(x)
         x = self.fc2(x)
         return x + residual  # Residual connection
@@ -307,6 +309,33 @@ class CovType_FTT(nn.Module):
     def forward(self, x):
         x_cat, x_num = x
         logits = self.ftt(x_cat, x_num)                
+        return self.scaler(logits)        
+    
+class Otto_FTT(nn.Module):
+    """Model for just classification.
+    The architecture of our model is the same as standard DenseNet121
+    """
+    def __init__(self, numerical_features, temperature=1.0, num_labels=9):
+        super(Otto_FTT, self).__init__()      
+        self.scaler = ScaledLogits(temperature)
+        self.ftt = FTTransformer(
+            categories = [],                                            # tuple containing the number of unique values within each category (10, 5, 6, 5, 8)
+            num_continuous = numerical_features,                        # number of continuous values
+            dim = 32,                                                   # dimension, paper set at 32
+            dim_out = num_labels,                                       # binary prediction, but could be anything
+            depth = 6,                                                  # depth, paper recommended 6
+            heads = 8,                                                  # heads, paper recommends 8
+            attn_dropout = 0.1,                                         # post-attention dropout
+            ff_dropout = 0.1                                            # feed forward dropout
+            #mlp_hidden_mults = (4, 2),                                 # relative multiples of each hidden dimension of the last mlp to logits
+            #mlp_act = nn.ReLU()                                        # activation for final mlp, defaults to relu, but could be anything else (selu etc)
+            #continuous_mean_std = cont_mean_std # (optional) - normalize the continuous values before layer norm
+        )        
+        print(self.ftt)
+
+    def forward(self, x):
+        x_categ, x_num = x        
+        logits = self.ftt(x_categ, x_num)                
         return self.scaler(logits)        
     
 class Cifar10OODArch(nn.Module):

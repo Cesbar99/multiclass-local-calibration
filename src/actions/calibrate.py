@@ -25,7 +25,9 @@ def calibrate(kwargs, wandb_logger):
     if kwargs.data == 'synthetic':
         dataset = SynthData(kwargs, experiment=kwargs.exp_name)  
     elif kwargs.data == 'covtype':
-        dataset = CovTypeData(kwargs, experiment=kwargs.exp_name)                    
+        dataset = CovTypeData(kwargs, experiment=kwargs.exp_name)  
+    elif kwargs.data == 'otto':
+        dataset = OttoData(kwargs, experiment=kwargs.exp_name)                    
     elif kwargs.data == 'mnist':
         if kwargs.dataset.variant:
             kwargs.data = kwargs.data + '_' + kwargs.dataset.variant                        
@@ -91,41 +93,41 @@ def calibrate(kwargs, wandb_logger):
             logger=wandb_logger,
             check_val_every_n_epoch=1,
             #gradient_clip_val=5,
-            deterministic=True,
-            callbacks=[
-                  EarlyStopping(
-                      monitor="val_kl",
-                      patience=10,
-                      mode="min",
-                      verbose=True,
-                      min_delta=0.0,
-                  ),
-                  ModelCheckpoint(
-                     monitor="val_kl",                                                                                            # Metric to track
-                     mode="min",                                                                                                     # Lower is better
-                     save_top_k=1,                                                                                                   # Only keep the best model
-                     filename=f"classifier_seed-{seed}_ep-{total_epochs}",                                                        # Static filename (no epoch suffix)
-                     dirpath=path,                                                                                                   # Save in your existing checkpoint folder
-                     save_weights_only=True,                                                                                         # Save only weights (not full LightningModule)
-                     auto_insert_metric_name=False,                                                                                  # Prevent metric name in filename
-                     every_n_epochs=1,                                                                                               # Run every epoch                    
-                     enable_version_counter=False,
-                     verbose=True
-                 ) 
-             ]
-         )
+            deterministic=True)
+            # callbacks=[
+            #       EarlyStopping(
+            #           monitor="val_kl",
+            #           patience=10,
+            #           mode="min",
+            #           verbose=True,
+            #           min_delta=0.0,
+            #       ),
+            #       ModelCheckpoint(
+            #          monitor="val_kl",                                                                                            # Metric to track
+            #          mode="min",                                                                                                     # Lower is better
+            #          save_top_k=1,                                                                                                   # Only keep the best model
+            #          filename=f"classifier_seed-{seed}_ep-{total_epochs}",                                                        # Static filename (no epoch suffix)
+            #          dirpath=path,                                                                                                   # Save in your existing checkpoint folder
+            #          save_weights_only=True,                                                                                         # Save only weights (not full LightningModule)
+            #          auto_insert_metric_name=False,                                                                                  # Prevent metric name in filename
+            #          every_n_epochs=1,                                                                                               # Run every epoch                    
+            #          enable_version_counter=False,
+            #          verbose=True
+            #      ) 
+            #  ]
+        # )
     start = time.time()
     trainer.fit(pl_model, dataset.data_train_cal_loader,
                     dataset.data_val_cal_loader)
     train_time = time.time() - start
     print(train_time)
     
-    #path_model = join(path, f"classifier_seed-{seed}_ep-{total_epochs}")
-    #torch.save(pl_model.model.state_dict(), path_model)
-    best_model_path = trainer.checkpoint_callback.best_model_path
-    print(F'LOADING CHECKPOINT FILE {best_model_path}')
-    checkpoint = torch.load(best_model_path)
-    pl_model.load_state_dict(checkpoint['state_dict'])
+    path_model = join(path, f"classifier_seed-{seed}_ep-{total_epochs}")
+    torch.save(pl_model.model.state_dict(), path_model)
+    #best_model_path = trainer.checkpoint_callback.best_model_path
+    #print(F'LOADING CHECKPOINT FILE {best_model_path}')
+    #checkpoint = torch.load(best_model_path)
+    #pl_model.load_state_dict(checkpoint['state_dict'])
 
     raws = trainer.predict(pl_model, dataset.data_test_cal_loader)
     res = get_raw_res(raws)

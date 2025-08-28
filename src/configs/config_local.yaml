@@ -10,7 +10,6 @@ defaults:
 
 # Global parameters
 seed: 42
-use_wandb: True
 resume_training: False
 offline: False
 device: cuda
@@ -40,7 +39,7 @@ calibration_method: "local_calibration"
 wandb_entity: cesare-barbera-university-of-trento
 wandb_project: calibration-experiments
 wandb_id:
-use_wand: True
+use_wandb: True
 
 # testing and calibration metrics
 n_bins_calibration_metrics: 15
@@ -65,3 +64,4 @@ models_map:
 
 # HP-optimisation
 use_optuna: False
+optuna_epochs: 10

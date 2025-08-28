@@ -12,14 +12,14 @@ def objective(trial, kwargs, train_loader, val_loader, wandb_logger):
     # Suggest hyperparameters
     lambda_kl = trial.suggest_float("lambda_kl", 0.0, 1.0)
     alpha1 = trial.suggest_float("alpha1", 0.0, 1.0)
-    log_var_init = trial.suggest_float("log_var_init", 0.0, 10.0)
+    log_var_initializer = trial.suggest_float("log_var_initializer", 0.0, 10.0)
     
     kwargs.models.lambda_kl = lambda_kl
     kwargs.models.alpha1 = alpha1
-    kwargs.models.log_var_init = log_var_init
+    kwargs.models.log_var_initializer = log_var_initializer
 
     # Build your model with these hyperparameters
-    model = AuxTrainer(kwargs, num_classes=kwargs.dataset.checkpoint.num_classes)    
+    model = AuxTrainer(kwargs.models, num_classes=kwargs.dataset.num_classes)    
 
     trainer = pl.Trainer(
             max_epochs=total_epochs,
@@ -28,7 +28,7 @@ def objective(trial, kwargs, train_loader, val_loader, wandb_logger):
             logger=wandb_logger,
             enable_progress_bar=False,
             enable_model_summary=False,
-            determinisitc=True
+            deterministic=True
     )
     
     # Train and validate
@@ -37,3 +37,7 @@ def objective(trial, kwargs, train_loader, val_loader, wandb_logger):
     # Use final validation loss as objective
     val_loss = trainer.callback_metrics["val_total"].item()
     return val_loss
+
+def print_callback(study, trial):
+    print(f"Trial {trial.number} finished with value: {trial.value}")
+    print(f"  Params: {trial.params}")

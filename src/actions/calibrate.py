@@ -14,9 +14,10 @@ from actions.test import test
 from calibrator.cal_trainer import *
 from calibrator.local_net import *
 import optuna
-from hp_opt.hp_opt import objective
+from hp_opt.hp_opt import *
+from pytorch_lightning.loggers import WandbLogger
 
-def calibrate(kwargs, wandb_logger):
+def calibrate(kwargs, wandb_logger, wandb_optuna_logger):
     
     seed = kwargs.seed
     total_epochs = kwargs.models.epochs    
@@ -75,11 +76,15 @@ def calibrate(kwargs, wandb_logger):
         os.makedirs(path, exist_ok=True) 
         os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
         
-        if kwargs.use_optuna:
+        if kwargs.use_optuna:    
+            optuna_args = kwargs
+            optuna_args.models.epochs = kwargs.optuna_epochs        
             study = optuna.create_study(direction="minimize")
             study.optimize(
-                lambda trial: objective(trial, kwargs.models, dataset.data_train_cal_loader, dataset.data_val_cal_loader, wandb_logger),
-                n_trials=50
+                lambda trial: objective(trial, optuna_args, dataset.data_train_cal_loader, dataset.data_val_cal_loader, wandb_optuna_logger),
+                n_trials=50,
+                show_progress_bar=True,
+                callbacks=[print_callback]
             )
 
             # Print best result

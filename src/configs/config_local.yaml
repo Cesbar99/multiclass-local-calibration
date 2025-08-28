@@ -64,4 +64,8 @@ models_map:
 
 # HP-optimisation
 use_optuna: False
-optuna_epochs: 10
+optuna_epochs: 15
+n_trials: 50
+multi_obj: False
+
+

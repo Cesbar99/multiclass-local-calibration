@@ -28,7 +28,8 @@ def main(cfg: DictConfig):
     base_dir = os.path.join(os.path.dirname(os.path.dirname(base_dir)), 'result')
     
     exp_name = f'{kwargs.exp_name}_{kwargs.data}_{now.strftime("%m%d_%H%M")}' #target
-    optuna_exp_name = f'optuna_{kwargs.data}_{now.strftime("%m%d_%H%M")}' #target
+    if kwargs.use_optuna:
+        exp_name = 'optuna_'+ exp_name #{kwargs.data}_{now.strftime("%m%d_%H%M")}' 
     if kwargs.use_wandb:
         if kwargs.resume_training and kwargs.wandb_id:
              wandb_logger = WandbLogger(name=exp_name, project=kwargs.wandb_project, entity=kwargs.wandb_entity, save_dir=base_dir, offline=kwargs.offline, id=kwargs.wandb_id, resume='allow')
@@ -36,10 +37,10 @@ def main(cfg: DictConfig):
             wandb_logger = WandbLogger(name=exp_name, project=kwargs.wandb_project, entity=kwargs.wandb_entity, save_dir=base_dir, offline=kwargs.offline)        
     else:
         wandb_logger = WandbLogger(name=exp_name, project='Test', entity=kwargs.wandb_entity, save_dir=base_dir, offline=kwargs.offline)
-    if kwargs.use_optuna:
-        wandb_optuna_logger = WandbLogger(name=optuna_exp_name, project=kwargs.wandb_project, entity=kwargs.wandb_entity, save_dir=base_dir, offline=kwargs.offline)
-    else: 
-        wandb_optuna_logger = None
+    #if kwargs.use_optuna:
+    #    wandb_optuna_logger = WandbLogger(name=optuna_exp_name, project=kwargs.wandb_project, entity=kwargs.wandb_entity, save_dir=base_dir, offline=kwargs.offline)
+    #else: 
+    #    wandb_optuna_logger = None
     kwargs.wandb_id = wandb_logger.version
         
     if kwargs.pretrain:
@@ -61,7 +62,7 @@ def main(cfg: DictConfig):
         if kwargs.dataset.batch_size is None:
             kwargs.dataset.batch_size = kwargs.batch_size_map.get(kwargs.exp_name, 512)  # fallback default        
         print("Calibrating model with {kwargs.calibration_method} technique...")
-        calibrate(kwargs, wandb_logger, wandb_optuna_logger)
+        calibrate(kwargs, wandb_logger)
         # Logic to calibrate the model
         # This is a placeholder for calibration logic
 
@@ -106,11 +107,13 @@ def main_entry():
                 raise ValueError(f"Explicitly provide 'exp_name' argument from CLI when testing! Allowed values are 'pre-train' and 'calibrate'. Instead '{cfg.exp_name}' was given!")                 
             
             elif cfg.exp_name == 'pre-train':
+                model_name = cfg.models_map[cfg.data].strip() 
                 full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides
                 model_name = cfg.models_map[cfg.data]
                 cfg = compose(config_name="config_local", overrides=full_overrides)
                 
             elif cfg.exp_name == 'calibrate':
+                model_name = 'calibrator'
                 full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides
                 model_name = 'calibrator'
                 cfg = compose(config_name="config_local", overrides=full_overrides)

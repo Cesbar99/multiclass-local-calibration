@@ -1,0 +1,27 @@
+{
+    "model": "calibrator",
+    "optimizer": {
+        "name": "adam",
+        "lr": 0.001,
+        "weight_decay": 0.0
+    },
+    "loss": {
+        "name": null,
+        "gamma": 2
+    },
+    "log_var_initializer": 0.27151433,
+    "hidden_dim": 32,
+    "alpha1": 1.0008242,
+    "alpha2": 0.0,
+    "lambda_kl": 1.1906822,
+    "entropy_factor": 0.0,
+    "epochs": 163,
+    "noise": 0.0,
+    "smoothing": 0.1,
+    "logits_scaling": 1.0,
+    "sampling": false,
+    "use_empirical_freqs": true,
+    "predict_labels": true,
+    "js_distance": true,
+    "interpolation_epochs": 0
+}

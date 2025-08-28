@@ -107,6 +107,7 @@ class AuxTrainer(pl.LightningModule):
         self.alpha2 = kwargs.alpha2
         self.init_lambda_kl = kwargs.lambda_kl
         self.lambda_kl = kwargs.lambda_kl
+        self.log_var_initializer = kwargs.log_var_initializer
         self.entropy_factor = kwargs.entropy_factor
         self.noise = kwargs.noise
         self.smoothing = kwargs.smoothing
@@ -182,7 +183,7 @@ class AuxTrainer(pl.LightningModule):
         self.log("train_kl", kl_loss, on_epoch=True, on_step=False, prog_bar=False)
         self.log("train_con_loss", constraint_loss, on_epoch=True, on_step=False, prog_bar=True)
         self.log("train_constraint", constraint, on_epoch=True, on_step=False, prog_bar=False)
-        self.log("lambda_kl", self.lambda_kl, on_epoch=True, on_step=False, prog_bar=False)
+        #self.log("lambda_kl", self.lambda_kl, on_epoch=True, on_step=False, prog_bar=False)
 
         return total_loss
     
@@ -239,12 +240,17 @@ class AuxTrainer(pl.LightningModule):
         
         total_loss = (self.lambda_kl * kl_loss +
                       self.alpha1 * constraint_loss +
-                      self.alpha2 * avg_variance ** 2)        
+                      self.alpha2 * avg_variance ** 2)              
+        optuna_loss = kl_loss + constraint_loss 
             
         self.log("val_total", total_loss, on_epoch=True, on_step=False, prog_bar=True)
+        self.log("optuna_loss", optuna_loss, on_epoch=True, on_step=False, prog_bar=True)
         self.log("val_kl", kl_loss, on_epoch=True, on_step=False, prog_bar=True)
         self.log("val_con_loss", constraint_loss, on_epoch=True, on_step=False, prog_bar=False)
-        self.log("val_constraint", constraint, on_epoch=True, on_step=False, prog_bar=True)                        
+        self.log("val_constraint", constraint, on_epoch=True, on_step=False, prog_bar=True)  
+        self.log("lambda_kl", self.lambda_kl, on_epoch=True, on_step=False, prog_bar=False)       
+        self.log("alpha1", self.alpha1, on_epoch=True, on_step=False, prog_bar=False)       
+        self.log("log_var", self.log_var_initializer, on_epoch=True, on_step=False, prog_bar=False)                              
 
     def configure_optimizers(self):
         opt_name = self.optimizer_cfg.name #.lower()

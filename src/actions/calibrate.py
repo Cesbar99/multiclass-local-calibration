@@ -14,10 +14,13 @@ from actions.test import test
 from calibrator.cal_trainer import *
 from calibrator.local_net import *
 import optuna
+from optuna.samplers import NSGAIISampler
 from hp_opt.hp_opt import *
 from pytorch_lightning.loggers import WandbLogger
+import json
 
-def calibrate(kwargs, wandb_logger, wandb_optuna_logger):
+
+def calibrate(kwargs, wandb_logger):
     
     seed = kwargs.seed
     total_epochs = kwargs.models.epochs    
@@ -76,23 +79,42 @@ def calibrate(kwargs, wandb_logger, wandb_optuna_logger):
         os.makedirs(path, exist_ok=True) 
         os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
         
-        if kwargs.use_optuna:    
-            optuna_args = kwargs
-            optuna_args.models.epochs = kwargs.optuna_epochs        
-            study = optuna.create_study(direction="minimize")
+        if kwargs.use_optuna:  
+            if kwargs.multi_obj:
+                study = optuna.create_study(
+                    directions=["minimize", "minimize"],  
+                    sampler=NSGAIISampler(),
+                    study_name="multi_objective"
+                )
+                calls = [multi_obj_print_callback]
+            else:  
+                study = optuna.create_study(direction="minimize", study_name="standard")
+                calls = [print_callback]
             study.optimize(
-                lambda trial: objective(trial, optuna_args, dataset.data_train_cal_loader, dataset.data_val_cal_loader, wandb_optuna_logger),
-                n_trials=50,
+                lambda trial: objective(trial, kwargs, dataset.data_train_cal_loader, dataset.data_val_cal_loader, wandb_logger),
+                n_trials=kwargs.n_trials,
                 show_progress_bar=True,
-                callbacks=[print_callback]
+                callbacks=calls
             )
-
-            # Print best result
-            print("Best trial:")
-            print(f"  Value: {study.best_trial.value}")
-            for key, value in study.best_trial.params.items():
-                print(f"    {key}: {value}")
-                kwargs.models.key = value
+            if kwargs.multi_obj:
+                fig = optuna.visualization.plot_pareto_front(study)    
+                appendix = kwargs.exp_name + '_' + kwargs.data + '_' + f'{kwargs.dataset.num_classes}_classes_' + f'{kwargs.dataset.num_features}_features'        
+                fig.write_html(f"results/plots/{appendix}/pare_front.html") #plt.savefig("results/plots/"+ appendix) #fig.write_image(f"results/plots/{kwargs.exp_name}/pareto_front.png")
+                pareto_trials = study.best_trials  # List of Pareto-optimal trials
+                for trial in pareto_trials:
+                    print(f"Trial {trial.number}: KL={trial.values[0]}, Constraint={trial.values[1]}")
+                best = min(pareto_trials, key=lambda t: t.values[0] + t.values[1])  # Simple sum             
+                for key, value in best.params.items():
+                    print(f"    {key}: {value}")
+                    kwargs.models[key] = value  
+            else:
+                # Print best result
+                print("Best trial:")
+                print(f"  Value: {study.best_trial.value}")
+                for key, value in study.best_trial.params.items():
+                    print(f"    {key}: {value}")
+                    kwargs.models[key] = value
+            # Params: {'lambda_kl': 1.191, 'alpha1': 1.001, 'log_var_initializer': 0.2715}
         
         pl_model = AuxTrainer(kwargs.models, num_classes=kwargs.dataset.num_classes)    
         
@@ -114,7 +136,7 @@ def calibrate(kwargs, wandb_logger, wandb_optuna_logger):
             check_val_every_n_epoch=1,
             #gradient_clip_val=5,
             deterministic=True)
-            # callbacks=[
+            #callbacks=[
             #       EarlyStopping(
             #           monitor="val_kl",
             #           patience=10,
@@ -122,20 +144,20 @@ def calibrate(kwargs, wandb_logger, wandb_optuna_logger):
             #           verbose=True,
             #           min_delta=0.0,
             #       ),
-            #       ModelCheckpoint(
-            #          monitor="val_kl",                                                                                            # Metric to track
-            #          mode="min",                                                                                                     # Lower is better
-            #          save_top_k=1,                                                                                                   # Only keep the best model
-            #          filename=f"classifier_seed-{seed}_ep-{total_epochs}",                                                        # Static filename (no epoch suffix)
-            #          dirpath=path,                                                                                                   # Save in your existing checkpoint folder
-            #          save_weights_only=True,                                                                                         # Save only weights (not full LightningModule)
-            #          auto_insert_metric_name=False,                                                                                  # Prevent metric name in filename
-            #          every_n_epochs=1,                                                                                               # Run every epoch                    
-            #          enable_version_counter=False,
-            #          verbose=True
-            #      ) 
-            #  ]
-        # )
+    #         ModelCheckpoint(
+    #             monitor="val_total",                                                                                               # Metric to track
+    #             mode="min",                                                                                                     # Lower is better
+    #             save_top_k=1,                                                                                                   # Only keep the best model
+    #             filename=f"classifier_seed-{seed}_ep-{total_epochs}",                                                           # Static filename (no epoch suffix)
+    #             dirpath=path,                                                                                                   # Save in your existing checkpoint folder
+    #             save_weights_only=True,                                                                                         # Save only weights (not full LightningModule)
+    #             auto_insert_metric_name=False,                                                                                  # Prevent metric name in filename
+    #             every_n_epochs=1,                                                                                               # Run every epoch                    
+    #             enable_version_counter=False,
+    #             verbose=True
+    #         ) 
+    #     ]
+    # )   
     start = time.time()
     trainer.fit(pl_model, dataset.data_train_cal_loader,
                     dataset.data_val_cal_loader)
@@ -154,9 +176,21 @@ def calibrate(kwargs, wandb_logger, wandb_optuna_logger):
     res.to_csv(raw_results_path_test_cal, index=False)
 
     print("CALIBRATION OVER!")
-    print("START TESTING!")        
-    test(kwargs)
     
+    # Save hp to JSON file
+    path = f"hyperparams/{kwargs.data}_{kwargs.checkpoint.num_classes}_classes_{kwargs.checkpoint.num_features}_features"
+    os.makedirs(path, exist_ok=True)    
+    path_hp = join(path, f"classifier_seed-{seed}_ep-{total_epochs}.json")        
+    hp_dict = OmegaConf.to_container(kwargs.models, resolve=True)    
+    with open(path_hp, "w") as f:
+        json.dump(hp_dict, f, indent=4)
+
+    print("\nSTART TESTING!")        
+    test(kwargs)
+        
+
+    # optuna: total=0.9974, kl=0.05042, const=0.93656
+    # me: total=4.73172, kl=0.05753, const=0.93483
     
     
     

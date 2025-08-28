@@ -13,7 +13,8 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, Learning
 from actions.test import test
 from calibrator.cal_trainer import *
 from calibrator.local_net import *
-
+import optuna
+from hp_opt.hp_opt import objective
 
 def calibrate(kwargs, wandb_logger):
     
@@ -73,6 +74,20 @@ def calibrate(kwargs, wandb_logger):
         path = f"checkpoints/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features/"
         os.makedirs(path, exist_ok=True) 
         os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
+        
+        if kwargs.use_optuna:
+            study = optuna.create_study(direction="minimize")
+            study.optimize(
+                lambda trial: objective(trial, kwargs.models, dataset.data_train_cal_loader, dataset.data_val_cal_loader, wandb_logger),
+                n_trials=50
+            )
+
+            # Print best result
+            print("Best trial:")
+            print(f"  Value: {study.best_trial.value}")
+            for key, value in study.best_trial.params.items():
+                print(f"    {key}: {value}")
+                kwargs.models.key = value
         
         pl_model = AuxTrainer(kwargs.models, num_classes=kwargs.dataset.num_classes)    
         

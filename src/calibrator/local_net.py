@@ -21,6 +21,10 @@ class AuxiliaryMLP(pl.LightningModule):
                 raise ValueError(f"Length of var_init ({var_tensor.shape[0]}) must match latent_dim ({latent_dim})")
         else:
             raise TypeError("var_init must be a float, int, list, tuple, or tensor")        
+        
+        # Inverse Softplus
+        var_tensor = torch.log(torch.exp(var_tensor) - 1)        
+        
         # Small weight initialization
         small_init = nn.init.normal_
 

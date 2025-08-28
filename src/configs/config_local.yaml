@@ -62,3 +62,6 @@ models_map:
   cifar10LT: cifar10LT_vit
   covtype: covtype_resmlp #covtype_ftt
   otto: otto_resmlp #otto_ftt 
+
+# HP-optimisation
+use_optuna: False

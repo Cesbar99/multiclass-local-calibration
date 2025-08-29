@@ -126,6 +126,14 @@ def calibrate(kwargs, wandb_logger):
                 seed,
                 total_epochs           
             )
+        raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}.csv".format(
+            kwargs.exp_name,
+            kwargs.data,
+            kwargs.dataset.num_classes,
+            kwargs.dataset.num_features,
+            seed,
+            total_epochs,                       
+        )
         
     print(F'BEGIN CALIBRATION FOR {total_epochs} EPOCHS WITH SEED {seed}!')        
     trainer = pl.Trainer(
@@ -171,6 +179,10 @@ def calibrate(kwargs, wandb_logger):
     #checkpoint = torch.load(best_model_path)
     #pl_model.load_state_dict(checkpoint['state_dict'])
 
+    raws = trainer.predict(pl_model, dataset.data_train_cal_loader) #dataset.data_train_cal_loader
+    res = get_raw_res(raws)
+    res.to_csv(raw_results_path_train_cal, index=False)
+    
     raws = trainer.predict(pl_model, dataset.data_test_cal_loader)
     res = get_raw_res(raws)
     res.to_csv(raw_results_path_test_cal, index=False)

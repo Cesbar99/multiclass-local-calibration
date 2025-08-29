@@ -130,7 +130,7 @@ def test(kwargs):
             appendix = kwargs.exp_name + '_' + kwargs.data + '_' + f'{kwargs.dataset.num_classes}_classes_' + f'{kwargs.dataset.num_features}_features'
             test_file_name = 'multicalss_calibration_test' + '.png'        
             save_path = join(kwargs.save_path_calibration_plots, appendix)
-            os.makedirs(save_path, exist_ok=True)    
+            os.makedirs(save_path, exist_ok=True)                
             test_results = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
                     kwargs.exp_name,
                     kwargs.data,
@@ -138,7 +138,8 @@ def test(kwargs):
                     kwargs.dataset.num_features,
                     kwargs.checkpoint.seed,
                     total_epochs,                
-                )       
+                )
+                   
         # Load your data
         df_test = pd.read_csv(test_results)        
 
@@ -178,5 +179,44 @@ def test(kwargs):
         # Print results
         print(f"Test Calibration — ECE: {ece_test:.4f}, MCE: {mce_test:.4f}, Brier: {brier_test:.4f}")        
         multiclass_calibration_plot(y_true_test_, probs_test, n_bins=n_bins, save_path=save_path, filename=test_file_name)                
+        
+        train_file_name = 'multicalss_calibration_train' + '.png'        
+        train_results = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}.csv".format(
+                    kwargs.exp_name,
+                    kwargs.data,
+                    kwargs.dataset.num_classes,
+                    kwargs.dataset.num_features,
+                    kwargs.checkpoint.seed,
+                    total_epochs,                
+                )
+        
+        # Load your data
+        df_train = pd.read_csv(train_results)        
+
+        # Compute accuracy
+        accuracy_train = (df_train['preds'] == df_train['true']).mean()
+        print(f'Test accuracy: {accuracy_train:.2%}')        
+        
+        # Extract logits and true labels
+        logits_train = df_train.drop(columns=['preds', 'true'])
+        labels_train = df_train['true']
+        
+        logits_train_ = torch.tensor(logits_train.values, dtype=torch.float32)
+        y_true_train_ = torch.tensor(labels_train.values, dtype=torch.long)
+
+        # Convert logits to probabilities
+        probs_train = F.softmax(logits_train_, dim=1)        
+
+        # Compute calibration metrics
+        ece_train, mce_train, brier_train = compute_multiclass_calibration_metrics(probs_train, y_true_train_, n_bins) 
+        results = {
+            "ECE": [ece_test],
+            "MCE": [mce_test],
+            "Brier": [brier_test]
+        }
+   
+        # Print results
+        print(f"Test Calibration — ECE: {ece_test:.4f}, MCE: {mce_test:.4f}, Brier: {brier_test:.4f}")        
+        multiclass_calibration_plot(y_true_train_, probs_train, n_bins=n_bins, save_path=save_path, filename=train_file_name)   
                 
         

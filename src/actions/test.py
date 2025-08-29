@@ -210,13 +210,13 @@ def test(kwargs):
         # Compute calibration metrics
         ece_train, mce_train, brier_train = compute_multiclass_calibration_metrics(probs_train, y_true_train_, n_bins) 
         results = {
-            "ECE": [ece_test],
-            "MCE": [mce_test],
-            "Brier": [brier_test]
+            "ECE": [ece_train],
+            "MCE": [mce_train],
+            "Brier": [brier_train]
         }
    
         # Print results
-        print(f"Test Calibration — ECE: {ece_test:.4f}, MCE: {mce_test:.4f}, Brier: {brier_test:.4f}")        
+        print(f"Test Calibration — ECE: {ece_train:.4f}, MCE: {mce_train:.4f}, Brier: {brier_train:.4f}")        
         multiclass_calibration_plot(y_true_train_, probs_train, n_bins=n_bins, save_path=save_path, filename=train_file_name)   
                 
         

@@ -99,7 +99,7 @@ class AuxTrainer(pl.LightningModule):
         self.loss_name = kwargs.loss.name
         if self.loss_name == 'focal':
             self.loss_fn = FocalLoss(gamma=kwargs.loss.gamma)
-        self.model = AuxiliaryMLP(hidden_dim=kwargs.hidden_dim, latent_dim=num_classes, log_var_initializer=kwargs.log_var_initializer)
+        self.model = AuxiliaryMLP(hidden_dim=kwargs.hidden_dim, latent_dim=num_classes, log_var_initializer=kwargs.log_var_initializer, dropout_rate=kwargs.dropout)
         self.num_classes = num_classes        
         self.optimizer_cfg = kwargs.optimizer
         self.init_alpha1 = kwargs.alpha1

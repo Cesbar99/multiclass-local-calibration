@@ -7,10 +7,11 @@ from omegaconf import ListConfig
 
 
 class AuxiliaryMLP(pl.LightningModule):
-    def __init__(self, hidden_dim=64, latent_dim=2, log_var_initializer=0.01):
+    def __init__(self, hidden_dim=64, latent_dim=2, log_var_initializer=0.01, dropout_rate=0.1):
         super().__init__()
         self.latent_dim = latent_dim
-                
+        self.dropout_rate = dropout_rate
+        
         if isinstance(log_var_initializer, (float, int, torch.Tensor)) and not hasattr(log_var_initializer, '__len__'):
             # Scalar case: fill with the same value
             var_tensor = torch.full((latent_dim,), log_var_initializer)
@@ -30,6 +31,7 @@ class AuxiliaryMLP(pl.LightningModule):
 
         # Define layers
         self.dense1 = nn.Linear(latent_dim, hidden_dim)
+        self.dropout = nn.Dropout(p=self.dropout_rate)  # 🔹 Dropout layer
         self.dense8 = nn.Linear(hidden_dim, 2 * latent_dim)
 
         # Initialize weights manually
@@ -49,6 +51,7 @@ class AuxiliaryMLP(pl.LightningModule):
         z_aug = torch.cat([z, torch.zeros_like(z[:, :self.latent_dim])], dim=1)  # (batch_size, 2*latent_dim)
 
         x = F.relu(self.dense1(z))
+        x = self.dropout(x)
         out = self.dense8(x) + z_aug
         return out
     

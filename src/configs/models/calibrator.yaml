@@ -2,6 +2,7 @@ defaults:
   - _self_
 
 model: calibrator
+data_name: 'otto'
 
 optimizer:
   name: adam #adam

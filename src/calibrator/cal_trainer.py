@@ -317,5 +317,3 @@ class AuxTrainer(pl.LightningModule):
         self.lambda_kl = ratio
         self.alpha1 = end_ratio
        
-       
-        

@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 import os
 from os.path import join
 import pandas as pd 
@@ -11,6 +12,74 @@ from torchvision import transforms
 from sklearn.model_selection import train_test_split
 from collections import Counter
 
+
+import pytorch_lightning as pl
+import torch
+
+import pytorch_lightning as pl
+import torch
+
+class CalibrationPlotCallback(pl.Callback):
+    def __init__(self, kwargs, dataloader, every_n_epochs=10, device="cuda", type='train'):
+        super().__init__()
+        self.dataloader = dataloader
+        self.every_n_epochs = every_n_epochs
+        self.device = device
+        self.data = kwargs.data
+        self.num_classes = kwargs.dataset.num_classes
+        self.num_features = kwargs.dataset.num_features
+        self.save_path = kwargs.save_path_calibration_plots
+        self.type=type
+
+    def on_train_epoch_end(self, trainer, pl_module):
+        # Only run every N epochs
+        if (trainer.current_epoch + 1) % self.every_n_epochs != 0:
+            return
+
+        pl_module.eval()
+        all_targets = []
+        all_probs = []
+
+        with torch.no_grad():
+            for batch in self.dataloader:
+                init_logits, y_one_hot, _, _ = batch
+                init_logits = init_logits.to(self.device)
+                y_one_hot = y_one_hot.to(self.device)
+
+                # Add noise
+                epsilon = torch.randn_like(init_logits)
+                noisy_logits = init_logits + pl_module.noise * epsilon
+
+                # Optional label smoothing        
+                noisy_y_one_hot = label_smoothing(y_one_hot, pl_module.smoothing) if pl_module.smoothing else y_one_hot
+
+                # Forward pass
+                latents = pl_module(noisy_logits)
+                means = latents[:, :pl_module.num_classes]
+                log_std = latents[:, pl_module.num_classes:]
+                stddev = F.softplus(log_std)
+
+                # Reparameterization
+                epsilon = torch.randn_like(means)
+                z_hat = means + stddev * epsilon if pl_module.sampling else means
+
+                # Scaled probabilities
+                probs = F.softmax(z_hat / pl_module.logits_scaling, dim=1)                               
+
+                all_probs.append(probs.cpu())
+                all_targets.append(torch.argmax(noisy_y_one_hot.cpu(), dim=1))
+               
+        all_probs = torch.cat(all_probs)
+        all_targets = torch.cat(all_targets)
+
+        # Call your function
+        multiclass_calibration_plot(all_targets, all_probs, 
+                                    save_path=self.save_path+f"calibrate_{self.data}_{self.num_classes}_classes_{self.num_features}_features/in_training/", 
+                                    filename=f"multiclass_calibration_{self.type}_cal_ep{trainer.current_epoch}.png")
+
+        # Switch back to training mode
+        pl_module.train()
+        
 
 class ClearCacheCallback(Callback):
     def on_train_epoch_end(self, trainer, pl_module):

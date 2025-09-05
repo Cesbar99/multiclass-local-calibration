@@ -291,13 +291,14 @@ class MedMnistModel(pl.LightningModule):
             "logits": logits,
         }
 
+
 class Cifar10Model(pl.LightningModule):
     def __init__(self, kwargs):
         super().__init__()        
         self.temperature = kwargs.temperature
         self.optimizer_cfg = kwargs.optimizer
         self.use_acc = kwargs.use_acc
-        self.model = Cifar10Vit(self.temperature)            
+        self.model = Cifar10ResNet50(self.temperature) #Cifar10Vit(self.temperature)            
         num_classes = 10
         
         task = 'multiclass'        

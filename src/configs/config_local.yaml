@@ -57,7 +57,7 @@ models_map:
   synthetic: mlp
   tissue: tissue_vit #tissue_resnet50
   path: path_vit
-  cifar10: cifar10_vit
+  cifar10: cifar10_resnet50 #cifar10_vit
   cifar10LT: cifar10LT_vit
   covtype: covtype_resmlp #covtype_ftt
   otto: otto_resmlp #otto_ftt 

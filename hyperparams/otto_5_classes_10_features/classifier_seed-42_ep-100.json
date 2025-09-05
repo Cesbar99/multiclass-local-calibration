@@ -1,28 +1,29 @@
 {
     "model": "calibrator",
+    "data_name": "otto",
     "optimizer": {
         "name": "adam",
         "lr": 0.001,
-        "weight_decay": 0.0
+        "weight_decay": 0
     },
     "loss": {
         "name": null,
         "gamma": 2
     },
     "log_var_initializer": 0.1,
-    "hidden_dim": 32,
+    "hidden_dim": 256,
     "alpha1": 4,
     "alpha2": 0.0,
     "lambda_kl": 1,
     "entropy_factor": 0.0,
     "epochs": 100,
     "noise": 0.0,
-    "smoothing": 0.1,
+    "smoothing": 0.08,
     "logits_scaling": 1.0,
     "sampling": false,
     "use_empirical_freqs": true,
     "predict_labels": true,
     "js_distance": true,
-    "interpolation_epochs": 0,
+    "interpolation_epochs": 0.0,
     "dropout": 0.1
 }

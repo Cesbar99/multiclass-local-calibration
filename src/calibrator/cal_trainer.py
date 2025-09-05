@@ -159,7 +159,7 @@ class AuxTrainer(pl.LightningModule):
         constraint = torch.mean(1.0 - prediction_mask)
 
         if self.predict_labels:
-            target = y_one_hot 
+            target = y_one_hot #noisy_y_one_hot 
         else:
             target = init_preds_one_hot 
         if self.use_empirical_freqs:

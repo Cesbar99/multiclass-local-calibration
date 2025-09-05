@@ -144,8 +144,8 @@ def calibrate(kwargs, wandb_logger):
             check_val_every_n_epoch=1,
             #gradient_clip_val=5,
             deterministic=True,
-            callbacks=[CalibrationPlotCallback(kwargs, dataset.data_train_cal_loader, every_n_epochs=10, device="cuda", type='train'), 
-                       CalibrationPlotCallback(kwargs, dataset.data_test_cal_loader, every_n_epochs=10, device="cuda", type='test')])
+            callbacks=[CalibrationPlotCallback(kwargs, dataset.data_train_cal_loader, every_n_epochs=5, device="cuda", type='train'), 
+                       CalibrationPlotCallback(kwargs, dataset.data_test_cal_loader, every_n_epochs=5, device="cuda", type='test')])
             #       EarlyStopping(
             #           monitor="val_kl",
             #           patience=10,

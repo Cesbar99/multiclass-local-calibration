@@ -125,27 +125,26 @@ def pretrain(kwargs, wandb_logger):
             logger=wandb_logger,
             check_val_every_n_epoch=1,            
             deterministic=True,
-            callbacks=[
-                 EarlyStopping(
-                     monitor="val_loss",
-                     patience=5,
-                     mode="min",
-                     verbose=True,
-                     min_delta=0.0,
-                 ),
-                 ModelCheckpoint(
-                    monitor="val_loss",                                                                                             # Metric to track
-                    mode="min",                                                                                                     # Lower is better
-                    save_top_k=1,                                                                                                   # Only keep the best model
-                    filename=f"classifier_seed-{seed}_ep-{total_epochs}_tmp_{kwargs.models.temperature}.pt",                        # Static filename (no epoch suffix)
-                    dirpath=path,                                                                                                   # Save in your existing checkpoint folder
-                    save_weights_only=True,                                                                                         # Save only weights (not full LightningModule)
-                    auto_insert_metric_name=False,                                                                                  # Prevent metric name in filename
-                    every_n_epochs=1,                                                                                               # Run every epoch                    
-                    enable_version_counter=False,
-                    verbose=True
-                ) ,
-                ClearCacheCallback()  
+            callbacks=[ ClearCacheCallback() 
+                # EarlyStopping(
+                #      monitor="val_loss",
+                #      patience=5,
+                #      mode="min",
+                #      verbose=True,
+                #      min_delta=0.0,
+                # ),
+                # ModelCheckpoint(
+                #     monitor="val_loss",                                                                                             # Metric to track
+                #     mode="min",                                                                                                     # Lower is better
+                #     save_top_k=1,                                                                                                   # Only keep the best model
+                #     filename=f"classifier_seed-{seed}_ep-{total_epochs}_tmp_{kwargs.models.temperature}.pt",                        # Static filename (no epoch suffix)
+                #     dirpath=path,                                                                                                   # Save in your existing checkpoint folder
+                #     save_weights_only=True,                                                                                         # Save only weights (not full LightningModule)
+                #     auto_insert_metric_name=False,                                                                                  # Prevent metric name in filename
+                #     every_n_epochs=1,                                                                                               # Run every epoch                    
+                #     enable_version_counter=False,
+                #     verbose=True
+                # ) ,                 
             ]
          )
     start = time.time()
@@ -153,12 +152,12 @@ def pretrain(kwargs, wandb_logger):
                     dataset.data_val_loader)
     train_time = time.time() - start
     print(train_time)
-    #torch.save(pl_model.model.state_dict(), path_model)
-    best_model_path = trainer.checkpoint_callback.best_model_path
-    print(F'LOADING CHECKPOINT FILE {best_model_path}')
+    torch.save(pl_model.model.state_dict(), path_model)
+    #best_model_path = trainer.checkpoint_callback.best_model_path
+    #print(F'LOADING CHECKPOINT FILE {best_model_path}')
     #best_model_path = '/home/barbera/calibration/localibration/checkpoints/pre-train/otto_9_classes_None_features/classifier_seed-42_ep-100_tmp_1.0.pt.ckpt'
-    checkpoint = torch.load(best_model_path)
-    pl_model.load_state_dict(checkpoint['state_dict'])
+    #checkpoint = torch.load(best_model_path)
+    #pl_model.load_state_dict(checkpoint['state_dict'])
     
     raws = trainer.predict(pl_model, dataset.data_train_cal_loader) #dataset.data_train_cal_loader
     res = get_raw_res(raws)

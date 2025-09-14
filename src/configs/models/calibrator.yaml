@@ -30,3 +30,4 @@ predict_labels: True       # If true computes cross-entropy with true labels els
 js_distance: True          # If true copmutes JS distance in place of kl divergence between model scroes and kernel estimates                                            #
 interpolation_epochs: 0.   # Number of epochs for lambda_kl to drop to alpha1. To not interolate set as 0                                                                #
 dropout: 0.1               # Dropout to regularize calibrator
+

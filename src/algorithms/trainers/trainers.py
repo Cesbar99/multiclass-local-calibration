@@ -183,14 +183,23 @@ class MedMnistModel(pl.LightningModule):
         self.temperature = kwargs.temperature
         self.optimizer_cfg = kwargs.optimizer
         self.use_acc = kwargs.use_acc
-                    
+        
         if kwargs.model == 'tissue_vit':
             self.model = TissueMnistVit(self.temperature)
+            num_classes = 8
+        elif kwargs.model == 'tissue_resnet50':            
+            self.model = TissueMNISTResNet50(self.temperature)
             num_classes = 8
         elif kwargs.model == 'path_vit':
             self.model = PathMnistVit(self.temperature)
             num_classes = 9
-        
+        elif kwargs.model == 'path_resnet50':
+            self.model = PathMNISTResNet50(self.temperature)
+            num_classes = 9
+        elif kwargs.model == 'path_densenet121':
+            self.model = PathMnistDenseNet121(self.temperature)
+            num_classes = 9
+
         task = 'multiclass'        
         if self.use_acc:
             self.acc_train = torchmetrics.Accuracy(task=task, num_classes=num_classes) # CHANGE IF NEEDED
@@ -290,7 +299,20 @@ class MedMnistModel(pl.LightningModule):
             "true": target,
             "logits": logits,
         }
-
+        
+    def extract_features(self, batch):
+        x, y = batch        
+        feats = self.model.repr(x)  # feature representation
+        logits = self.model.resnet50.fc(feats)
+        preds = torch.argmax(logits, dim=-1).view(-1,1)  # predicted class
+        # Create dict in the same format as predict outputs
+        out = {
+            "features": feats,                  # replace logits with features
+            "logits": logits,
+            "preds": preds,     # dummy preds
+            "true": y
+        }
+        return out
 
 class Cifar10Model(pl.LightningModule):
     def __init__(self, kwargs):

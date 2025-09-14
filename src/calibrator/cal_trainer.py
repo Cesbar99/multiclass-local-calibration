@@ -317,3 +317,232 @@ class AuxTrainer(pl.LightningModule):
         self.lambda_kl = ratio
         self.alpha1 = end_ratio
        
+
+
+class AuxTrainerV2(pl.LightningModule):
+    def __init__(self, kwargs, num_classes, feature_dim, similarity_dim):              
+        super().__init__()        
+        self.loss_name = kwargs.loss.name
+        if self.loss_name == 'focal':
+            self.loss_fn = FocalLoss(gamma=kwargs.loss.gamma)                            
+        self.num_classes = num_classes        
+        self.optimizer_cfg = kwargs.optimizer
+        self.init_alpha1 = kwargs.alpha1
+        self.alpha1 = kwargs.alpha1
+        self.alpha2 = kwargs.alpha2
+        self.init_lambda_kl = kwargs.lambda_kl
+        self.lambda_kl = kwargs.lambda_kl
+        self.log_var_initializer = kwargs.log_var_initializer
+        self.entropy_factor = kwargs.entropy_factor
+        self.noise = kwargs.noise
+        self.smoothing = kwargs.smoothing
+        self.logits_scaling = kwargs.logits_scaling
+        self.sampling = kwargs.sampling
+        self.predict_labels = kwargs.predict_labels
+        self.use_empirical_freqs = kwargs.use_empirical_freqs
+        self.js_distance = kwargs.js_distance   
+        self.interpolation_epochs = kwargs.interpolation_epochs     
+        self.feature_dim = feature_dim
+        self.similarity_dim = similarity_dim
+
+        self.model = AuxiliaryMLPV2(hidden_dim=kwargs.hidden_dim, feature_dim=feature_dim, output_dim=num_classes, similarity_dim=similarity_dim, log_var_initializer=kwargs.log_var_initializer, dropout_rate=kwargs.dropout)
+        
+    def forward(self, init_feats, init_logits, init_pca):
+        return self.model(init_feats, init_logits, init_pca)
+
+    def training_step(self, batch):                
+        init_feats, init_logits, init_pca, y_one_hot, init_preds, init_preds_one_hot = batch        
+
+        # Add noise
+        epsilon = torch.randn_like(init_feats)
+        noisy_feats = init_feats + self.noise * epsilon
+
+        # Optional label smoothing        
+        noisy_y_one_hot = label_smoothing(y_one_hot, self.smoothing) if self.smoothing else y_one_hot #random_label_smoothing
+
+        # Forward pass
+        latents_class, latents_sim = self(noisy_feats, init_logits, init_pca)
+        means = latents_sim[:, :self.similarity_dim]
+        log_std = latents_sim[:, self.similarity_dim:]
+        stddev = F.softplus(log_std)
+        sigma = stddev ** 2
+        avg_variance = torch.mean(sigma) #dim=0
+
+        # Reparameterization
+        epsilon = torch.randn_like(means)
+        z_hat = means + stddev * epsilon if self.sampling else means
+
+        # Scaled probabilities
+        probs_hat = F.softmax(latents_class / self.logits_scaling, dim=1)
+        p2 = probs_hat
+
+        # Neighborhood-based probabilities
+        p1 = multiclass_neighborhood_class0_prob(means, z_hat, sigma=sigma, y=noisy_y_one_hot) # compute on similarity specific encoding!!!
+
+        # KL divergence
+        kl_loss = compute_multiclass_kl_divergence(p2, p1, self.num_classes)
+
+        # Constraint loss
+        new_preds = torch.argmax(probs_hat, dim=1)
+        prediction_mask = (new_preds == init_preds).float()
+        constraint = torch.mean(1.0 - prediction_mask)
+
+        if self.predict_labels:
+            target = y_one_hot #noisy_y_one_hot 
+        else:
+            target = init_preds_one_hot 
+        if self.use_empirical_freqs:
+            scores = p1
+        else:
+            scores = p2
+            
+        if self.loss_name == 'focal':
+            constraint_loss = self.loss_fn(scores, target) # focal variant of opur loss
+        else:    
+            constraint_loss = categorical_cross_entropy(scores, target) #F.cross_entropy(quantity, torch.argmax(target, dim=1))
+            
+        if self.current_epoch < self.interpolation_epochs:
+            self.interpolate_weights()
+
+        total_loss = (self.lambda_kl * kl_loss +
+                      self.alpha1 * constraint_loss +
+                      self.alpha2 * avg_variance ** 2)
+
+        self.log("train_total", total_loss, on_epoch=True, on_step=False, prog_bar=True)
+        self.log("train_kl", kl_loss, on_epoch=True, on_step=False, prog_bar=False)
+        self.log("train_con_loss", constraint_loss, on_epoch=True, on_step=False, prog_bar=True)
+        self.log("train_constraint", constraint, on_epoch=True, on_step=False, prog_bar=False)
+        #self.log("lambda_kl", self.lambda_kl, on_epoch=True, on_step=False, prog_bar=False)
+
+        return total_loss
+    
+    def validation_step(self, batch):
+        init_feats, init_logits, init_pca, y_one_hot, init_preds, init_preds_one_hot = batch
+
+        # Add noise
+        epsilon = torch.randn_like(init_feats)
+        noisy_feats = init_feats + self.noise * epsilon
+
+        # Optional label smoothing        
+        noisy_y_one_hot = label_smoothing(y_one_hot, self.smoothing) if self.smoothing else y_one_hot
+
+        # Forward pass
+        latents_class, latents_sim = self(noisy_feats, init_logits, init_pca)
+        means = latents_sim[:, :self.similarity_dim]
+        log_std = latents_sim[:, self.similarity_dim:]
+        stddev = F.softplus(log_std)
+        sigma = stddev ** 2
+        avg_variance = torch.mean(sigma)
+
+        # Reparameterization
+        epsilon = torch.randn_like(means)
+        z_hat = means + stddev * epsilon if self.sampling else means
+
+        # Scaled probabilities
+        probs_hat = F.softmax(latents_class / self.logits_scaling, dim=1)
+        p2 = probs_hat
+
+        # Neighborhood-based probabilities
+        p1 = multiclass_neighborhood_class0_prob(means, z_hat, sigma=sigma, y=noisy_y_one_hot) 
+
+        # KL divergence
+        kl_loss = compute_multiclass_kl_divergence(p2, p1, self.num_classes)
+
+        # Constraint loss
+        new_preds = torch.argmax(probs_hat, dim=1)
+        prediction_mask = (new_preds == init_preds).float()
+        constraint = torch.mean(1.0 - prediction_mask)
+
+        if self.predict_labels:
+            target = y_one_hot 
+        else:
+            target = init_preds_one_hot 
+        if self.use_empirical_freqs:
+            scores = p1
+        else:
+            scores = p2
+        
+        if self.loss_name == 'focal':
+            constraint_loss = self.loss_fn(scores, target) #F.cross_entropy(quantity, torch.argmax(target, dim=1))
+        else:    
+            constraint_loss = categorical_cross_entropy(scores, target) #F.cross_entropy(quantity, torch.argmax(target, dim=1))
+        
+        total_loss = (self.lambda_kl * kl_loss +
+                      self.alpha1 * constraint_loss +
+                      self.alpha2 * avg_variance ** 2)              
+        optuna_loss = kl_loss + constraint_loss 
+            
+        self.log("val_total", total_loss, on_epoch=True, on_step=False, prog_bar=True)
+        self.log("optuna_loss", optuna_loss, on_epoch=True, on_step=False, prog_bar=True)
+        self.log("val_kl", kl_loss, on_epoch=True, on_step=False, prog_bar=True)
+        self.log("val_con_loss", constraint_loss, on_epoch=True, on_step=False, prog_bar=False)
+        self.log("val_constraint", constraint, on_epoch=True, on_step=False, prog_bar=True)  
+        self.log("lambda_kl", self.lambda_kl, on_epoch=True, on_step=False, prog_bar=False)       
+        self.log("alpha1", self.alpha1, on_epoch=True, on_step=False, prog_bar=False)       
+        self.log("log_var", self.log_var_initializer, on_epoch=True, on_step=False, prog_bar=False)                              
+
+    def configure_optimizers(self):
+        opt_name = self.optimizer_cfg.name #.lower()
+        opt_name = opt_name[0].upper() + opt_name[1:]
+        lr = self.optimizer_cfg.lr
+        wd = self.optimizer_cfg.get("weight_decay", 0.0)        
+        
+        # Dynamically get the optimizer class
+        optimizer_class = getattr(torch.optim, opt_name, None)
+        if optimizer_class is None:
+            raise ValueError(f"Unsupported optimizer: {opt_name}")
+
+        # Build kwargs dynamically
+        optimizer_kwargs = {"lr": lr, "weight_decay": wd}
+        if opt_name == "SGD":
+            optimizer_kwargs["momentum"] = self.optimizer_cfg.get("momentum", 0.9)
+
+        optimizer = optimizer_class(self.parameters(), **optimizer_kwargs)
+        return optimizer
+    
+    def predict_step(self, batch):
+        """
+        Prediction step for a batch of data.
+        :param batch:
+        A tuple containing the input data `x`, target labels `y`, and feedback `h`.
+        :param batch_idx:
+        Index of the batch in the current epoch.
+        :param dataloader_idx:
+        Index of the dataloader (default is 0).
+        :return:
+            A dictionary containing the predictions, probabilities, feedback, true labels, rejection score, and selection status.
+        """
+        init_feats, init_logits, init_pca, y_one_hot, init_preds, init_preds_one_hot = batch 
+        
+        # Add noise
+        epsilon = torch.randn_like(init_feats)
+        noisy_feats = init_feats + self.noise * epsilon
+        
+        # Forward pass
+        latents_class, latents_sim = self(noisy_feats, init_logits, init_pca)
+        means = latents_sim[:, :self.similarity_dim]
+        log_std = latents_sim[:, self.similarity_dim:]
+        stddev = F.softplus(log_std)
+        
+        # Reparameterization
+        epsilon = torch.randn_like(means)
+        new_logits = latents_class + stddev * epsilon if self.sampling else latents_class
+        
+        # Scaled probabilities        
+        preds = torch.argmax(latents_class, dim=-1).view(-1,1)
+        target = torch.argmax(y_one_hot, dim=-1).view(-1,1)
+        return {
+            "preds": preds,            
+            "true": target,
+            "logits": new_logits,
+        }
+    
+    def interpolate_weights(self):
+        epoch = self.current_epoch
+        total_epochs = self.interpolation_epochs
+        start_ratio = self.init_lambda_kl
+        end_ratio = 10 #self.init_alpha1
+        ratio = start_ratio + (end_ratio - start_ratio) * (epoch / total_epochs)
+        self.lambda_kl = ratio
+        self.alpha1 = end_ratio
+       

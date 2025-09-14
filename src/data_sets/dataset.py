@@ -120,6 +120,141 @@ def generateCalibrationData(kwargs, dataname=None):
 
     return data_train_cal_loader, data_test_cal_loader, data_val_cal_loader 
 
+def generateCalibrationDatav2(kwargs, dataname=None):
+    #temperature = str(int(kwargs.checkpoint.temperature))
+
+    if kwargs.data == 'synthetic':   
+        test_results = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_tmp_{}.csv".format(
+        'pre-train',
+        kwargs.data,
+        kwargs.checkpoint.num_classes,
+        kwargs.checkpoint.num_features,
+        kwargs.checkpoint.seed,
+        kwargs.checkpoint.epochs,
+        kwargs.checkpoint.temperature       
+        )
+        cal_results = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_seed-{}_ep-{}_tmp_{}.csv".format(
+            'pre-train',
+            kwargs.data,
+            kwargs.checkpoint.num_classes,
+            kwargs.checkpoint.num_features,
+            kwargs.checkpoint.seed,
+            kwargs.checkpoint.epochs,
+            kwargs.checkpoint.temperature
+        )           
+    else:        
+        test_results = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_tmp_{}.csv".format(
+            'pre-train',
+            kwargs.data,
+            kwargs.dataset.num_classes,
+            kwargs.dataset.num_features,
+            kwargs.checkpoint.seed,
+            kwargs.checkpoint.epochs,
+            kwargs.checkpoint.temperature       
+        )
+        cal_results = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_seed-{}_ep-{}_tmp_{}.csv".format(
+            'pre-train',
+            kwargs.data,
+            kwargs.dataset.num_classes,
+            kwargs.dataset.num_features,
+            kwargs.checkpoint.seed,
+            kwargs.checkpoint.epochs,
+            kwargs.checkpoint.temperature
+        )    
+    
+    # Load your data
+    df_train_calibration_data = pd.read_csv(test_results)
+    df_eval_calibration_data = pd.read_csv(cal_results)    
+
+    # Extract features and labels
+    cols = df_train_calibration_data.columns
+    # Single pass grouping
+    features_cols = [c for c in cols if c.startswith("features")]
+    logits_cols   = [c for c in cols if c.startswith("logits")]
+    pca_cols      = [c for c in cols if c.startswith("pca")]
+    # Extract values
+    feats_train_cal  = df_train_calibration_data[features_cols].values
+    logits_train_cal = df_train_calibration_data[logits_cols].values
+    pca_train_cal    = df_train_calibration_data[pca_cols].values
+    #feats_train_cal = df_train_calibration_data.filter(regex=r'^features').values #df_train_calibration_data.drop(columns=["true", "preds"]).values
+    #logits_train_cal = df_train_calibration_data.filter(regex=r'^logits').values
+    #pca_train_cal = df_train_calibration_data.filter(regex=r'^pca').values
+    y_train_cal = df_train_calibration_data["true"].values
+    p_train_cal = df_train_calibration_data["preds"].values
+    # std_per_column = np.std(feats_train_cal, axis=0)
+    # print("Standard deviation per column:")
+    # print(std_per_column)
+    # print("Mean standard deviation per column:")
+    # print(np.mean(std_per_column))
+    
+    cols = df_eval_calibration_data.columns
+    # Single pass grouping
+    features_cols = [c for c in cols if c.startswith("features")]
+    logits_cols   = [c for c in cols if c.startswith("logits")]
+    pca_cols      = [c for c in cols if c.startswith("pca")]
+    # Extract values
+    feats_eval_cal  = df_eval_calibration_data[features_cols].values
+    logits_eval_cal = df_eval_calibration_data[logits_cols].values
+    pca_eval_cal    = df_eval_calibration_data[pca_cols].values
+    #feats_eval_cal = df_eval_calibration_data.filter(regex=r'^features').values #df_train_calibration_data.drop(columns=["true", "preds"]).values
+    #logits_eval_cal = df_eval_calibration_data.filter(regex=r'^logits').values
+    #pca_eval_cal = df_eval_calibration_data.filter(regex=r'^pca').values
+    y_eval_cal = df_eval_calibration_data["true"].values
+    p_eval_cal = df_eval_calibration_data["preds"].values
+
+    # Split into 90% test and 10% val
+    (feats_test, feats_val,
+    logits_test, logits_val,
+    pca_test, pca_val,
+    y_test, y_val,
+    p_test, p_val) = train_test_split(
+        feats_eval_cal,
+        logits_eval_cal,
+        pca_eval_cal,
+        y_eval_cal,
+        p_eval_cal,
+        test_size=0.1,   # 20% for validation
+        random_state=kwargs.seed, # for reproducibility
+        shuffle=True)        
+    
+    print(f'Learn Calibration shape: {feats_train_cal.shape}, Validation shape: {feats_val.shape}, Test Calibration shape: {feats_test.shape}')
+    # Convert to PyTorch tensors
+    feats_train_cal = torch.tensor(feats_train_cal, dtype=torch.float32)
+    logits_train_cal = torch.tensor(logits_train_cal, dtype=torch.float32)
+    pca_train_cal = torch.tensor(pca_train_cal, dtype=torch.float32)
+    y_train_cal = torch.tensor(y_train_cal, dtype=torch.long)
+    p_train_cal = torch.tensor(p_train_cal, dtype=torch.long)
+
+    feats_test_cal = torch.tensor(feats_test, dtype=torch.float32)
+    logits_test_cal = torch.tensor(logits_test, dtype=torch.float32)
+    pca_test_cal = torch.tensor(pca_test, dtype=torch.float32)
+    y_test_cal = torch.tensor(y_test, dtype=torch.long)
+    p_test_cal = torch.tensor(p_test, dtype=torch.long)
+    
+    feats_val_cal = torch.tensor(feats_val, dtype=torch.float32)
+    logits_val_cal = torch.tensor(logits_val, dtype=torch.float32)
+    pca_val_cal = torch.tensor(pca_val, dtype=torch.float32)
+    y_val_cal = torch.tensor(y_val, dtype=torch.long)
+    p_val_cal = torch.tensor(p_val, dtype=torch.long)
+
+    # Create datasets
+    train_cal_set = CalibrationDatasetv2(feats_train_cal, logits_train_cal, pca_train_cal, y_train_cal,p_train_cal, num_classes=kwargs.dataset.num_classes)
+    test_cal_set = CalibrationDatasetv2(feats_test_cal, logits_test_cal, pca_test_cal, y_test_cal, p_test_cal, num_classes=kwargs.dataset.num_classes)
+    val_cal_set = CalibrationDatasetv2(feats_val_cal, logits_val_cal, pca_val_cal, y_val_cal, p_val_cal, num_classes=kwargs.dataset.num_classes)
+    
+    # Create data loaders
+    data_train_cal_loader = DataLoader(
+        train_cal_set, batch_size=kwargs.dataset.batch_size, shuffle=True, num_workers=8, pin_memory=True
+    )
+    data_test_cal_loader = DataLoader(
+        test_cal_set, batch_size=kwargs.dataset.batch_size, shuffle=False, num_workers=8, pin_memory=True
+    )
+    data_val_cal_loader = DataLoader(
+        val_cal_set, batch_size=kwargs.dataset.batch_size, shuffle=False, num_workers=8, pin_memory=True
+    )
+
+    return data_train_cal_loader, data_test_cal_loader, data_val_cal_loader 
+
 
 class CalibrationDataset(Dataset):
     def __init__(self, X, y, p, num_classes, transforms_fn=None):
@@ -143,6 +278,33 @@ class CalibrationDataset(Dataset):
         p_onehot = self.p_onehot[idx]
         p = self.p[idx]
         return x, y_onehot, p, p_onehot
+    
+class CalibrationDatasetv2(Dataset):
+    def __init__(self, feats, logits, pca, y, p, num_classes, transforms_fn=None):
+        self.num_classes = num_classes
+        self.transforms_fn = transforms_fn
+        self.feats = torch.tensor(feats, dtype=torch.float32)
+        self.logits = torch.tensor(logits, dtype=torch.float32)
+        self.pca = torch.tensor(pca, dtype=torch.float32)
+        self.y = torch.tensor(y, dtype=torch.long)  # one-hot encoded
+        self.p = torch.tensor(p, dtype=torch.long)  # one-hot encoded
+        self.y_onehot = F.one_hot(self.y, num_classes=self.num_classes).float()
+        self.p_onehot = F.one_hot(self.p, num_classes=self.num_classes).float()        
+
+    def __len__(self):
+        return len(self.feats)
+
+    def __getitem__(self, idx):
+        if self.transforms_fn is not None:
+            feats = self.transforms_fn(self.feats[idx])
+        else:
+            feats = self.feats[idx]        
+        logits = self.logits[idx]
+        pca = self.pca[idx]
+        y_onehot = self.y_onehot[idx]
+        p_onehot = self.p_onehot[idx]
+        p = self.p[idx]
+        return feats, logits, pca, y_onehot, p, p_onehot
 
 
 class ClassificationDataset(Dataset):
@@ -509,17 +671,21 @@ class MedMnistData(Dataset):
                                 batch_size = kwargs.batch_size,
                                 random_state = kwargs.random_state)      
         elif experiment == 'calibrate':
-                self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationData(kwargs) 
+                if kwargs.calibrator_version == 'v2':
+                    self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationDatav2(kwargs)
+                else:
+                    self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationData(kwargs) 
         print("Loading synthetic data for calibration complete")   
         
     def generatePretrainingMedMnistData(self, size,
                                 batch_size,
                                 random_state):                        
-        l_transforms = [transforms.ToTensor()]
+        l_transforms = [transforms.Grayscale(num_output_channels=3), transforms.ToTensor()]
+        #if self.name == 'tissue':
+        #    l_transforms.append()  # Convert to 3-channel RGB)
             #transforms.RandomHorizontalFlip(),
             #transforms.RandomRotation(10),
-            #transforms.Resize((224, 224)) if size < 224 else transforms.Lambda(lambda x: x),
-            #transforms.Grayscale(num_output_channels=3),  # Convert to 3-channel RGB
+            #transforms.Resize((224, 224)) if size < 224 else transforms.Lambda(lambda x: x),            
             #transforms.ToTensor(), 
             #transforms.Normalize(mean=[0.485, 0.456, 0.406],
             #                    std=[0.229, 0.224, 0.225])
@@ -561,7 +727,7 @@ class MedMnistData(Dataset):
         self.data_val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
         self.data_train_cal_loader = DataLoader(train_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
         
-        print("Loading TissueMnist data for pre-training complete") 
+        print(f"Loading {self.name} mnist data for pre-training complete.") 
 
 
 class Cifar10Data(Dataset):    

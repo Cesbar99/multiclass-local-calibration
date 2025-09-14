@@ -47,6 +47,7 @@ def main(cfg: DictConfig):
         kwargs.exp_name = 'pre-train'
         if kwargs.dataset.batch_size is None:
             kwargs.dataset.batch_size = kwargs.batch_size_map.get(kwargs.exp_name, 32)  # fallback default        
+            print('Using default batch_size set to: ', kwargs.dataset.batch_size)
         kwargs.checkpoint = fix_default_checkpoint(kwargs)
         print("Pretraining model...")
         pretrain(kwargs, wandb_logger)
@@ -61,7 +62,8 @@ def main(cfg: DictConfig):
         kwargs.exp_name = 'calibrate'
         if kwargs.dataset.batch_size is None:
             kwargs.dataset.batch_size = kwargs.batch_size_map.get(kwargs.exp_name, 512)  # fallback default        
-        print("Calibrating model with {kwargs.calibration_method} technique...")
+            print('Using default batch_size set to: ', kwargs.dataset.batch_size)
+            print("Calibrating model with {kwargs.calibration_method} technique...")
         calibrate(kwargs, wandb_logger)
         # Logic to calibrate the model
         # This is a placeholder for calibration logic

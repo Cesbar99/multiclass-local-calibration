@@ -39,6 +39,9 @@ def test(kwargs):
         
         # Load your data
         df_test = pd.read_csv(test_results)
+        #for i in range(len(df_test.columns)):
+        #    if not df_test.columns[i].startswith('features'):
+        #        print(df_test.columns[i])
         df_cal = pd.read_csv(cal_results)
 
         # Compute accuracy
@@ -47,10 +50,15 @@ def test(kwargs):
         accuracy_cal = (df_cal['preds'] == df_cal['true']).mean()
         print(f'Cal accuracy: {accuracy_cal:.2%}')    
         
-        # Extract logits and true labels
-        logits_test = df_test.drop(columns=['preds', 'true'])
+        # Extract logits and true labels        
+        # if kwargs.return_features:
+        #     logits_test = logits_test.drop(columns=logits_test.filter(regex=r'^features').columns)
+        #     logits_test = logits_test.drop(columns=logits_test.filter(regex=r'^pca').columns)
+        logits_test = df_test.filter(regex=r'^logits') #df_test.drop(columns=['preds', 'true'])
         labels_test = df_test['true']
-        logits_cal = df_cal.drop(columns=['preds', 'true'])
+        #logits_cal = df_cal.drop(columns=['preds', 'true'])
+        #logits_cal = logits_cal.drop(columns=logits_cal.filter(regex=r'^features').columns)
+        logits_cal = df_cal.filter(regex=r'^logits') #df_test.drop(columns=['preds', 'true'])
         labels_cal = df_cal['true']
         
         logits_test_ = torch.tensor(logits_test.values, dtype=torch.float32)

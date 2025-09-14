@@ -15,6 +15,7 @@ from utils.utils import *
 from data_sets.dataset import *
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, LearningRateMonitor
 from actions.test import test
+from tqdm import tqdm
 
 def pretrain(kwargs, wandb_logger):
     
@@ -159,12 +160,44 @@ def pretrain(kwargs, wandb_logger):
     #checkpoint = torch.load(best_model_path)
     #pl_model.load_state_dict(checkpoint['state_dict'])
     
-    raws = trainer.predict(pl_model, dataset.data_train_cal_loader) #dataset.data_train_cal_loader
-    res = get_raw_res(raws)
+    if kwargs.return_features:
+        raws = []
+        pl_model.eval()
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        pl_model.to(device)
+
+        with torch.no_grad():
+            for batch in tqdm(dataset.data_train_cal_loader, desc="Extracting features"):
+                batch = [b.to(device) for b in batch]                
+                raw = pl_model.extract_features(batch)
+                raws.append(raw)
+
+        #all_features = torch.cat(all_features)
+        print('features shape: ', raws[1]['features'].shape)
+        res = get_raw_res(raws, features=True, reduced_dim=kwargs.similarity_dim)
+    else:
+        raws = trainer.predict(pl_model, dataset.data_train_cal_loader) #dataset.data_train_cal_loader
+        res = get_raw_res(raws)
     res.to_csv(raw_results_path_train_cal, index=False)
     
-    raws = trainer.predict(pl_model, dataset.data_eval_cal_loader)
-    res = get_raw_res(raws)
+    if kwargs.return_features:
+        raws = []
+        pl_model.eval()
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        pl_model.to(device)
+
+        with torch.no_grad():
+            for batch in tqdm(dataset.data_eval_cal_loader, desc="Extracting features"):
+                batch = [b.to(device) for b in batch]                
+                raw = pl_model.extract_features(batch)
+                raws.append(raw)
+
+        #all_raws = torch.cat(all_raws)
+        print('features shape: ', raws[1]['features'].shape)
+        res = get_raw_res(raws, features=True, reduced_dim=kwargs.similarity_dim)
+    else:
+        raws = trainer.predict(pl_model, dataset.data_eval_cal_loader) #dataset.data_eval_cal_loader
+        res = get_raw_res(raws)
     res.to_csv(raw_results_path_eval_cal, index=False)
     
     print("PRE-TRAINING OVER!")

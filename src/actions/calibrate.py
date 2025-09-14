@@ -115,8 +115,11 @@ def calibrate(kwargs, wandb_logger):
                     print(f"    {key}: {value}")
                     kwargs.models[key] = value
             # Params: {'lambda_kl': 1.191, 'alpha1': 1.001, 'log_var_initializer': 0.2715}
-        
-        pl_model = AuxTrainer(kwargs.models, num_classes=kwargs.dataset.num_classes)    
+        if kwargs.calibrator_version == 'v2':
+            pl_model = AuxTrainerV2(kwargs.models, num_classes=kwargs.dataset.num_classes, 
+                                    feature_dim=kwargs.dataset.feature_dim, similarity_dim=kwargs.similarity_dim)    
+        else:
+            pl_model = AuxTrainer(kwargs.models, num_classes=kwargs.dataset.num_classes)    
         
         raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
                 kwargs.exp_name,
@@ -145,14 +148,8 @@ def calibrate(kwargs, wandb_logger):
             #gradient_clip_val=5,
             deterministic=True,
             callbacks=[CalibrationPlotCallback(kwargs, dataset.data_train_cal_loader, every_n_epochs=5, device="cuda", type='train'), 
-                       CalibrationPlotCallback(kwargs, dataset.data_test_cal_loader, every_n_epochs=5, device="cuda", type='test')])
-            #       EarlyStopping(
-            #           monitor="val_kl",
-            #           patience=10,
-            #           mode="min",
-            #           verbose=True,
-            #           min_delta=0.0,
-            #       ),
+                       CalibrationPlotCallback(kwargs, dataset.data_test_cal_loader, every_n_epochs=5, device="cuda", type='test'),
+                       EarlyStopping(monitor="val_con_loss", patience=5, mode="min", verbose=True, min_delta=0.0)])
     #         ModelCheckpoint(
     #             monitor="val_total",                                                                                               # Metric to track
     #             mode="min",                                                                                                     # Lower is better

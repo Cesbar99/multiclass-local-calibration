@@ -11,7 +11,8 @@ from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 from torchvision import transforms
 from sklearn.model_selection import train_test_split
 from collections import Counter
-
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
 
 import pytorch_lightning as pl
 import torch
@@ -30,7 +31,8 @@ class CalibrationPlotCallback(pl.Callback):
         self.num_features = kwargs.dataset.num_features
         self.save_path = kwargs.save_path_calibration_plots
         self.type=type
-
+        self.verion = kwargs.calibrator_version
+        
     def on_train_epoch_end(self, trainer, pl_module):
         # Only run every N epochs
         if (trainer.current_epoch + 1) % self.every_n_epochs != 0:
@@ -42,7 +44,12 @@ class CalibrationPlotCallback(pl.Callback):
 
         with torch.no_grad():
             for batch in self.dataloader:
-                init_logits, y_one_hot, _, _ = batch
+                if self.verion == 'v2':
+                    init_feats, init_logits, init_pca, y_one_hot, _, _ = batch # it is actually init_feats!!!!!
+                    init_feats = init_feats.to(self.device)
+                    init_pca = init_pca.to(self.device)
+                else:
+                    init_logits, y_one_hot, _, _ = batch
                 init_logits = init_logits.to(self.device)
                 y_one_hot = y_one_hot.to(self.device)
 
@@ -53,16 +60,20 @@ class CalibrationPlotCallback(pl.Callback):
                 # Optional label smoothing        
                 noisy_y_one_hot = label_smoothing(y_one_hot, pl_module.smoothing) if pl_module.smoothing else y_one_hot
 
-                # Forward pass
-                latents = pl_module(noisy_logits)
-                means = latents[:, :pl_module.num_classes]
-                log_std = latents[:, pl_module.num_classes:]
-                stddev = F.softplus(log_std)
+                # Forward pass                
+                if self.verion != 'v2':
+                    latents = pl_module(noisy_logits)
+                    means = latents[:, :pl_module.num_classes]
+                    log_std = latents[:, pl_module.num_classes:]
+                    stddev = F.softplus(log_std)
 
-                # Reparameterization
-                epsilon = torch.randn_like(means)
-                z_hat = means + stddev * epsilon if pl_module.sampling else means
-
+                    # Reparameterization
+                    epsilon = torch.randn_like(means)
+                    z_hat = means + stddev * epsilon if pl_module.sampling else means
+                else:
+                    latents, _ = pl_module(init_feats, init_logits, init_pca)
+                    z_hat = latents
+                    
                 # Scaled probabilities
                 probs = F.softmax(z_hat / pl_module.logits_scaling, dim=1)                               
 
@@ -102,10 +113,12 @@ class VerboseModelCheckpoint(ModelCheckpoint):
                 self._last_best_score = self.best_model_score
        
                 
-def get_raw_res(raws):
+def get_raw_res(raws, features=False, reduced_dim=None):
+    
     preds = torch.cat([raws[j]["preds"].cpu() for j in range(len(raws))])
     #probs = torch.cat([raws[j]["probs"].cpu() for j in range(len(raws))])
     logits = torch.cat([raws[j]["logits"].cpu() for j in range(len(raws))])
+    feats = torch.cat([raws[j]["features"].cpu() for j in range(len(raws))]) if features else None
     true = torch.cat([raws[j]["true"].cpu() for j in range(len(raws))])
     
     raw_res = pd.DataFrame()
@@ -113,13 +126,41 @@ def get_raw_res(raws):
     raw_res["preds"] = preds.numpy()
     #raw_res["logits"] = logits.numpy()
     #raw_res["probs"] = probs.numpy()
-    tmp = pd.DataFrame()
+    #logits_tmp = pd.DataFrame()
+    #feats_tmp = pd.DataFrame()
 
-    for i in range(logits.shape[1]):
+    #for i in range(logits.shape[1]):
         #tmp["class_probs_{}".format(i)] = probs[:, i].cpu().numpy()
-        tmp["logits_{}".format(i)] = logits[:, i].cpu().numpy()
+    #    logits_tmp["logits_{}".format(i)] = logits[:, i].cpu().numpy()
+    logits_np = logits.cpu().numpy()
+    logits_tmp = pd.DataFrame(
+        logits_np, columns=[f"logits_{i}" for i in range(logits_np.shape[1])]
+    )
+    if features:
+        #for i in range(feats.shape[1]):
+        #    feats_tmp["features_{}".format(i)] = feats[:, i].cpu().numpy()
+        feats_np = feats.cpu().numpy()
+        feats_tmp = pd.DataFrame(
+            feats_np, columns=[f"features_{i}" for i in range(feats_np.shape[1])]
+        )
+        if reduced_dim is not None and reduced_dim > 0:
+            print('RUNNING PCA ON FEATURES TO REDUCE DIM TO: ', reduced_dim)
+            # Standardization            
+            scaler = StandardScaler()
+            feats_scaled = scaler.fit_transform(feats_tmp.values)
+
+            # PCA
+            pca = PCA(n_components=reduced_dim)
+            feats_pca = pca.fit_transform(feats_scaled)
+
+            feats_pca_tmp = pd.DataFrame(
+                feats_pca, columns=[f"pca_{i}" for i in range(feats_pca.shape[1])]
+            )
+            feats_tmp = pd.concat([feats_tmp, feats_pca_tmp], axis=1)
         
-    raw_res = pd.concat([raw_res, tmp], axis=1)    
+    raw_res = pd.concat([raw_res, logits_tmp], axis=1)    
+    if features:
+        raw_res = pd.concat([raw_res, feats_tmp], axis=1)
     return raw_res
 
 

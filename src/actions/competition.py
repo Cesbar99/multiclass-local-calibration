@@ -1,0 +1,126 @@
+from competitors.competitors import *
+import pytorch_lightning as pl
+from pytorch_lightning.loggers import TensorBoardLogger
+from algorithms.networks.networks import *
+from algorithms.trainers.trainers import *
+import hydra
+from hydra import initialize, compose
+from hydra.core.global_hydra import GlobalHydra
+from omegaconf import DictConfig, open_dict, OmegaConf
+import time
+from utils.utils import *
+from data_sets.dataset import *
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, LearningRateMonitor
+from actions.test import test
+from calibrator.cal_trainer import *
+from calibrator.local_net import *
+import optuna
+from optuna.samplers import NSGAIISampler
+from hp_opt.hp_opt import *
+from pytorch_lightning.loggers import WandbLogger
+import json
+from tqdm import tqdm
+
+
+def competition(kwargs, wandb_logger=None):
+    seed = kwargs.seed    
+    cuda_device = kwargs.cuda_device
+    pl.seed_everything(seed, workers=True)  
+    
+    if kwargs.data == 'synthetic':
+        dataset = SynthData(kwargs, experiment=kwargs.exp_name)  
+    elif kwargs.data == 'covtype':
+        dataset = CovTypeData(kwargs, experiment=kwargs.exp_name)  
+    elif kwargs.data == 'otto':
+        dataset = OttoData(kwargs, experiment=kwargs.exp_name)                    
+    elif kwargs.data == 'mnist':
+        if kwargs.dataset.variant:
+            kwargs.data = kwargs.data + '_' + kwargs.dataset.variant                        
+        dataset = MnistData(kwargs, experiment=kwargs.exp_name)
+    elif kwargs.data == 'tissue':
+        dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)   
+    elif kwargs.data == 'path':
+        dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)       
+    elif kwargs.data == 'cifar10':
+        dataset = Cifar10Data(kwargs, experiment=kwargs.exp_name)
+    elif kwargs.data == 'cifar10_ood':
+        dataset = Cifar10OODData(calibration=kwargs.calibration)
+    elif kwargs.data == 'cifar10LT':
+        dataset = Cifar10LongTailData(kwargs, experiment=kwargs.exp_name)
+    elif kwargs.data == 'cifar100':
+        dataset = Cifar100Data(calibration=kwargs.calibration)    
+    elif kwargs.data == 'cifar100_longtail':
+        dataset = Cifar100LongTailData(calibration=kwargs.calibration)
+    elif kwargs.data == 'Imagenet':
+        dataset = ImagenetData(calibration=kwargs.calibration)
+    elif kwargs.data == 'imagenet_ood':
+        dataset = ImagenetOODData(calibration=kwargs.calibration)
+    elif kwargs.data == 'imagenet_longtail':
+        dataset = ImagenetLongTailData(calibration=kwargs.calibration)    
+
+    kwargs.method = 'TS'
+    #num_classes}_classes_{kwargs.dataset.num_features}_features/"
+    #os.makedirs(path, exist_ok=True) 
+    os.makedirs(f"results/{kwargs.exp_name}_{kwargs.method}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
+    raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
+                kwargs.exp_name,
+                kwargs.method,
+                kwargs.data,
+                kwargs.dataset.num_classes,
+                kwargs.dataset.num_features,
+                seed,
+                kwargs.models.max_iter           
+            )
+    raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}.csv".format(
+            kwargs.exp_name,
+            kwargs.method,
+            kwargs.data,
+            kwargs.dataset.num_classes,
+            kwargs.dataset.num_features,
+            seed,
+            kwargs.models.max_iter                      
+        )
+    # Assume you already trained `model`
+    scaler = TemperatureScaler(kwargs.models.max_iter, kwargs.models.temp_lr)
+    # Fit on validation set
+    scaler.fit(dataset.data_train_cal_loader, device=cuda_device)
+    
+    raws = []
+    scaler.eval()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    scaler.to(device)
+
+    with torch.no_grad():
+        for batch in tqdm(dataset.data_test_cal_loader, desc="Extracting Temeperature scaling logits"):
+            batch = [b.to(device) for b in batch]                
+            raw = scaler.calibrated_predictions(batch)
+            raws.append(raw)
+            
+    res = get_raw_res(raws, features=True, reduced_dim=None)
+    res.to_csv(raw_results_path_test_cal, index=False)
+    
+    raws = []
+    scaler.eval()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    scaler.to(device)
+
+    with torch.no_grad():
+        for batch in tqdm(dataset.data_train_cal_loader, desc="Extracting Temeperature Scaling logits"):
+            batch = [b.to(device) for b in batch]                
+            raw = scaler.calibrated_predictions(batch)
+            raws.append(raw)
+            
+    res = get_raw_res(raws, features=True, reduced_dim=None)
+    res.to_csv(raw_results_path_train_cal, index=False)
+    
+    print(f"\nSTART TESTING {kwargs.method}!")        
+    test(kwargs)
+
+    
+    
+
+    
+    
+    
+    
+    

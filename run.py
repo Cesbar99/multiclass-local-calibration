@@ -6,6 +6,7 @@ from omegaconf import DictConfig, open_dict, OmegaConf
 from src.actions.pretrain import *
 from src.actions.test import *
 from src.actions.calibrate import *
+from src.actions.competition import *
 from pytorch_lightning.loggers import WandbLogger
 import time
 from datetime import datetime
@@ -65,8 +66,13 @@ def main(cfg: DictConfig):
             print('Using default batch_size set to: ', kwargs.dataset.batch_size)
             print("Calibrating model with {kwargs.calibration_method} technique...")
         calibrate(kwargs, wandb_logger)
-        # Logic to calibrate the model
-        # This is a placeholder for calibration logic
+    elif kwargs.competition:        
+        kwargs.exp_name = 'competition'
+        if kwargs.dataset.batch_size is None:
+            kwargs.dataset.batch_size = kwargs.batch_size_map.get(kwargs.exp_name, 512)  # fallback default        
+            print('Using default batch_size set to: ', kwargs.dataset.batch_size)
+            print("Testing peroformance of competitors...")
+        competition(kwargs, wandb_logger)
 
     wandb.finish()
     del wandb_logger
@@ -105,7 +111,7 @@ def main_entry():
             cfg = compose(config_name="config_local", overrides=full_overrides)
             
         elif cfg.test:
-            if cfg.exp_name not in ['pre-train', 'calibrate']:
+            if cfg.exp_name not in ['pre-train', 'calibrate', 'competition']:
                 raise ValueError(f"Explicitly provide 'exp_name' argument from CLI when testing! Allowed values are 'pre-train' and 'calibrate'. Instead '{cfg.exp_name}' was given!")                 
             
             elif cfg.exp_name == 'pre-train':
@@ -119,7 +125,12 @@ def main_entry():
                 full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides
                 model_name = 'calibrator'
                 cfg = compose(config_name="config_local", overrides=full_overrides)
-             
+                
+        elif cfg.exp_name == 'competition':
+            model_name = 'competition'
+            full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides
+            cfg = compose(config_name="config_local", overrides=full_overrides)
+                                      
     main(cfg) #main(cfg, split) #main(**OmegaConf.to_container(cfg, resolve=True) )
     
 

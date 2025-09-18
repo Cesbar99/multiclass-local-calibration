@@ -18,7 +18,7 @@ from optuna.samplers import NSGAIISampler
 from hp_opt.hp_opt import *
 from pytorch_lightning.loggers import WandbLogger
 import json
-
+from tqdm import tqdm
 
 def calibrate(kwargs, wandb_logger):
     
@@ -147,23 +147,26 @@ def calibrate(kwargs, wandb_logger):
             check_val_every_n_epoch=1,
             #gradient_clip_val=5,
             deterministic=True,
-            callbacks=[CalibrationPlotCallback(kwargs, dataset.data_train_cal_loader, every_n_epochs=5, device="cuda", type='train'), 
-                       CalibrationPlotCallback(kwargs, dataset.data_test_cal_loader, every_n_epochs=5, device="cuda", type='test'),
-                       EarlyStopping(monitor="val_con_loss", patience=5, mode="min", verbose=True, min_delta=0.0)])
-    #         ModelCheckpoint(
-    #             monitor="val_total",                                                                                               # Metric to track
-    #             mode="min",                                                                                                     # Lower is better
-    #             save_top_k=1,                                                                                                   # Only keep the best model
-    #             filename=f"classifier_seed-{seed}_ep-{total_epochs}",                                                           # Static filename (no epoch suffix)
-    #             dirpath=path,                                                                                                   # Save in your existing checkpoint folder
-    #             save_weights_only=True,                                                                                         # Save only weights (not full LightningModule)
-    #             auto_insert_metric_name=False,                                                                                  # Prevent metric name in filename
-    #             every_n_epochs=1,                                                                                               # Run every epoch                    
-    #             enable_version_counter=False,
-    #             verbose=True
-    #         ) 
-    #     ]
-    # )   
+            callbacks=[ CalibrationPlotCallback(kwargs, dataset.data_train_cal_loader, every_n_epochs=5, device="cuda", type='train'), 
+                        CalibrationPlotCallback(kwargs, dataset.data_test_cal_loader, every_n_epochs=5, device="cuda", type='test'),
+                        # EarlyStopping(monitor="val_kl", 
+                        #               patience=10, 
+                        #               mode="min", 
+                        #               verbose=True, 
+                        #               min_delta=0.0),
+                        # ModelCheckpoint(monitor="val_kl",                                                                                               # Metric to track
+                        #     mode="min",                                                                                                     # Lower is better
+                        #     save_top_k=1,                                                                                                   # Only keep the best model
+                        #     filename=f"classifier_seed-{seed}_ep-{total_epochs}",                                                           # Static filename (no epoch suffix)
+                        #     dirpath=path,                                                                                                   # Save in your existing checkpoint folder
+                        #     save_weights_only=True,                                                                                         # Save only weights (not full LightningModule)
+                        #     auto_insert_metric_name=False,                                                                                  # Prevent metric name in filename
+                        #     every_n_epochs=1,                                                                                               # Run every epoch                    
+                        #     enable_version_counter=False,
+                        #     verbose=True
+                        # ) 
+            ]
+    )   
     start = time.time()
     trainer.fit(pl_model, dataset.data_train_cal_loader,
                     dataset.data_val_cal_loader)
@@ -177,12 +180,42 @@ def calibrate(kwargs, wandb_logger):
     #checkpoint = torch.load(best_model_path)
     #pl_model.load_state_dict(checkpoint['state_dict'])
 
-    raws = trainer.predict(pl_model, dataset.data_train_cal_loader) #dataset.data_train_cal_loader
-    res = get_raw_res(raws)
+    raws = []
+    pl_model.eval()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    pl_model.to(device)
+
+    with torch.no_grad():
+        for batch in tqdm(dataset.data_train_cal_loader, desc="Extracting pca features"):
+            batch = [b.to(device) for b in batch]                
+            raw = pl_model.extract_pca(batch)
+            raws.append(raw)
+
+    #all_raws = torch.cat(all_raws)
+    print('pca shape: ', raws[1]['features'].shape)
+    res = get_raw_res(raws, features=True, reduced_dim=None)
+    
+    #raws = trainer.predict(pl_model, dataset.data_train_cal_loader) #dataset.data_train_cal_loader
+    #res = get_raw_res(raws)
     res.to_csv(raw_results_path_train_cal, index=False)
     
-    raws = trainer.predict(pl_model, dataset.data_test_cal_loader)
-    res = get_raw_res(raws)
+    raws = []
+    pl_model.eval()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    pl_model.to(device)
+
+    with torch.no_grad():
+        for batch in tqdm(dataset.data_test_cal_loader, desc="Extracting pca features"):
+            batch = [b.to(device) for b in batch]                
+            raw = pl_model.extract_pca(batch)
+            raws.append(raw)
+
+    #all_raws = torch.cat(all_raws)
+    print('pca shape: ', raws[1]['features'].shape)
+    res = get_raw_res(raws, features=True, reduced_dim=None)
+    
+    #raws = trainer.predict(pl_model, dataset.data_test_cal_loader)
+    #res = get_raw_res(raws)
     res.to_csv(raw_results_path_test_cal, index=False)
 
     print("CALIBRATION OVER!")

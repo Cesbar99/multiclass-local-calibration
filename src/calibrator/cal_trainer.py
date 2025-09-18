@@ -48,7 +48,7 @@ def compute_multiclass_kl_divergence(p2, p1, num_classes, eps=1e-4):
 
     return to_ret
 
-def multiclass_neighborhood_class0_prob(means, z_hat, sigma, y, eps=1e-6):
+def multiclass_neighborhood_class0_prob(means, z_hat, sigma, y, eps=1e-6, ret_weights=False):
     """
     means: (B, C)
     z_hat: (B, C)
@@ -71,7 +71,7 @@ def multiclass_neighborhood_class0_prob(means, z_hat, sigma, y, eps=1e-6):
     sigma_i = sigma.unsqueeze(1)  # (B, 1, C)
 
     # Gaussian kernel exponent
-    exponent = -diffs_squared / (2.0 * sigma_i + eps)  # (B, B, C)
+    exponent = -diffs_squared / (2.0 * sigma_i*sigma_i + eps)  # (B, B, C)
 
     # Sum over dimensions
     sq_dists = torch.sum(exponent, dim=-1, keepdim=False)  # (B, B)
@@ -89,9 +89,23 @@ def multiclass_neighborhood_class0_prob(means, z_hat, sigma, y, eps=1e-6):
 
     # Weighted sum over neighbors
     probs_classes = torch.matmul(p_norm, y)  # (B, C)
+    if ret_weights:
+        return probs_classes, p_norm
+    else:
+        return probs_classes
 
-    return probs_classes
-
+def entropy(probs: torch.Tensor) -> torch.Tensor:
+    """
+    Computes entropy for a batch of probability distributions.
+    
+    Args:
+        probs: Tensor of shape (N, n), rows are probability distributions.
+    Returns:
+        ent: Tensor of shape (N,), entropy of each row.
+    """
+    eps = 1e-12  # to avoid log(0)
+    ent = -torch.sum(probs * torch.log(probs + eps), dim=1)
+    return ent
 
 class AuxTrainer(pl.LightningModule):
     def __init__(self, kwargs, num_classes):              
@@ -353,6 +367,13 @@ class AuxTrainerV2(pl.LightningModule):
     def training_step(self, batch):                
         init_feats, init_logits, init_pca, y_one_hot, init_preds, init_preds_one_hot = batch        
 
+        # standardize per dimension (across batch axis, i.e. dim=0)
+        #mean = init_pca.mean(dim=0, keepdim=True)
+        #std = init_pca.std(dim=0, keepdim=True)
+
+        # avoid divide by zero
+        #init_pca = (init_pca - mean) / (std + 1e-8)
+        
         # Add noise
         epsilon = torch.randn_like(init_feats)
         noisy_feats = init_feats + self.noise * epsilon
@@ -362,11 +383,14 @@ class AuxTrainerV2(pl.LightningModule):
 
         # Forward pass
         latents_class, latents_sim = self(noisy_feats, init_logits, init_pca)
-        means = latents_sim[:, :self.similarity_dim]
-        log_std = latents_sim[:, self.similarity_dim:]
+        means = latents_sim[:, :self.similarity_dim] #init_pca
+        log_std = latents_sim[:, self.similarity_dim:] #latents_sim
         stddev = F.softplus(log_std)
         sigma = stddev ** 2
         avg_variance = torch.mean(sigma) #dim=0
+        min_variance = torch.min(sigma)
+        max_variance = torch.max(sigma)
+        pca_std = means.std(dim=0, keepdim=True).mean()
 
         # Reparameterization
         epsilon = torch.randn_like(means)
@@ -377,7 +401,7 @@ class AuxTrainerV2(pl.LightningModule):
         p2 = probs_hat
 
         # Neighborhood-based probabilities
-        p1 = multiclass_neighborhood_class0_prob(means, z_hat, sigma=sigma, y=noisy_y_one_hot) # compute on similarity specific encoding!!!
+        p1, weights = multiclass_neighborhood_class0_prob(means, z_hat, sigma=sigma, y=noisy_y_one_hot, ret_weights=True) # compute on similarity specific encoding!!!
 
         # KL divergence
         kl_loss = compute_multiclass_kl_divergence(p2, p1, self.num_classes)
@@ -406,12 +430,16 @@ class AuxTrainerV2(pl.LightningModule):
 
         total_loss = (self.lambda_kl * kl_loss +
                       self.alpha1 * constraint_loss +
-                      self.alpha2 * avg_variance ** 2)
+                      self.alpha2 * entropy(weights).mean()) #avg_variance pca_std)
 
         self.log("train_total", total_loss, on_epoch=True, on_step=False, prog_bar=True)
         self.log("train_kl", kl_loss, on_epoch=True, on_step=False, prog_bar=False)
         self.log("train_con_loss", constraint_loss, on_epoch=True, on_step=False, prog_bar=True)
         self.log("train_constraint", constraint, on_epoch=True, on_step=False, prog_bar=False)
+        self.log('avg_variance', avg_variance, on_epoch=True, on_step=False, prog_bar=False)
+        self.log('min_variance', min_variance, on_epoch=True, on_step=False, prog_bar=False)
+        self.log('max_variance', max_variance, on_epoch=True, on_step=False, prog_bar=False)
+        self.log('pca_std', pca_std, on_epoch=True, on_step=False, prog_bar=False)
         #self.log("lambda_kl", self.lambda_kl, on_epoch=True, on_step=False, prog_bar=False)
 
         return total_loss
@@ -419,6 +447,13 @@ class AuxTrainerV2(pl.LightningModule):
     def validation_step(self, batch):
         init_feats, init_logits, init_pca, y_one_hot, init_preds, init_preds_one_hot = batch
 
+        # standardize per dimension (across batch axis, i.e. dim=0)
+        #mean = init_pca.mean(dim=0, keepdim=True)
+        #std = init_pca.std(dim=0, keepdim=True)
+
+        # avoid divide by zero
+        #init_pca = (init_pca - mean) / (std + 1e-8)
+        
         # Add noise
         epsilon = torch.randn_like(init_feats)
         noisy_feats = init_feats + self.noise * epsilon
@@ -428,11 +463,14 @@ class AuxTrainerV2(pl.LightningModule):
 
         # Forward pass
         latents_class, latents_sim = self(noisy_feats, init_logits, init_pca)
-        means = latents_sim[:, :self.similarity_dim]
-        log_std = latents_sim[:, self.similarity_dim:]
+        means = latents_sim[:, :self.similarity_dim]#init_pca
+        log_std = latents_sim[:, self.similarity_dim:] #latents_sim
         stddev = F.softplus(log_std)
         sigma = stddev ** 2
         avg_variance = torch.mean(sigma)
+        min_variance = torch.min(sigma)
+        max_variance = torch.max(sigma)
+        pca_std = means.std(dim=0, keepdim=True).mean()
 
         # Reparameterization
         epsilon = torch.randn_like(means)
@@ -443,7 +481,7 @@ class AuxTrainerV2(pl.LightningModule):
         p2 = probs_hat
 
         # Neighborhood-based probabilities
-        p1 = multiclass_neighborhood_class0_prob(means, z_hat, sigma=sigma, y=noisy_y_one_hot) 
+        p1, weights = multiclass_neighborhood_class0_prob(means, z_hat, sigma=sigma, y=noisy_y_one_hot, ret_weights=True) 
 
         # KL divergence
         kl_loss = compute_multiclass_kl_divergence(p2, p1, self.num_classes)
@@ -469,7 +507,7 @@ class AuxTrainerV2(pl.LightningModule):
         
         total_loss = (self.lambda_kl * kl_loss +
                       self.alpha1 * constraint_loss +
-                      self.alpha2 * avg_variance ** 2)              
+                      self.alpha2 * entropy(weights).mean()) #avg_variance pca_std)              
         optuna_loss = kl_loss + constraint_loss 
             
         self.log("val_total", total_loss, on_epoch=True, on_step=False, prog_bar=True)
@@ -477,9 +515,14 @@ class AuxTrainerV2(pl.LightningModule):
         self.log("val_kl", kl_loss, on_epoch=True, on_step=False, prog_bar=True)
         self.log("val_con_loss", constraint_loss, on_epoch=True, on_step=False, prog_bar=False)
         self.log("val_constraint", constraint, on_epoch=True, on_step=False, prog_bar=True)  
-        self.log("lambda_kl", self.lambda_kl, on_epoch=True, on_step=False, prog_bar=False)       
-        self.log("alpha1", self.alpha1, on_epoch=True, on_step=False, prog_bar=False)       
-        self.log("log_var", self.log_var_initializer, on_epoch=True, on_step=False, prog_bar=False)                              
+        self.log('avg_val_variance', avg_variance, on_epoch=True, on_step=False, prog_bar=False)    
+        self.log('min_val_variance', min_variance, on_epoch=True, on_step=False, prog_bar=False)
+        self.log('max_val_variance', max_variance, on_epoch=True, on_step=False, prog_bar=False)
+        self.log('val_pca_std', pca_std, on_epoch=True, on_step=False, prog_bar=False)
+        #self.log("lambda_kl", self.lambda_kl, on_epoch=True, on_step=False, prog_bar=False)       
+        #self.log("alpha1", self.alpha1, on_epoch=True, on_step=False, prog_bar=False)       
+        #self.log("log_var", self.log_var_initializer, on_epoch=True, on_step=False, prog_bar=False)    
+                              
 
     def configure_optimizers(self):
         opt_name = self.optimizer_cfg.name #.lower()
@@ -514,14 +557,21 @@ class AuxTrainerV2(pl.LightningModule):
         """
         init_feats, init_logits, init_pca, y_one_hot, init_preds, init_preds_one_hot = batch 
         
+        # standardize per dimension (across batch axis, i.e. dim=0)
+        #mean = init_pca.mean(dim=0, keepdim=True)
+        #std = init_pca.std(dim=0, keepdim=True)
+
+        # avoid divide by zero
+        #init_pca = (init_pca - mean) / (std + 1e-8)
+        
         # Add noise
         epsilon = torch.randn_like(init_feats)
         noisy_feats = init_feats + self.noise * epsilon
         
         # Forward pass
         latents_class, latents_sim = self(noisy_feats, init_logits, init_pca)
-        means = latents_sim[:, :self.similarity_dim]
-        log_std = latents_sim[:, self.similarity_dim:]
+        means = latents_sim[:, :self.similarity_dim] #init_pca
+        log_std = latents_sim[:, self.similarity_dim:] #latents_sim
         stddev = F.softplus(log_std)
         
         # Reparameterization
@@ -536,6 +586,36 @@ class AuxTrainerV2(pl.LightningModule):
             "true": target,
             "logits": new_logits,
         }
+        
+    def extract_pca(self, batch):
+        init_feats, init_logits, init_pca, y_one_hot, _, _ = batch 
+        
+        # standardize per dimension (across batch axis, i.e. dim=0)
+        #mean = init_pca.mean(dim=0, keepdim=True)
+        #std = init_pca.std(dim=0, keepdim=True)
+
+        # avoid divide by zero
+        #init_pca = (init_pca - mean) / (std + 1e-8)
+        
+        # Add noise
+        epsilon = torch.randn_like(init_feats)
+        noisy_feats = init_feats + self.noise * epsilon
+        
+        # Forward pass
+        logits, latents_sim = self(noisy_feats, init_logits, init_pca)
+        means = latents_sim[:, :self.similarity_dim] #init_pca
+        log_std = latents_sim[:, self.similarity_dim:] #latents_sim
+        stddev = F.softplus(log_std)
+                
+        preds = torch.argmax(logits, dim=-1).view(-1,1)  # predicted class
+        # Create dict in the same format as predict outputs
+        out = {
+            "features": means,       
+            "logits": logits,
+            "preds": preds,     
+            "true": torch.argmax(y_one_hot, dim=-1).view(-1,1)
+        }
+        return out
     
     def interpolate_weights(self):
         epoch = self.current_epoch

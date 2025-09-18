@@ -375,7 +375,7 @@ class SynthData(Dataset):
                                     flip_y = kwargs.flip_y,
                                     batch_size = kwargs.batch_size,
                                     random_state = kwargs.random_state)      
-        elif experiment == 'calibrate':
+        elif experiment == 'calibrate' or experiment == 'competition':
             self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationData(kwargs, dataname=self.dataname) 
             print("Loading synthetic data for calibration complete")   
 
@@ -439,7 +439,7 @@ class CovTypeData(Dataset):
         if experiment == 'pre-train':        
             self.generatePretrainingCovTypeData(batch_size = kwargs.batch_size,
                                     random_state = kwargs.random_state)      
-        elif experiment == 'calibrate':
+        elif experiment == 'calibrate' or experiment == 'competition':
             self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationData(kwargs, dataname=self.dataname) 
             print("Loading synthetic data for calibration complete")   
 
@@ -515,7 +515,7 @@ class OttoData(Dataset):
         if experiment == 'pre-train':        
             self.generatePretrainingOttoData(batch_size = kwargs.batch_size,
                                     random_state = kwargs.random_state)      
-        elif experiment == 'calibrate':
+        elif experiment == 'calibrate' or experiment == 'competition':
             self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationData(kwargs, dataname=self.dataname) 
             print("Loading synthetic data for calibration complete")   
 
@@ -570,7 +570,7 @@ class MnistData(Dataset):
                 self.generatePretrainingMnistData(
                                     batch_size = kwargs.batch_size,
                                     random_state = kwargs.random_state)      
-        elif experiment == 'calibrate':
+        elif experiment == 'calibrate' or experiment == 'competition':
                 self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationData(kwargs) 
         print("Loading synthetic data for calibration complete")   
 
@@ -670,7 +670,7 @@ class MedMnistData(Dataset):
             self.generatePretrainingMedMnistData(size=kwargs.size,
                                 batch_size = kwargs.batch_size,
                                 random_state = kwargs.random_state)      
-        elif experiment == 'calibrate':
+        elif experiment == 'calibrate' or experiment == 'competition':
                 if kwargs.calibrator_version == 'v2':
                     self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationDatav2(kwargs)
                 else:
@@ -737,7 +737,7 @@ class Cifar10Data(Dataset):
             self.generatePretrainingCifar10Data(
                                     batch_size = kwargs.batch_size,
                                     random_state = kwargs.random_state)      
-        elif experiment == 'calibrate':
+        elif experiment == 'calibrate' or experiment == 'competition':
                 self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationData(kwargs) 
         print("Loading synthetic data for calibration complete")   
 
@@ -780,7 +780,7 @@ class Cifar10LongTailData(Dataset):
             self.generatePretrainingCifar10Data(
                                     batch_size = kwargs.batch_size,
                                     random_state = kwargs.random_state)      
-        elif experiment == 'calibrate':
+        elif experiment == 'calibrate' or experiment == 'competition':
                 self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationData(kwargs) 
         print("Loading synthetic data for calibration complete")   
 

@@ -86,7 +86,8 @@ class AuxiliaryMLPV2(pl.LightningModule):
         
         if isinstance(log_var_initializer, (float, int, torch.Tensor)) and not hasattr(log_var_initializer, '__len__'):
             # Scalar case: fill with the same value
-            var_tensor = torch.full((similarity_dim,), log_var_initializer)
+            #var_tensor = torch.full((similarity_dim,), log_var_initializer)
+            var_tensor = torch.full((1,), log_var_initializer)
         elif isinstance(log_var_initializer, (ListConfig, list, tuple, np.ndarray, torch.Tensor)):
             # Vector case: convert to tensor and validate shape
             var_tensor = torch.tensor(log_var_initializer, dtype=torch.float32)
@@ -105,7 +106,9 @@ class AuxiliaryMLPV2(pl.LightningModule):
         self.dense1 = nn.Linear(feature_dim, hidden_dim)
         self.dropout1 = nn.Dropout(p=self.dropout_rate)  # Dropout layer                
         
-        self.similarity_head = nn.Linear(hidden_dim, 2 * similarity_dim) #hidden_dim
+        #self.similarity_head = nn.Linear(hidden_dim, 2 * similarity_dim) #hidden_dim
+        self.similarity_head = nn.Linear(hidden_dim, 1 + similarity_dim) #hidden_dim
+        #self.similarity_head = nn.Linear(hidden_dim, similarity_dim) #hidden_dim
         self.classifcation_head = nn.Linear(hidden_dim, output_dim) #hidden_dim
 
         # Initialize weights manually
@@ -115,9 +118,10 @@ class AuxiliaryMLPV2(pl.LightningModule):
 
         # Bias initialization: [0.0]*similarity_dim + [var_init]*similarity_dim
         bias_init = torch.cat([
-            torch.zeros(similarity_dim),
-            var_tensor
-        ])
+             torch.zeros(similarity_dim),
+             var_tensor
+         ]) #var_tensor
+         
         with torch.no_grad():
             self.similarity_head.bias.copy_(bias_init)
             #self.classifcation_head.bias.copy_(bias_init)
@@ -126,7 +130,8 @@ class AuxiliaryMLPV2(pl.LightningModule):
         # z: (batch_size, latent_dim)
         # z_aug = torch.cat([z, torch.zeros_like(z[:, :self.output_dim])], dim=1)  # (batch_size, 2*latent_dim)
         # logits_aug = torch.cat([logits, torch.zeros_like(logits[:, :self.output_dim])], dim=1)  # (batch_size, 2*latent_dim)
-        pca_aug = torch.cat([pca, torch.zeros_like(pca[:, :self.similarity_dim])], dim=1)  # (batch_size, 2*latent_dim)
+        #pca_aug = torch.cat([pca, torch.zeros_like(pca[:, :self.similarity_dim])], dim=1)  # (batch_size, 2*latent_dim)
+        pca_aug = torch.cat([pca, torch.zeros(pca.size(0), 1, device=pca.device, dtype=pca.dtype)], dim=1)
 
         x = F.relu(self.dense1(feats))
         x = self.dropout1(x)

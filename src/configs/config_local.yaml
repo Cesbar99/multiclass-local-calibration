@@ -47,6 +47,7 @@ use_wandb: True
 
 # testing and calibration metrics
 n_bins_calibration_metrics: 15
+bin_strategy: # 'quantile' for same size bins or 'default' which uses probabilities theresholds (equivalent to uniform)
 gamma: 0.1 # bandwidth for LCE
 save_path_calibration_plots: /home/barbera/calibration/localibration/results/plots/
 save_path_calibration_metrics: /home/barbera/calibration/localibration/results/metrics/
@@ -74,4 +75,5 @@ n_trials: 50
 multi_obj: False
 
 #competitors
+methods: ['TS', 'IR', 'PS', 'DC'] #tempearature scaling, isotonic regression, platt scaling, dirichlet calibration
 method:

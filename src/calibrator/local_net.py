@@ -108,6 +108,7 @@ class AuxiliaryMLPV2(pl.LightningModule):
         
         #self.similarity_head = nn.Linear(hidden_dim, 2 * similarity_dim) #hidden_dim
         self.similarity_head = nn.Linear(hidden_dim, 1 + similarity_dim) #hidden_dim
+        #self.similarity_head = nn.Linear(hidden_dim, 1) #hidden_dim
         #self.similarity_head = nn.Linear(hidden_dim, similarity_dim) #hidden_dim
         self.classifcation_head = nn.Linear(hidden_dim, output_dim) #hidden_dim
 
@@ -118,9 +119,9 @@ class AuxiliaryMLPV2(pl.LightningModule):
 
         # Bias initialization: [0.0]*similarity_dim + [var_init]*similarity_dim
         bias_init = torch.cat([
-             torch.zeros(similarity_dim),
-             var_tensor
-         ]) #var_tensor
+            torch.zeros(similarity_dim),
+            var_tensor
+        ]) #var_tensor
          
         with torch.no_grad():
             self.similarity_head.bias.copy_(bias_init)
@@ -137,6 +138,7 @@ class AuxiliaryMLPV2(pl.LightningModule):
         x = self.dropout1(x)
         
         similarity_out = self.similarity_head(x) + pca_aug  # (batch_size, 2*similarity_dim)
+        #similarity_out = torch.cat([pca, self.similarity_head(x)], dim=1) # + pca_aug  # (batch_size, 2*similarity_dim)
         classification_out = self.classifcation_head(x) + logits # self.dense8(x) + z_aug
         
         return classification_out, similarity_out

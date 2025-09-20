@@ -610,7 +610,7 @@ class AuxTrainerV2(pl.LightningModule):
         preds = torch.argmax(logits, dim=-1).view(-1,1)  # predicted class
         # Create dict in the same format as predict outputs
         out = {
-            "features": means,       
+            "features": means, #init_pca       
             "logits": logits,
             "preds": preds,     
             "true": torch.argmax(y_one_hot, dim=-1).view(-1,1)

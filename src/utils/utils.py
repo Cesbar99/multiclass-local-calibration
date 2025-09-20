@@ -210,7 +210,8 @@ def compute_multiclass_calibration_metrics_w_lce(
     pca: torch.Tensor,
     n_bins: int = 15,
     gamma: float = 0.1,
-    full_ece: bool = False
+    full_ece: bool = False,
+    bin_strategy: str = 'default'
 ):
     """
     Computes:
@@ -325,20 +326,36 @@ def compute_multiclass_calibration_metrics_w_lce(
     #     avg_mlce = 0.0
 
     for class_idx in range(n_classes):
+        print('Class ', class_idx)
         # One-vs-all labels & class probabilities
         labels_binary = (y_true == class_idx).float().to(device)   # (N,)
         probs_class = probs[:, class_idx].to(device)              # (N,)
 
         # Brier Score for this class
         brier = torch.mean((probs_class - labels_binary) ** 2).item()
+        if bin_strategy == 'quantile':
+            # probs_class: (N,) tensor
+            arr = probs_class.detach().cpu().numpy()
 
-        # Bin predictions (confidence bins)
-        bin_edges = torch.linspace(0.0, 1.0, n_bins + 1, device=device)
-        # bucketize returns integer bin indices in [0..n_bins]; we will iterate 1..n_bins
-        bin_indices = torch.bucketize(probs_class, bin_edges, right=True)
-        #bin_edges = torch.linspace(0.0, 1.0, n_bins + 1, device=device)
-        #bin_indices = torch.bucketize(probs_class, bin_edges, right=False) - 1
-        #bin_indices = bin_indices.clamp(0, n_bins - 1)  # ensure within [0, n_bins-1]                      
+            # Compute quantile edges: [0%, 100%] split into n_bins intervals
+            bin_edges_np = np.quantile(arr, np.linspace(0.0, 1.0, n_bins + 1))
+            bin_edges_np[0] = 0.0    # force exact 0
+            bin_edges_np[-1] = 1.0   # force exact 1
+
+            # Convert back to torch tensor on correct device
+            bin_edges = torch.tensor(bin_edges_np, dtype=torch.float32, device=device)
+
+            # Assign samples to bins (like np.digitize, left-inclusive, right-exclusive)
+            bin_indices = torch.bucketize(probs_class, bin_edges, right=False) - 1
+            bin_indices = bin_indices.clamp(0, n_bins - 1)  # keep in range [0, n_bins-1]
+        else:
+            # Bin predictions (confidence bins)
+            bin_edges = torch.linspace(0.0, 1.0, n_bins + 1, device=device)
+            # bucketize returns integer bin indices in [0..n_bins]; we will iterate 1..n_bins
+            bin_indices = torch.bucketize(probs_class, bin_edges, right=True)
+            #bin_edges = torch.linspace(0.0, 1.0, n_bins + 1, device=device)
+            #bin_indices = torch.bucketize(probs_class, bin_edges, right=False) - 1
+            #bin_indices = bin_indices.clamp(0, n_bins - 1)  # ensure within [0, n_bins-1]                      
 
         total_count = probs_class.numel()
         ece = 0.0
@@ -563,7 +580,7 @@ def compute_multiclass_calibration_metrics(probs: torch.Tensor, y_true: torch.Te
     return avg_ecce, avg_ece, avg_mce, avg_brier, nll
 
 
-def multiclass_calibration_plot(y_true, probs, n_bins=15, save_path="calibration_plots", filename="multiclass_calibration.png"):
+def multiclass_calibration_plot(y_true, probs, n_bins=15, bin_strategy='default', save_path="calibration_plots", filename="multiclass_calibration.png"):
     """
     Saves a grid of calibration plots, one per class, to a specified directory.
 
@@ -589,14 +606,19 @@ def multiclass_calibration_plot(y_true, probs, n_bins=15, save_path="calibration
         y_prob_class = probs[:, class_idx]
 
         # Calibration curve
+        strategy = 'quantile' if bin_strategy == 'quantile' else 'uniform'
         fraction_of_positives, mean_predicted_value = calibration_curve(
-            y_true_binary, y_prob_class, n_bins=n_bins, strategy='uniform'
+            y_true_binary, y_prob_class, n_bins=n_bins, strategy=strategy
         )
-
-        # Bin sample counts
-        bin_edges = np.linspace(0.0, 1.0, n_bins + 1)
-        bin_counts, _ = np.histogram(y_prob_class, bins=bin_edges)
-
+        if bin_strategy == 'quantile':
+            # Get actual quantile-based bin edges
+            bin_edges = np.quantile(y_prob_class, np.linspace(0, 1, n_bins + 1))
+            bin_edges[0], bin_edges[-1] = 0.0, 1.0
+        else:
+            # Bin sample counts
+            bin_edges = np.linspace(0.0, 1.0, n_bins + 1)
+        
+        bin_counts, _ = np.histogram(y_prob_class, bins=bin_edges)            
         # Map predicted means to closest bin centers
         bin_idx_for_text = np.digitize(mean_predicted_value, bin_edges) - 1
         bin_idx_for_text = np.clip(bin_idx_for_text, 0, n_bins - 1)

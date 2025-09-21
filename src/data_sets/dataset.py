@@ -738,6 +738,9 @@ class Cifar10Data(Dataset):
                                     batch_size = kwargs.batch_size,
                                     random_state = kwargs.random_state)      
         elif experiment == 'calibrate' or experiment == 'competition':
+            if kwargs.calibrator_version == 'v2':
+                self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationDatav2(kwargs)
+            else:
                 self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationData(kwargs) 
         print("Loading synthetic data for calibration complete")   
 

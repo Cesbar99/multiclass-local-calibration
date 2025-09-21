@@ -58,6 +58,66 @@ def competition(kwargs, wandb_logger=None):
     elif kwargs.data == 'imagenet_longtail':
         dataset = ImagenetLongTailData(calibration=kwargs.calibration)    
 
+    
+    if 'DC' in kwargs.methods:
+        kwargs.method = 'DC' #DIRICHLET CALIBRATION
+        #num_classes}_classes_{kwargs.dataset.num_features}_features/"
+        #os.makedirs(path, exist_ok=True) 
+        os.makedirs(f"results/{kwargs.exp_name}_{kwargs.method}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
+        raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
+                    kwargs.exp_name,
+                    kwargs.method,
+                    kwargs.data,
+                    kwargs.dataset.num_classes,
+                    kwargs.dataset.num_features,
+                    seed,
+                    kwargs.models.max_iter           
+                )
+        raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}.csv".format(
+                kwargs.exp_name,
+                kwargs.method,
+                kwargs.data,
+                kwargs.dataset.num_classes,
+                kwargs.dataset.num_features,
+                seed,
+                kwargs.models.max_iter                      
+            )
+        # Assume you already trained `model`
+        scaler = DirichletCalibrator(n_classes=kwargs.dataset.num_classes, max_iter=kwargs.models.max_iter, lr=kwargs.models.temp_lr)
+        # Fit on validation set
+        scaler.fit(dataset.data_train_cal_loader, device=cuda_device)
+        
+        raws = []
+        scaler.eval()
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        scaler.to(device)
+
+        with torch.no_grad():
+            for batch in tqdm(dataset.data_test_cal_loader, desc="Extracting Dirichlet Calibration logits"):
+                batch = [b.to(device) for b in batch]                
+                raw = scaler.calibrated_predictions(batch)
+                raws.append(raw)
+                
+        res = get_raw_res(raws, features=True, reduced_dim=None)
+        res.to_csv(raw_results_path_test_cal, index=False)
+        
+        raws = []
+        scaler.eval()
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        scaler.to(device)
+
+        with torch.no_grad():
+            for batch in tqdm(dataset.data_train_cal_loader, desc="Extracting Dirichlet Calibration logits"):
+                batch = [b.to(device) for b in batch]                
+                raw = scaler.calibrated_predictions(batch)
+                raws.append(raw)
+                
+        res = get_raw_res(raws, features=True, reduced_dim=None)
+        res.to_csv(raw_results_path_train_cal, index=False)
+        
+        print(f"\nSTART TESTING {kwargs.method}!")        
+        test(kwargs)
+    
     if 'TS' in kwargs.methods:
         kwargs.method = 'TS' #TEMPERATURE SCALING
         #num_classes}_classes_{kwargs.dataset.num_features}_features/"

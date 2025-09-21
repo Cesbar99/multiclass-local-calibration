@@ -31,3 +31,5 @@ js_distance: True          # If true copmutes JS distance in place of kl diverge
 interpolation_epochs: 0.   # Number of epochs for lambda_kl to drop to alpha1. To not interolate set as 0                                                                #
 dropout: 0.1               # Dropout to regularize calibrator
 
+adabw: False              # If true uses adaptive bandwidth for lce computation else fixed bandwidth
+fixed_var: False

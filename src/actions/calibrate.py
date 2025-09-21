@@ -193,7 +193,7 @@ def calibrate(kwargs, wandb_logger):
 
     #all_raws = torch.cat(all_raws)
     print('pca shape: ', raws[1]['features'].shape)
-    res = get_raw_res(raws, features=True, reduced_dim=None)
+    res = get_raw_res(raws, features=True, adabw=kwargs.models.adabw, reduced_dim=None)
     
     #raws = trainer.predict(pl_model, dataset.data_train_cal_loader) #dataset.data_train_cal_loader
     #res = get_raw_res(raws)
@@ -212,7 +212,7 @@ def calibrate(kwargs, wandb_logger):
 
     #all_raws = torch.cat(all_raws)
     print('pca shape: ', raws[1]['features'].shape)
-    res = get_raw_res(raws, features=True, reduced_dim=None)
+    res = get_raw_res(raws, features=True, adabw=kwargs.models.adabw, reduced_dim=None)
     
     #raws = trainer.predict(pl_model, dataset.data_test_cal_loader)
     #res = get_raw_res(raws)

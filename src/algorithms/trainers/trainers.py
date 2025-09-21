@@ -422,6 +422,20 @@ class Cifar10Model(pl.LightningModule):
             "true": target,
             "logits": logits,
         }
+        
+    def extract_features(self, batch):
+        x, y = batch        
+        feats = self.model.repr(x)  # feature representation
+        logits = self.model.resnet50.fc(feats)
+        preds = torch.argmax(logits, dim=-1).view(-1,1)  # predicted class
+        # Create dict in the same format as predict outputs
+        out = {
+            "features": feats,                  # replace logits with features
+            "logits": logits,
+            "preds": preds,     # dummy preds
+            "true": y
+        }
+        return out
 
 
 class Cifar10LongTailModel(pl.LightningModule):

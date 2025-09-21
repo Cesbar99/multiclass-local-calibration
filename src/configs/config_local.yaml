@@ -24,6 +24,7 @@ checkpoint:
   seed: 42
   temperature: 1.0
   epochs: 10
+  epochs_bw: 60 # epochs of pre-trained local-net that outputs bandiwidths for each instance to use for lce computations
   num_classes: 5 # for synthetic otherwise not accessed
   num_features:  #10 for synthetic otherwise not accessed
 

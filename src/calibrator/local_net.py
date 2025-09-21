@@ -77,12 +77,13 @@ class AuxiliaryMLP(pl.LightningModule):
     
     
 class AuxiliaryMLPV2(pl.LightningModule):
-    def __init__(self, hidden_dim=64, feature_dim=2048, output_dim=2, similarity_dim=50, log_var_initializer=0.01, dropout_rate=0.1):
+    def __init__(self, hidden_dim=64, feature_dim=2048, output_dim=2, similarity_dim=50, log_var_initializer=0.01, dropout_rate=0.1, fixed_var=False):
         super().__init__()
         self.feature_dim = feature_dim
         self.output_dim = output_dim
         self.similarity_dim = similarity_dim
         self.dropout_rate = dropout_rate
+        self.fixed_var = fixed_var
         
         if isinstance(log_var_initializer, (float, int, torch.Tensor)) and not hasattr(log_var_initializer, '__len__'):
             # Scalar case: fill with the same value
@@ -106,10 +107,12 @@ class AuxiliaryMLPV2(pl.LightningModule):
         self.dense1 = nn.Linear(feature_dim, hidden_dim)
         self.dropout1 = nn.Dropout(p=self.dropout_rate)  # Dropout layer                
         
-        #self.similarity_head = nn.Linear(hidden_dim, 2 * similarity_dim) #hidden_dim
-        self.similarity_head = nn.Linear(hidden_dim, 1 + similarity_dim) #hidden_dim
-        #self.similarity_head = nn.Linear(hidden_dim, 1) #hidden_dim
-        #self.similarity_head = nn.Linear(hidden_dim, similarity_dim) #hidden_dim
+        if self.fixed_var:
+            self.similarity_head = nn.Linear(hidden_dim, similarity_dim) #hidden_dim            
+        else:
+            #self.similarity_head = nn.Linear(hidden_dim, 2 * similarity_dim) #hidden_dim
+            self.similarity_head = nn.Linear(hidden_dim, 1 + similarity_dim) #hidden_dim            
+            #self.similarity_head = nn.Linear(hidden_dim, 1) #hidden_dim            
         self.classifcation_head = nn.Linear(hidden_dim, output_dim) #hidden_dim
 
         # Initialize weights manually
@@ -118,14 +121,15 @@ class AuxiliaryMLPV2(pl.LightningModule):
         small_init(self.classifcation_head.weight, mean=0.0, std=0.01)
 
         # Bias initialization: [0.0]*similarity_dim + [var_init]*similarity_dim
-        bias_init = torch.cat([
-            torch.zeros(similarity_dim),
-            var_tensor
-        ]) #var_tensor
+        if not self.fixed_var:                   
+            bias_init = torch.cat([
+                torch.zeros(similarity_dim),
+                var_tensor
+            ]) #var_tensor
          
-        with torch.no_grad():
-            self.similarity_head.bias.copy_(bias_init)
-            #self.classifcation_head.bias.copy_(bias_init)
+            with torch.no_grad():
+                self.similarity_head.bias.copy_(bias_init)
+                #self.classifcation_head.bias.copy_(bias_init)
             
     def forward(self, feats, logits, pca):
         # z: (batch_size, latent_dim)
@@ -137,8 +141,12 @@ class AuxiliaryMLPV2(pl.LightningModule):
         x = F.relu(self.dense1(feats))
         x = self.dropout1(x)
         
-        similarity_out = self.similarity_head(x) + pca_aug  # (batch_size, 2*similarity_dim)
-        #similarity_out = torch.cat([pca, self.similarity_head(x)], dim=1) # + pca_aug  # (batch_size, 2*similarity_dim)
+        if self.fixed_var:
+            similarity_out = self.similarity_head(x) + pca  # (batch_size, 2*similarity_dim)
+        else:
+            similarity_out = self.similarity_head(x) + pca_aug  # (batch_size, 2*similarity_dim)
+            #similarity_out = self.similarity_head(x) + pca  # (batch_size, 2*similarity_dim)
+            #similarity_out = torch.cat([pca, self.similarity_head(x)], dim=1) # + pca_aug  # (batch_size, 2*similarity_dim)
         classification_out = self.classifcation_head(x) + logits # self.dense8(x) + z_aug
         
         return classification_out, similarity_out

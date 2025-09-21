@@ -206,5 +206,95 @@ class PlattScaler():
         return out    
     
 
+class DirichletCalibrator(nn.Module):
+    """
+    Dirichlet Calibration for multi-class classifiers.
+    Based on: Kull et al. "Beyond temperature scaling: Obtaining well-calibrated
+    multiclass probabilities with Dirichlet calibration" (NeurIPS 2019).
+    """
+    def __init__(self, n_classes, lr=0.01, max_iter=100):
+        super().__init__()
+        self.n_classes = n_classes
+        # Feature size = probs + log(probs) + bias term
+        self.feature_dim = 2 * n_classes + 1
+        self.W = nn.Parameter(torch.zeros(self.n_classes, self.feature_dim))
+        self.lr = lr
+        self.max_iter = max_iter
 
-    
+    def _features(self, probs):
+        """
+        Build feature vector phi(x) = [log(p), p, 1]
+        probs: (N, C) predicted probabilities
+        Returns: (N, 2C+1) feature tensor
+        """
+        log_probs = torch.log(probs + 1e-12)
+        ones = torch.ones(probs.shape[0], 1, device=probs.device)
+        return torch.cat([log_probs, probs, ones], dim=1)
+
+    def forward(self, probs):
+        """
+        Calibrate probabilities.
+        probs: (N, C) predicted probabilities (from softmax)
+        Returns: (N, C) calibrated probabilities
+        """
+        features = self._features(probs)  # (N, 2C+1)
+        logits = features @ self.W.t()    # (N, C)
+        return F.softmax(logits, dim=1)
+
+    def fit(self, val_loader, device="cuda"):
+        """
+        Fit Dirichlet calibrator on validation set.
+        Expects val_loader yielding (logits, labels) or similar.
+        """
+        self.to(device)
+        probs_list, labels_list = [], []
+
+        # Collect validation set outputs
+        with torch.no_grad():
+            for batch in val_loader:
+                # Adjust depending on your dataloader format
+                init_feats, init_logits, init_pca, y_one_hot, init_preds, init_preds_one_hot = batch
+                init_logits = init_logits.to(device)
+                probs = F.softmax(init_logits, dim=1)
+                y = y_one_hot.to(device).argmax(dim=1)
+
+                probs_list.append(probs)
+                labels_list.append(y)
+
+        probs = torch.cat(probs_list)     # (N, C)
+        labels = torch.cat(labels_list)   # (N,)
+
+        optimizer = optim.LBFGS([self.W], lr=self.lr, max_iter=self.max_iter)
+        nll_criterion = nn.NLLLoss()
+
+        def closure():
+            optimizer.zero_grad()
+            q = self.forward(probs)
+            loss = nll_criterion(torch.log(q + 1e-12), labels)
+            loss.backward()
+            return loss
+
+        optimizer.step(closure)
+
+        with torch.no_grad():
+            q = self.forward(probs)
+            loss = nll_criterion(torch.log(q + 1e-12), labels)
+            print(f"Dirichlet calibration training done. Final NLL: {loss.item():.4f}")
+
+        return self
+
+    def calibrated_predictions(self, batch, device="cuda"):
+        """Return calibrated probabilities for a batch."""
+        with torch.no_grad():
+            init_feats, init_logits, init_pca, y_one_hot, init_preds, init_preds_one_hot = batch
+            init_logits = init_logits.to(device)
+            probs = F.softmax(init_logits, dim=1)
+            calibrated_probs = self.forward(probs)
+            init_preds = init_preds.to(device)
+
+            return {
+                "features": init_pca.to(device),
+                "logits": calibrated_probs, #init_logits,
+                "preds": init_preds, #calibrated_probs,
+                "true": torch.argmax(y_one_hot, dim=-1).view(-1, 1)
+            }

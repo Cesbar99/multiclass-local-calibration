@@ -71,7 +71,7 @@ def multiclass_neighborhood_class0_prob(means, z_hat, sigma, y, eps=1e-6, ret_we
     sigma_i = sigma.unsqueeze(1)  # (B, 1, C)
 
     # Gaussian kernel exponent
-    exponent = -diffs_squared / (2.0 * sigma_i*sigma_i + eps)  # (B, B, C)
+    exponent = -diffs_squared / (2.0 * sigma_i + eps)  # (B, B, C)
 
     # Sum over dimensions
     sq_dists = torch.sum(exponent, dim=-1, keepdim=False)  # (B, B)
@@ -358,8 +358,13 @@ class AuxTrainerV2(pl.LightningModule):
         self.interpolation_epochs = kwargs.interpolation_epochs     
         self.feature_dim = feature_dim
         self.similarity_dim = similarity_dim
+        self.adabw = kwargs.adabw 
+        self.fixed_var = kwargs.fixed_var
+        self.device_name = 'cuda'
 
-        self.model = AuxiliaryMLPV2(hidden_dim=kwargs.hidden_dim, feature_dim=feature_dim, output_dim=num_classes, similarity_dim=similarity_dim, log_var_initializer=kwargs.log_var_initializer, dropout_rate=kwargs.dropout)
+        self.model = AuxiliaryMLPV2(hidden_dim=kwargs.hidden_dim, feature_dim=feature_dim, output_dim=num_classes, 
+                                    similarity_dim=similarity_dim, log_var_initializer=kwargs.log_var_initializer, 
+                                    dropout_rate=kwargs.dropout, fixed_var=self.fixed_var)
         
     def forward(self, init_feats, init_logits, init_pca):
         return self.model(init_feats, init_logits, init_pca)
@@ -383,9 +388,15 @@ class AuxTrainerV2(pl.LightningModule):
 
         # Forward pass
         latents_class, latents_sim = self(noisy_feats, init_logits, init_pca)
-        means = latents_sim[:, :self.similarity_dim] #init_pca
-        log_std = latents_sim[:, self.similarity_dim:] #latents_sim
-        stddev = F.softplus(log_std)
+        means = latents_sim[:, :self.similarity_dim] #init_pcas        
+        if self.fixed_var:
+            var_tensor = torch.full((1,), self.log_var_initializer)
+            var_tensor = torch.log(torch.exp(var_tensor) - 1)       
+            stddev = F.softplus(var_tensor).to(self.device_name)
+        else:
+            log_std = latents_sim[:, self.similarity_dim:] #latents_sim
+            stddev = F.softplus(log_std)
+            
         sigma = stddev ** 2
         avg_variance = torch.mean(sigma) #dim=0
         min_variance = torch.min(sigma)
@@ -463,9 +474,14 @@ class AuxTrainerV2(pl.LightningModule):
 
         # Forward pass
         latents_class, latents_sim = self(noisy_feats, init_logits, init_pca)
-        means = latents_sim[:, :self.similarity_dim]#init_pca
-        log_std = latents_sim[:, self.similarity_dim:] #latents_sim
-        stddev = F.softplus(log_std)
+        means = latents_sim[:, :self.similarity_dim]#init_pca        
+        if self.fixed_var:
+            var_tensor = torch.full((1,), self.log_var_initializer)
+            var_tensor = torch.log(torch.exp(var_tensor) - 1)       
+            stddev = F.softplus(var_tensor).to(self.device_name)       
+        else:
+            log_std = latents_sim[:, self.similarity_dim:] #latents_sim        
+            stddev = F.softplus(log_std)
         sigma = stddev ** 2
         avg_variance = torch.mean(sigma)
         min_variance = torch.min(sigma)
@@ -571,8 +587,14 @@ class AuxTrainerV2(pl.LightningModule):
         # Forward pass
         latents_class, latents_sim = self(noisy_feats, init_logits, init_pca)
         means = latents_sim[:, :self.similarity_dim] #init_pca
-        log_std = latents_sim[:, self.similarity_dim:] #latents_sim
-        stddev = F.softplus(log_std)
+        
+        if self.fixed_var:
+            var_tensor = torch.full((1,), self.log_var_initializer)
+            var_tensor = torch.log(torch.exp(var_tensor) - 1)       
+            stddev = F.softplus(var_tensor).to(self.device_name)     
+        else:            
+            log_std = latents_sim[:, self.similarity_dim:] #latents_sim
+            stddev = F.softplus(log_std)
         
         # Reparameterization
         epsilon = torch.randn_like(means)
@@ -581,6 +603,7 @@ class AuxTrainerV2(pl.LightningModule):
         # Scaled probabilities        
         preds = torch.argmax(latents_class, dim=-1).view(-1,1)
         target = torch.argmax(y_one_hot, dim=-1).view(-1,1)
+                
         return {
             "preds": preds,            
             "true": target,
@@ -604,17 +627,32 @@ class AuxTrainerV2(pl.LightningModule):
         # Forward pass
         logits, latents_sim = self(noisy_feats, init_logits, init_pca)
         means = latents_sim[:, :self.similarity_dim] #init_pca
-        log_std = latents_sim[:, self.similarity_dim:] #latents_sim
-        stddev = F.softplus(log_std)
+        if self.fixed_var:
+            var_tensor = torch.full((1,), self.log_var_initializer)
+            var_tensor = torch.log(torch.exp(var_tensor) - 1)       
+            stddev = F.softplus(var_tensor).to(self.device_name)
+        else:            
+            log_std = latents_sim[:, self.similarity_dim:] #latents_sim
+            stddev = F.softplus(log_std)                
+        sigma = stddev**2
                 
         preds = torch.argmax(logits, dim=-1).view(-1,1)  # predicted class
         # Create dict in the same format as predict outputs
-        out = {
-            "features": means, #init_pca       
-            "logits": logits,
-            "preds": preds,     
-            "true": torch.argmax(y_one_hot, dim=-1).view(-1,1)
-        }
+        if self.adabw:
+            out = {
+                "features": means, #init_pca      
+                "bandwidth": sigma,
+                "logits": logits,
+                "preds": preds,     
+                "true": torch.argmax(y_one_hot, dim=-1).view(-1,1)
+            }
+        else:
+            out = {
+                "features": means, #means, #init_pca       
+                "logits": logits,
+                "preds": preds,     
+                "true": torch.argmax(y_one_hot, dim=-1).view(-1,1)
+            }
         return out
     
     def interpolate_weights(self):

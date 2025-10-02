@@ -13,6 +13,7 @@ from sklearn.model_selection import train_test_split
 from collections import Counter
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
+import seaborn as sns
 
 import pytorch_lightning as pl
 import torch
@@ -113,7 +114,7 @@ class VerboseModelCheckpoint(ModelCheckpoint):
                 self._last_best_score = self.best_model_score
        
                 
-def get_raw_res(raws, features=False, adabw = False, reduced_dim=None):
+def get_raw_res(raws, features=False, adabw=False, reduced_dim=None):
     
     preds = torch.cat([raws[j]["preds"].cpu() for j in range(len(raws))])
     #probs = torch.cat([raws[j]["probs"].cpu() for j in range(len(raws))])
@@ -216,7 +217,7 @@ def compute_multiclass_calibration_metrics_w_lce_adabw(
     probs: torch.Tensor,
     y_true: torch.Tensor,
     pca: torch.Tensor,
-    bw: torch.Tensor,
+    bw: torch.Tensor,    
     n_bins: int = 15,
     gamma: float = 0.1,
     full_ece: bool = False,
@@ -448,6 +449,7 @@ def compute_multiclass_calibration_metrics_w_lce(
     probs: torch.Tensor,
     y_true: torch.Tensor,
     pca: torch.Tensor,
+    class_freqs: list,
     n_bins: int = 15,
     gamma: float = 0.1,
     full_ece: bool = False,
@@ -703,16 +705,16 @@ def compute_multiclass_calibration_metrics_w_lce(
         lce_list = [round(x, 4) for x in per_class_lce_avg]   # per-class mean-abs-LCE
         mlce_list = [round(x, 4) for x in per_class_mlce]      # per-class max-abs-LCE
     else:
-        avg_ece = sum(eces) / len(eces)
-        avg_ecce = sum(ecces) / len(ecces)
+        avg_ece = np.dot(np.array(eces).T, np.array(class_freqs)) #sum(eces) / len(eces)
+        avg_ecce = np.dot(np.array(ecces).T, np.array(class_freqs)) #sum(ecces) / len(ecces)
         lce_list = None
 
-    avg_mce = sum(mces) / len(mces)
-    avg_brier = sum(briers) / len(briers)
+    avg_mce = np.dot(np.array(mces).T, np.array(class_freqs)) #sum(mces) / len(mces)
+    avg_brier = np.dot(np.array(briers).T, np.array(class_freqs)) #sum(briers) / len(briers)
 
     # LCE aggregated across classes
-    avg_lce = sum(per_class_lce_avg) / len(per_class_lce_avg)
-    avg_mlce = sum(per_class_mlce) / len(per_class_mlce)
+    avg_lce = np.dot(np.array(per_class_lce_avg).T, np.array(class_freqs)) #sum(per_class_lce_avg) / len(per_class_lce_avg)
+    avg_mlce = np.dot(np.array(per_class_mlce).T, np.array(class_freqs)) #sum(per_class_mlce) / len(per_class_mlce)
 
     # Return order:
     # avg_ecce, avg_ece, avg_mce, avg_brier, nll, avg_lce, avg_mlce
@@ -819,7 +821,99 @@ def compute_multiclass_calibration_metrics(probs: torch.Tensor, y_true: torch.Te
 
     return avg_ecce, avg_ece, avg_mce, avg_brier, nll
 
+def multiclass_calibration_plot(
+    y_true, probs, n_bins=15, bin_strategy='uniform',
+    save_path="calibration_plots", filename="multiclass_calibration.pdf"
+):
+    """
+    Create clean, publication-quality calibration plots (bar style) for multiclass classification.
+    """
+    # CIFAR10_CLASSES = [
+    #     "airplane", "automobile", "bird", "cat", "deer",
+    #     "dog", "frog", "horse", "ship", "truck"
+    # ]   
+    # Styling
+    sns.set_style("whitegrid")
+    plt.rcParams.update({
+        "font.size": 12,
+        "axes.titlesize": 14,
+        "axes.labelsize": 12,
+        "legend.fontsize": 10,
+        "xtick.labelsize": 10,
+        "ytick.labelsize": 10,
+        "lines.linewidth": 2,
+    })
 
+    n_classes = probs.shape[1]
+    if n_classes > 10:
+        rng = np.random.default_rng(seed=None)
+        class_indices = rng.choice(n_classes, size=10, replace=False)
+        n_classes = 10
+    else:
+        class_indices = range(n_classes)
+
+    n_cols = min(n_classes, 5)
+    n_rows = (n_classes + n_cols - 1) // n_cols
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(4.5 * n_cols, 4.5 * n_rows))
+    axes = np.array(axes).reshape(-1)
+
+    palette = sns.color_palette("tab10", n_classes)
+
+    for idx, class_idx in enumerate(class_indices):
+        ax = axes[idx]
+        y_true_binary = (y_true == class_idx).int()
+        y_prob_class = probs[:, class_idx]
+
+        # Calibration curve
+        strategy = 'quantile' if bin_strategy == 'quantile' else 'uniform'
+        frac_pos, mean_pred = calibration_curve(
+            y_true_binary, y_prob_class, n_bins=n_bins, strategy=strategy
+        )
+
+        # Bin edges & counts
+        if strategy == 'quantile':
+            bin_edges = np.quantile(y_prob_class, np.linspace(0, 1, n_bins + 1))
+            bin_edges[0], bin_edges[-1] = 0.0, 1.0
+        else:
+            bin_edges = np.linspace(0.0, 1.0, n_bins + 1)
+
+        bin_counts, _ = np.histogram(y_prob_class, bins=bin_edges)
+        bin_idx_for_text = np.digitize(mean_pred, bin_edges) - 1
+        bin_idx_for_text = np.clip(bin_idx_for_text, 0, n_bins - 1)
+
+        # Plot perfect calibration line
+        ax.plot([0, 1], [0, 1], "--", color="gray", linewidth=1.2)
+
+        # Bars + calibration curve
+        color = palette[idx % len(palette)]
+        for j, (mp, fp) in enumerate(zip(mean_pred, frac_pos)):
+            count = bin_counts[bin_idx_for_text[j]]
+            ax.bar(mp, fp, width=0.06, color=color, alpha=0.4, edgecolor="none")
+            ax.text(mp, fp + 0.03, f"{count}", ha="center", va="bottom", fontsize=9, color="black")
+
+        ax.plot(mean_pred, frac_pos, "o-", color=color, markersize=5)
+
+        # Axes formatting
+        ax.set_title(f"Class {class_idx}", pad=10) #ax.set_title(CIFAR10_CLASSES[class_idx], pad=10, weight="bold") #
+        ax.set_xlabel("Predicted probability")
+        ax.set_ylabel("Empirical frequency")
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        ax.set_aspect("equal", adjustable="box")
+
+    # Remove unused axes
+    for j in range(n_classes, len(axes)):
+        fig.delaxes(axes[j])
+
+    plt.tight_layout()
+    os.makedirs(save_path, exist_ok=True)
+    full_path = os.path.join(save_path, filename)
+    plt.savefig(full_path, bbox_inches="tight", dpi=300)
+    plt.close(fig)
+    print(f"Calibration plot saved to: {full_path}")
+    
+'''    
 def multiclass_calibration_plot(y_true, probs, n_bins=15, bin_strategy='default', save_path="calibration_plots", filename="multiclass_calibration.png"):
     """
     Saves a grid of calibration plots, one per class, to a specified directory.
@@ -832,6 +926,15 @@ def multiclass_calibration_plot(y_true, probs, n_bins=15, bin_strategy='default'
     - filename: str, name of the output image file
     """
     n_classes = probs.shape[1]
+    print('NUMBER OF CLASSES: ', n_classes)
+    if n_classes > 10:
+        print("Warning: More than 10 classes in dataset! Random sample 10 classes for plotting.")    
+        rng = np.random.default_rng(seed=None)  # `None` means use OS entropy
+        class_indices = rng.choice(n_classes, size=10, replace=False)
+        n_classes = 10
+    else:
+        class_indices = range(n_classes)
+        
 
     # Grid layout
     n_cols = min(n_classes, 5)
@@ -840,8 +943,9 @@ def multiclass_calibration_plot(y_true, probs, n_bins=15, bin_strategy='default'
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 5 * n_rows))
     axes = np.array(axes).reshape(-1)
 
-    for class_idx in range(n_classes):
-        ax = axes[class_idx]
+    for i in range(n_classes):
+        ax = axes[i] #class_idx
+        class_idx = class_indices[i]
         y_true_binary = (y_true == class_idx).int()
         y_prob_class = probs[:, class_idx]
 
@@ -890,7 +994,7 @@ def multiclass_calibration_plot(y_true, probs, n_bins=15, bin_strategy='default'
     plt.savefig(full_path)
     plt.close(fig)
     print(f"Calibration plot saved to: {full_path}")
-
+'''
 
 def label_smoothing(one_hot_labels: torch.Tensor, smoothing: float) -> torch.Tensor:
     '''

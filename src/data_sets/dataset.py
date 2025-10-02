@@ -662,15 +662,26 @@ class MnistData(Dataset):
         print(f"Train shape: {X_train.shape}, Learn Calibration shape: {X_train_cal.shape}, Validation shape: {X_val.shape}, Eval Calibration shape: {X_eval_cal.shape}")
         print(f"Loading n-MNIST variant '{variant}' for pre-training completed.")
                         
-
+def print_class_frequencies(dataset):  
+    class_freqs = []  
+    labels = np.array(dataset.labels).squeeze()   # dataset.labels is usually (N,1)
+    counts = Counter(labels)
+    total = len(labels)
+    print("Class frequencies:")
+    for cls, count in sorted(counts.items()):
+        print(f"  Class {cls}: {count} ({count/total:.2%})")
+        class_freqs.append(count/total)
+    return class_freqs
+        
 class MedMnistData(Dataset):    
     def __init__(self, kwargs, experiment=None, name='path'):         
         self.name = name 
         if experiment == 'pre-train':                     
-            self.generatePretrainingMedMnistData(size=kwargs.size,
+            kwargs.class_freqs = self.generatePretrainingMedMnistData(size=kwargs.size,
                                 batch_size = kwargs.batch_size,
                                 random_state = kwargs.random_state)      
         elif experiment == 'calibrate' or experiment == 'competition':
+                kwargs.class_freqs = [0.321, 0.047, 0.035, 0.093, 0.071, 0.047, 0.237, 0.149]
                 if kwargs.calibrator_version == 'v2':
                     self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationDatav2(kwargs)
                 else:
@@ -707,6 +718,7 @@ class MedMnistData(Dataset):
         
         if self.name == 'tissue':
             train_set = TissueMNIST(root="./data/TISSUE/data_train", split="train", transform=trans, download=True, size=size) #, as_rgb=self.as_rgb) #165k        
+            class_freqs = print_class_frequencies(train_set)
             train_size = len(train_set)
             half_size = train_size // 2                    
             train_set, eval_cal_set = random_split(train_set, [half_size, train_size - half_size], generator=generator) #82.5k BOTH  
@@ -728,16 +740,19 @@ class MedMnistData(Dataset):
         self.data_train_cal_loader = DataLoader(train_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
         
         print(f"Loading {self.name} mnist data for pre-training complete.") 
+        return class_freqs
 
 
 class Cifar10Data(Dataset):    
     def __init__(self, kwargs, experiment=None, name='cifar10'):       
         self.name = name   
-        if experiment == 'pre-train':                          
+        if experiment == 'pre-train':  
+            kwargs.class_freqs = [1/kwargs.num_classes]*kwargs.num_classes                        
             self.generatePretrainingCifar10Data(
                                     batch_size = kwargs.batch_size,
                                     random_state = kwargs.random_state)      
         elif experiment == 'calibrate' or experiment == 'competition':
+            kwargs.dataset.class_freqs = [1/kwargs.dataset.num_classes]*kwargs.dataset.num_classes
             if kwargs.calibrator_version == 'v2':
                 self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationDatav2(kwargs)
             else:
@@ -885,12 +900,83 @@ class Cifar10LongTailData(Dataset):
         self.data_train_cal_loader  = DataLoader(train_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
         
         print("Loading CIFAR10-Long-Tail data for pre-training complete")      
+        
+
+class Cifar100Data(Dataset):    
+    def __init__(self, kwargs, experiment=None, name='cifar100'):       
+        self.name = name   
+        if experiment == 'pre-train':    
+            kwargs.class_freqs = [1/kwargs.num_classes]*kwargs.num_classes
+            self.generatePretrainingCifar100Data(
+                                    batch_size = kwargs.batch_size,
+                                    random_state = kwargs.random_state)      
+        elif experiment == 'calibrate' or experiment == 'competition':
+            kwargs.dataset.class_freqs = [1/kwargs.dataset.num_classes]*kwargs.dataset.num_classes
+            if kwargs.calibrator_version == 'v2':
+                self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationDatav2(kwargs)
+            else:
+                self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationData(kwargs) 
+        print("Loading synthetic data for calibration complete")   
+
+    def generatePretrainingCifar100Data(self, 
+                                batch_size,
+                                random_state):  
+        data_dir =  f"./data/{self.name.upper()}"                     
+        os.makedirs(data_dir, exist_ok=True)
+        generator = torch.Generator().manual_seed(random_state)
+        
+        l_transform = transforms.Compose([
+             transforms.Resize((224, 224)),
+             transforms.ToTensor(),
+             transforms.Normalize(                        # use ImageNet mean/std for ViT
+                mean=[0.485, 0.456, 0.406], 
+                std=[0.229, 0.224, 0.225]
+            ),
+        ])
+        # train_transform = transforms.Compose([
+        #     transforms.Resize((224, 224)),               # match ViT input size
+        #     transforms.RandomHorizontalFlip(p=0.5),      # common for CIFAR
+        #     transforms.RandomCrop(224, padding=4),       # adds spatial jitter
+        #     transforms.ColorJitter(0.4, 0.4, 0.4, 0.1),  # brightness, contrast, saturation, hue
+        #     transforms.RandomRotation(15),               # small rotations
+        #     transforms.RandomGrayscale(p=0.1),           # sometimes grayscale
+        #     transforms.ToTensor(), 
+        #     transforms.Normalize(                        # use ImageNet mean/std for ViT
+        #         mean=[0.485, 0.456, 0.406], 
+        #         std=[0.229, 0.224, 0.225]
+        #     ),                       
+        # ])
+        # val_transform = transforms.Compose([
+        #     transforms.Resize((224, 224)),
+        #     transforms.ToTensor(), 
+        #     transforms.Normalize(                        # use ImageNet mean/std for ViT
+        #         mean=[0.485, 0.456, 0.406], 
+        #         std=[0.229, 0.224, 0.225]
+        #     ),            
+        # ])
+        
+        full_train = datasets.CIFAR100(root=data_dir, train=True, 
+                                        transform=l_transform, download=True)
+        
+        train_size = int(0.45 * len(full_train))
+        val_size = int(0.1 * len(full_train))
+        eval_cal_size = len(full_train) - train_size - val_size
+        train_set, val_set, eval_cal_set = random_split(full_train, [train_size, val_size, eval_cal_size], generator=generator)
+
+        train_cal_set = datasets.CIFAR100(root=data_dir, train=False, 
+                                        transform=l_transform, download=True)
+        
+        print(f'Train shape: {len(train_set)}, Learn Calibration shape: {len(train_cal_set)}, Validation shape: {len(val_set)}, Eval Calibration shape: {len(eval_cal_set)}')
+
+        self.data_train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True,)
+        self.data_eval_cal_loader   = DataLoader(eval_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        self.data_val_loader   = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        self.data_train_cal_loader  = DataLoader(train_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        
+        print("Loading CIFAR100 data for pre-training complete") 
 
 
 def Cifar10OODData():
-    pass
-
-def Cifar100Data():
     pass
 
 def Cifar100LongTailData():

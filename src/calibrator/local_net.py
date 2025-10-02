@@ -77,13 +77,15 @@ class AuxiliaryMLP(pl.LightningModule):
     
     
 class AuxiliaryMLPV2(pl.LightningModule):
-    def __init__(self, hidden_dim=64, feature_dim=2048, output_dim=2, similarity_dim=50, log_var_initializer=0.01, dropout_rate=0.1, fixed_var=False):
+    def __init__(self, hidden_dim=64, feature_dim=2048, output_dim=2, similarity_dim=50, 
+                 log_var_initializer=0.01, dropout_rate=0.1, fixed_var=False, linearly_combine_pca=False):
         super().__init__()
         self.feature_dim = feature_dim
         self.output_dim = output_dim
         self.similarity_dim = similarity_dim
         self.dropout_rate = dropout_rate
         self.fixed_var = fixed_var
+        self.linearly_combine_pca = linearly_combine_pca
         
         if isinstance(log_var_initializer, (float, int, torch.Tensor)) and not hasattr(log_var_initializer, '__len__'):
             # Scalar case: fill with the same value
@@ -105,7 +107,7 @@ class AuxiliaryMLPV2(pl.LightningModule):
 
         # Define layers
         self.dense1 = nn.Linear(feature_dim, hidden_dim)
-        self.dropout1 = nn.Dropout(p=self.dropout_rate)  # Dropout layer                
+        self.dropout1 = nn.Dropout(p=self.dropout_rate)  # Dropout layer                                    
         
         if self.fixed_var:
             self.similarity_head = nn.Linear(hidden_dim, similarity_dim) #hidden_dim            
@@ -131,23 +133,37 @@ class AuxiliaryMLPV2(pl.LightningModule):
                 self.similarity_head.bias.copy_(bias_init)
                 #self.classifcation_head.bias.copy_(bias_init)
             
+        if self.linearly_combine_pca:   
+            self.alpha_sim = nn.Parameter(torch.tensor(1., dtype=torch.float32)) #nn.Parameter(torch.randn(self.similarity_dim) * 0.1 + 0.5) # 
+            self.beta_sim = nn.Parameter(torch.empty(1).normal_(mean=0.0, std=0.01)) #nn.Parameter(torch.randn(self.similarity_dim) * 0.01) #
+            self.alpha_cls = nn.Parameter(torch.tensor(1., dtype=torch.float32)) #nn.Parameter(torch.randn(self.output_dim) * 0.1 + 0.5) #  
+            self.beta_cls = nn.Parameter(torch.empty(1).normal_(mean=0.0, std=0.01)) #nn.Parameter(torch.randn(self.output_dim) * 0.01)   # (8,) #nn.Parameter(torch.empty(1).normal_(mean=0.0, std=0.01))                         
+            
     def forward(self, feats, logits, pca):
         # z: (batch_size, latent_dim)
         # z_aug = torch.cat([z, torch.zeros_like(z[:, :self.output_dim])], dim=1)  # (batch_size, 2*latent_dim)
         # logits_aug = torch.cat([logits, torch.zeros_like(logits[:, :self.output_dim])], dim=1)  # (batch_size, 2*latent_dim)
         #pca_aug = torch.cat([pca, torch.zeros_like(pca[:, :self.similarity_dim])], dim=1)  # (batch_size, 2*latent_dim)
         pca_aug = torch.cat([pca, torch.zeros(pca.size(0), 1, device=pca.device, dtype=pca.dtype)], dim=1)
-
+        #print(self.alpha_cls.shape, self.beta_cls.unsqueeze(0).shape, logits.shape)
+        
         x = F.relu(self.dense1(feats))
         x = self.dropout1(x)
-        
+                
         if self.fixed_var:
-            similarity_out = self.similarity_head(x) + pca  # (batch_size, 2*similarity_dim)
+            if self.linearly_combine_pca:
+                similarity_out =  self.similarity_head(x) + self.alpha_sim*pca + self.beta_sim  # (batch_size, 2*similarity_dim)
+                classification_out = self.classifcation_head(x) + self.alpha_cls*logits + self.beta_cls.unsqueeze(0)
+            else:
+                similarity_out = self.similarity_head(x) + pca #self.similarity_head(x) + self.alpha*pca + self.beta  # (batch_size, 2*similarity_dim)
+                classification_out = self.classifcation_head(x) + logits # self.dense8(x) + z_aug
         else:
             similarity_out = self.similarity_head(x) + pca_aug  # (batch_size, 2*similarity_dim)
+            classification_out = self.classifcation_head(x) + logits # self.dense8(x) + z_aug
             #similarity_out = self.similarity_head(x) + pca  # (batch_size, 2*similarity_dim)
             #similarity_out = torch.cat([pca, self.similarity_head(x)], dim=1) # + pca_aug  # (batch_size, 2*similarity_dim)
-        classification_out = self.classifcation_head(x) + logits # self.dense8(x) + z_aug
+        
+        #classification_out = self.classifcation_head(x) + logits # self.dense8(x) + z_aug
         
         return classification_out, similarity_out
     

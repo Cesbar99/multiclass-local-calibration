@@ -20,7 +20,7 @@ from tqdm import tqdm
 def pretrain(kwargs, wandb_logger):
     
     seed = kwargs.seed
-    pl.seed_everything(seed, workers=True)  
+    #pl.seed_everything(seed, workers=True)  
     total_epochs = kwargs.models.epochs
     cuda_device = kwargs.cuda_device
     
@@ -68,8 +68,8 @@ def pretrain(kwargs, wandb_logger):
         pl_model = Cifar10OODModel()
         
     elif kwargs.data == 'cifar100':
-        dataset = Cifar100Data()        
-        pl_model = Cifar100Model()    
+        dataset = Cifar100Data(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data)
+        pl_model = Cifar100Model(kwargs.models)   
         
     elif kwargs.data == 'cifar100_longtail':
         dataset = Cifar100LongTailData()
@@ -173,7 +173,7 @@ def pretrain(kwargs, wandb_logger):
                 raws.append(raw)
 
         #all_features = torch.cat(all_features)
-        print('features shape: ', raws[1]['features'].shape)
+        print('features shape: ', raws[1]['features'].shape, raws[1]['preds'].shape, raws[1]['true'].shape)
         res = get_raw_res(raws, features=True, reduced_dim=kwargs.similarity_dim)
     else:
         raws = trainer.predict(pl_model, dataset.data_train_cal_loader) #dataset.data_train_cal_loader

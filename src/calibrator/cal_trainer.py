@@ -358,13 +358,15 @@ class AuxTrainerV2(pl.LightningModule):
         self.interpolation_epochs = kwargs.interpolation_epochs     
         self.feature_dim = feature_dim
         self.similarity_dim = similarity_dim
-        self.adabw = kwargs.adabw 
+        self.adabw = kwargs.adabw         
         self.fixed_var = kwargs.fixed_var
+        self.linearly_combine_pca = kwargs.linearly_combine_pca
         self.device_name = 'cuda'
 
         self.model = AuxiliaryMLPV2(hidden_dim=kwargs.hidden_dim, feature_dim=feature_dim, output_dim=num_classes, 
                                     similarity_dim=similarity_dim, log_var_initializer=kwargs.log_var_initializer, 
-                                    dropout_rate=kwargs.dropout, fixed_var=self.fixed_var)
+                                    dropout_rate=kwargs.dropout, fixed_var=self.fixed_var, 
+                                    linearly_combine_pca=kwargs.linearly_combine_pca)
         
     def forward(self, init_feats, init_logits, init_pca):
         return self.model(init_feats, init_logits, init_pca)
@@ -547,7 +549,11 @@ class AuxTrainerV2(pl.LightningModule):
         wd = self.optimizer_cfg.get("weight_decay", 0.0)        
         
         # Dynamically get the optimizer class
-        optimizer_class = getattr(torch.optim, opt_name, None)
+        if 'dam' in opt_name:
+            optimizer_class = getattr(torch.optim, opt_name, None)
+        elif 'gd' in opt_name:
+            optimizer_class = getattr(torch.optim, 'SGD', None)
+        
         if optimizer_class is None:
             raise ValueError(f"Unsupported optimizer: {opt_name}")
 

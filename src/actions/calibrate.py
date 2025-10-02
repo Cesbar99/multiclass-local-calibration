@@ -25,7 +25,7 @@ def calibrate(kwargs, wandb_logger):
     seed = kwargs.seed
     total_epochs = kwargs.models.epochs    
     cuda_device = kwargs.cuda_device
-    pl.seed_everything(seed, workers=True)  
+    #pl.seed_everything(seed, workers=True)  
     
     if kwargs.data == 'synthetic':
         dataset = SynthData(kwargs, experiment=kwargs.exp_name)  
@@ -48,7 +48,7 @@ def calibrate(kwargs, wandb_logger):
     elif kwargs.data == 'cifar10LT':
         dataset = Cifar10LongTailData(kwargs, experiment=kwargs.exp_name)
     elif kwargs.data == 'cifar100':
-        dataset = Cifar100Data(calibration=kwargs.calibration)    
+        dataset = Cifar10Data(kwargs, experiment=kwargs.exp_name) 
     elif kwargs.data == 'cifar100_longtail':
         dataset = Cifar100LongTailData(calibration=kwargs.calibration)
     elif kwargs.data == 'Imagenet':
@@ -146,7 +146,7 @@ def calibrate(kwargs, wandb_logger):
             logger=wandb_logger,
             check_val_every_n_epoch=1,
             #gradient_clip_val=5,
-            deterministic=True,
+            deterministic=False,
             callbacks=[ CalibrationPlotCallback(kwargs, dataset.data_train_cal_loader, every_n_epochs=5, device="cuda", type='train'), 
                         CalibrationPlotCallback(kwargs, dataset.data_test_cal_loader, every_n_epochs=5, device="cuda", type='test'),
                         # EarlyStopping(monitor="val_kl", 

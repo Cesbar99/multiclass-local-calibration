@@ -7,6 +7,7 @@ from src.actions.pretrain import *
 from src.actions.test import *
 from src.actions.calibrate import *
 from src.actions.competition import *
+from src.actions.viz_and_test import *
 from pytorch_lightning.loggers import WandbLogger
 import time
 from datetime import datetime
@@ -19,8 +20,7 @@ def main(cfg: DictConfig):
     kwargs = cfg #OmegaConf.create(cfg)  
     
     now = datetime.now()
-    start = time.time()
-    pl.seed_everything(kwargs.seed)
+    start = time.time()    
         
     dataset_name = kwargs.data
     model_name = kwargs.models_map[dataset_name]
@@ -43,37 +43,70 @@ def main(cfg: DictConfig):
     #else: 
     #    wandb_optuna_logger = None
     kwargs.wandb_id = wandb_logger.version
-        
+    
     if kwargs.pretrain:
         kwargs.exp_name = 'pre-train'
         if kwargs.dataset.batch_size is None:
             kwargs.dataset.batch_size = kwargs.batch_size_map.get(kwargs.exp_name, 32)  # fallback default        
             print('Using default batch_size set to: ', kwargs.dataset.batch_size)
-        kwargs.checkpoint = fix_default_checkpoint(kwargs)
-        print("Pretraining model...")
-        pretrain(kwargs, wandb_logger)
+        for seed in kwargs.seeds:   
+            pl.seed_everything(seed)    
+            kwargs.seed = seed
+            kwargs.checkpoint = fix_default_checkpoint(kwargs)
+            print("Pretraining model...")
+            pretrain(kwargs, wandb_logger)
         # Pretrain the model here if needed
         # This is a placeholder for pretraining logic
     elif kwargs.test:
-        print("Testing model...")
-        test(kwargs)
+        print("Testing model...")        
+        for seed in kwargs.seeds:   
+            if 'competition' in exp_name:    
+                kwargs.exp_name = 'competition'                        
+                for method in kwargs.methods:                    
+                    pl.seed_everything(seed)       
+                    kwargs.seed = seed
+                    kwargs.checkpoint.seed = seed
+                    kwargs.method = method                    
+                    test(kwargs)
+            elif 'calibrate' in exp_name:    
+                kwargs.exp_name = 'calibrate'
+                pl.seed_everything(seed)       
+                kwargs.seed = seed
+                kwargs.checkpoint.seed = seed
+                test(kwargs)     
+            elif 'pre-train' in exp_name:    
+                kwargs.exp_name = 'pre-train'
+                pl.seed_everything(seed)       
+                kwargs.seed = seed
+                kwargs.checkpoint.seed = seed
+                test(kwargs)                     
         # Logic to resume training from a checkpoint
         # This is a placeholder for resuming logic
-    elif kwargs.calibrate:        
+    elif kwargs.calibrate:                
         kwargs.exp_name = 'calibrate'
         if kwargs.dataset.batch_size is None:
             kwargs.dataset.batch_size = kwargs.batch_size_map.get(kwargs.exp_name, 512)  # fallback default        
             print('Using default batch_size set to: ', kwargs.dataset.batch_size)
             print("Calibrating model with {kwargs.calibration_method} technique...")
-        calibrate(kwargs, wandb_logger)
+        for seed in kwargs.seeds:   
+            pl.seed_everything(seed)     
+            kwargs.seed = seed
+            calibrate(kwargs, wandb_logger)
     elif kwargs.competition:        
         kwargs.exp_name = 'competition'
         if kwargs.dataset.batch_size is None:
             kwargs.dataset.batch_size = kwargs.batch_size_map.get(kwargs.exp_name, 512)  # fallback default        
             print('Using default batch_size set to: ', kwargs.dataset.batch_size)
             print("Testing peroformance of competitors...")
-        competition(kwargs, wandb_logger)
-
+        for seed in kwargs.seeds:            
+            pl.seed_everything(seed) 
+            kwargs.seed = seed
+            kwargs.checkpoint.seed = seed
+            competition(kwargs, wandb_logger)
+    elif kwargs.viz_and_test:
+        print("Computing visualisations and computing aggreagting metricss...")                                 
+        viz_and_test(kwargs)
+    
     wandb.finish()
     del wandb_logger
 
@@ -126,7 +159,18 @@ def main_entry():
                 model_name = 'calibrator'
                 cfg = compose(config_name="config_local", overrides=full_overrides)
                 
-        elif cfg.exp_name == 'competition':
+            elif cfg.exp_name == 'competition':
+                model_name = 'competition'
+                full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides
+                model_name = 'competition'
+                cfg = compose(config_name="config_local", overrides=full_overrides)
+                
+        elif cfg.competition: #.exp_name == 'competition':
+            model_name = 'competition'
+            full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides
+            cfg = compose(config_name="config_local", overrides=full_overrides)
+            
+        elif cfg.viz_and_test: #.exp_name == 'competition':
             model_name = 'competition'
             full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides
             cfg = compose(config_name="config_local", overrides=full_overrides)

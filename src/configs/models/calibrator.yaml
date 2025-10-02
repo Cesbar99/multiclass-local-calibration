@@ -5,8 +5,8 @@ model: calibrator
 data_name: 'otto'
 
 optimizer:
-  name: adam #adam
-  lr: 1e-3
+  name: adam #sgd #adam #adam
+  lr: 1e-3 #0.1 #1e-3
   weight_decay: 0. #0.0001
 
 loss:
@@ -33,3 +33,5 @@ dropout: 0.1               # Dropout to regularize calibrator
 
 adabw: False              # If true uses adaptive bandwidth for lce computation else fixed bandwidth
 fixed_var: False
+linearly_combine_pca: False  # If true learns a linear combination of pca components to add to similarity embeddings else adds pca components directly
+

@@ -13,6 +13,7 @@ return_features: True # run calibration on features embeddings or logits
 similarity_dim: 5 #number of pca dimensions to use
 
 # Global parameters
+seeds: [42] #, 43, 44, 45, 46] # for multiple runs
 seed: 42
 resume_training: False
 offline: False
@@ -31,11 +32,13 @@ checkpoint:
 # main commands
 pretrain: False
 test: False
-calibrate: True
+calibrate: True'
+viz_and_test: False
 competition: False
 exp_name: 
 data: 'synthetic'
 calibration_method: "local_calibration"
+only_test: False
 
 # synthetic data model
 #init_logits_scaling: 1.
@@ -52,6 +55,7 @@ bin_strategy: # 'quantile' for same size bins or 'default' which uses probabilit
 gamma: 0.1 # bandwidth for LCE
 save_path_calibration_plots: /home/barbera/calibration/localibration/results/plots/
 save_path_calibration_metrics: /home/barbera/calibration/localibration/results/metrics/
+save_path_boxplots: /home/barbera/calibration/localibration/results/boxplots/
 
 # default behaviour for batch size
 batch_size_map:
@@ -66,6 +70,7 @@ models_map:
   path: path_densenet121 #path_resnet50 path_vit
   cifar10: cifar10_resnet50 #cifar10_vit
   cifar10LT: cifar10LT_vit
+  cifar100: cifar100_resnet152 #cifar100_vit #cifar100_densenet121 #cifar100_resnet50 #cifar100_resnet18 
   covtype: covtype_resmlp #covtype_ftt
   otto: otto_resmlp #otto_ftt 
 
@@ -78,3 +83,6 @@ multi_obj: False
 #competitors
 methods: ['TS', 'IR', 'PS', 'DC'] #tempearature scaling, isotonic regression, platt scaling, dirichlet calibration
 method:
+gammas: [10] #[0.1, 1, 5, 7, 10, 100]
+
+class_freqs: [.1, .1, .1, .1, .1, .1, .1, .1, .1, .1]

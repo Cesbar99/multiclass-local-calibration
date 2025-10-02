@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
+from torchvision.models import ResNet18_Weights
 import timm
 from tab_transformer_pytorch import FTTransformer
 
@@ -384,6 +385,209 @@ class Cifar10LTVit(nn.Module):
     def forward(self, x):
         logits = self.vit(x)                
         return self.scaler(logits)        
+
+
+class Cifar100ResNet50(nn.Module):
+    """Model for just classification.
+    The architecture of our model is the same as standard DenseNet121
+    """
+
+    def __init__(self, temperature=1.0, num_labels=100):
+        super(Cifar100ResNet50, self).__init__()      
+        self.scaler = ScaledLogits(temperature)
+        self.resnet50 = models.resnet50(weights='IMAGENET1K_V2')
+        self.num_features = self.resnet50.fc.in_features
+        self.resnet50.layer4 = nn.Sequential(
+            self.resnet50.layer4            
+        )
+        self.resnet50.fc = nn.Sequential(
+                nn.Dropout(p=0.1),                                             
+                nn.Linear(self.num_features, num_labels))
+        self.n_classes = num_labels
+        
+        for param in self.resnet50.parameters():
+            param.requires_grad = False        
+        for name, param in self.resnet50.named_parameters():
+            if 'layer4' in name or 'fc' in name: #if 'fc' in name: 
+                param.requires_grad = True
+
+    def repr(self, x):
+        # See note [TorchScript super()]
+        x = self.resnet50.conv1(x)
+        x = self.resnet50.bn1(x)
+        x = self.resnet50.relu(x)
+        x = self.resnet50.maxpool(x)
+
+        x = self.resnet50.layer1(x)
+        x = self.resnet50.layer2(x)
+        x = self.resnet50.layer3(x)
+        x = self.resnet50.layer4(x)
+
+        x = self.resnet50.avgpool(x)
+        x = torch.flatten(x, 1)
+        return x
+
+    def forward(self, x):
+        logits = self.resnet50(x)
+        return self.scaler(logits)      
+    
+    
+class Cifar100ResNet152(nn.Module):
+    """Model for just classification.
+    The architecture of our model is the same as standard DenseNet121
+    """
+
+    def __init__(self, temperature=1.0, num_labels=100):
+        super(Cifar100ResNet152, self).__init__()      
+        self.scaler = ScaledLogits(temperature)
+        self.resnet152 = models.resnet152(weights='IMAGENET1K_V2')
+        self.num_features = self.resnet152.fc.in_features
+        
+        self.resnet152.fc = nn.Sequential(
+                nn.Dropout(p=0.5),                
+                nn.Linear(self.num_features, num_labels))
+        self.n_classes = num_labels
+        
+        for param in self.resnet152.parameters():
+            param.requires_grad = False        
+        for name, param in self.resnet152.named_parameters():
+            if 'layer4' in name or 'fc' in name: #
+                param.requires_grad = True
+
+    def repr(self, x):
+        # See note [TorchScript super()]
+        x = self.resnet152.conv1(x)
+        x = self.resnet152.bn1(x)
+        x = self.resnet152.relu(x)
+        x = self.resnet152.maxpool(x)
+
+        x = self.resnet152.layer1(x)
+        x = self.resnet152.layer2(x)
+        x = self.resnet152.layer3(x)
+        x = self.resnet152.layer4(x)
+
+        x = self.resnet152.avgpool(x)
+        x = torch.flatten(x, 1)
+        return x
+
+    def forward(self, x):
+        logits = self.resnet152(x)
+        return self.scaler(logits)      
+    
+class Cifar100ResNet18(nn.Module):
+    """Model for just classification.
+    The architecture of our model is the same as standard DenseNet121
+    """
+
+    def __init__(self, temperature=1.0, num_labels=100):
+        super(Cifar100ResNet18, self).__init__()      
+        self.scaler = ScaledLogits(temperature)
+        self.resnet18 = models.resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
+        self.num_features = self.resnet18.fc.in_features
+        
+        self.resnet18.fc = nn.Sequential(
+                nn.Dropout(p=0.5),                
+                nn.Linear(self.num_features, num_labels))
+        self.n_classes = num_labels
+        
+        for param in self.resnet18.parameters():
+            param.requires_grad = False        
+        for name, param in self.resnet18.named_parameters():
+            if 'layer4' in name or 'fc' in name: #
+                param.requires_grad = True
+
+    def repr(self, x):
+        # See note [TorchScript super()]
+        x = self.resnet18.conv1(x)
+        x = self.resnet18.bn1(x)
+        x = self.resnet18.relu(x)
+        x = self.resnet18.maxpool(x)
+
+        x = self.resnet18.layer1(x)
+        x = self.resnet18.layer2(x)
+        x = self.resnet18.layer3(x)
+        x = self.resnet18.layer4(x)
+
+        x = self.resnet18.avgpool(x)
+        x = torch.flatten(x, 1)
+        return x
+
+    def forward(self, x):
+        logits = self.resnet18(x)
+        return self.scaler(logits)   
+   
+    
+class Cifar100DenseNet121(nn.Module):
+    """Model for just classification.
+    The architecture of our model is the same as standard DenseNet121
+    """
+
+    def __init__(self, temperature=1.0, num_labels=100):
+        super(Cifar100DenseNet121, self).__init__()      
+        self.scaler = ScaledLogits(temperature)
+        self.model = models.densenet121(weights=models.DenseNet121_Weights.DEFAULT)
+        self.model.classifier = nn.Linear(self.model.classifier.in_features, num_labels)
+        
+        for param in self.model.parameters():
+            param.requires_grad = False
+        for param in self.model.classifier.parameters():
+            param.requires_grad = True
+        for name, child in self.model.features.named_children():
+            if name in ['denseblock4', 'norm5']:
+                for param in child.parameters():
+                    param.requires_grad = True
+
+    def repr(self, x):
+        # Extract features by passing through the 'features' module
+        x = self.model.features(x)
+        # Apply global average pooling
+        x = nn.functional.relu(x, inplace=True)
+        x = nn.functional.adaptive_avg_pool2d(x, (1, 1))
+        # Flatten the output to get the representation vector
+        x = torch.flatten(x, 1)
+        return x
+
+    def forward(self, x):
+        logits = self.model(x)
+        return self.scaler(logits)  
+        
+    
+class Cifar100Vit(nn.Module):
+    """Model for just classification.
+    The architecture of our model is the same as standard DenseNet121
+    """
+
+    def __init__(self, temperature=1.0, num_labels=100):
+        super(Cifar100Vit, self).__init__()              
+        self.scaler = ScaledLogits(temperature)
+        self.vit = timm.create_model('vit_base_patch16_224', pretrained=True, num_classes=num_labels, in_chans=3)
+        print(self.vit)
+        
+        # Freeze all parameters
+        for param in self.vit.parameters():
+            param.requires_grad = False
+
+        # Unfreeze last transformer block
+        for name, param in self.vit.named_parameters():
+            if 'blocks.11' in name:
+                param.requires_grad = True
+
+        # Unfreeze classifier head
+        for param in self.vit.get_classifier().parameters():
+            param.requires_grad = True
+    
+    def repr(self, x):
+        """
+        Extract feature representations (before classification head).
+        Equivalent to the ResNet repr but for ViT.
+        """
+        # timm ViTs provide forward_features to get embeddings before head
+        features = self.vit.forward_features(x)   # (B, hidden_dim)
+        return features 
+    
+    def forward(self, x):
+        logits = self.vit(x)                
+        return self.scaler(logits)   
 
 class ResidualBlock(nn.Module):
     def __init__(self, dim, dropout=0.1):

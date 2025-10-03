@@ -15,11 +15,11 @@ def objective(trial, kwargs, train_loader, val_loader, wandb_logger):
     )
 
     # Suggest hyperparameters
-    lambda_kl = trial.suggest_float("lambda_kl", .0, 1.0)
+    lambda_js = trial.suggest_float("lambda_js", .0, 1.0)
     alpha1 = trial.suggest_float("alpha1", .0, 1.0)
     log_var_initializer = trial.suggest_float("log_var_initializer", 0.001, 50.0)
     
-    kwargs.models.lambda_kl = lambda_kl
+    kwargs.models.lambda_js = lambda_js
     kwargs.models.alpha1 = alpha1
     kwargs.models.log_var_initializer = log_var_initializer
 
@@ -41,10 +41,10 @@ def objective(trial, kwargs, train_loader, val_loader, wandb_logger):
 
     # Use final validation loss as objective
     optuna_loss = trainer.callback_metrics["optuna_loss"].item()
-    val_kl = trainer.callback_metrics["val_kl"].item()
+    val_js = trainer.callback_metrics["val_js"].item()
     val_con_loss = trainer.callback_metrics["val_con_loss"].item()
     if kwargs.multi_obj:
-        return val_kl, val_con_loss
+        return val_js, val_con_loss
     else:    
         return optuna_loss
 

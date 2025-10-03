@@ -32,61 +32,19 @@ def pretrain(kwargs, wandb_logger):
                             optimizer_cfg=kwargs.models.optimizer,
                             use_acc=kwargs.models.use_acc
                         )
-        
-    elif kwargs.data == 'covtype':
-        dataset = CovTypeData(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data)
-        pl_model = CovTypeModel(kwargs.models, dataset.numerical_features, dataset.category_counts)
-    
-    elif kwargs.data == 'otto':
-        dataset = OttoData(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data)
-        pl_model = OttoModel(kwargs.models, dataset.numerical_features)        
-        
-    elif kwargs.data == 'mnist':
-        if kwargs.dataset.variant:
-            kwargs.data = kwargs.data + '_' + kwargs.dataset.variant            
-        dataset = MnistData(kwargs.dataset, experiment=kwargs.exp_name)
-        pl_model = MnistModel(kwargs.models)
-    
-    elif kwargs.data == 'tissue':
+
+    if kwargs.data == 'tissue':
         dataset = MedMnistData(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data)
         pl_model = MedMnistModel(kwargs.models)    
-        
-    elif kwargs.data == 'path':
-        dataset = MedMnistData(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data)
-        pl_model = MedMnistModel(kwargs.models)
-        
+
     elif kwargs.data == 'cifar10':
         dataset = Cifar10Data(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data)
         pl_model = Cifar10Model(kwargs.models)
         
-    elif kwargs.data == 'cifar10LT':
-        dataset = Cifar10LongTailData(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data)
-        pl_model = Cifar10LongTailModel(kwargs.models)
-    
-    elif kwargs.data == 'cifar10_ood':
-        dataset = Cifar10OODData()
-        pl_model = Cifar10OODModel()
-        
     elif kwargs.data == 'cifar100':
         dataset = Cifar100Data(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data)
         pl_model = Cifar100Model(kwargs.models)   
-        
-    elif kwargs.data == 'cifar100_longtail':
-        dataset = Cifar100LongTailData()
-        pl_model = Cifar100LongTailModel()
-        
-    elif kwargs.data == 'Imagenet':
-        dataset = ImagenetData()
-        pl_model = ImagenetModel()
-        
-    elif kwargs.data == 'imagenet_ood':
-        dataset = ImagenetOODData()
-        pl_model = ImagenetOODModel()
-        
-    elif kwargs.data == 'imagenet_longtail':
-        dataset = ImagenetLongTailData()  
-        pl_model = ImagenetLongTailModel()    
-    
+
     path = f"checkpoints/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features/"    
     os.makedirs(path, exist_ok=True) 
     os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
@@ -126,27 +84,7 @@ def pretrain(kwargs, wandb_logger):
             logger=wandb_logger,
             check_val_every_n_epoch=1,            
             deterministic=True,
-            callbacks=[ ClearCacheCallback() 
-                # EarlyStopping(
-                #      monitor="val_loss",
-                #      patience=5,
-                #      mode="min",
-                #      verbose=True,
-                #      min_delta=0.0,
-                # ),
-                # ModelCheckpoint(
-                #     monitor="val_loss",                                                                                             # Metric to track
-                #     mode="min",                                                                                                     # Lower is better
-                #     save_top_k=1,                                                                                                   # Only keep the best model
-                #     filename=f"classifier_seed-{seed}_ep-{total_epochs}_tmp_{kwargs.models.temperature}.pt",                        # Static filename (no epoch suffix)
-                #     dirpath=path,                                                                                                   # Save in your existing checkpoint folder
-                #     save_weights_only=True,                                                                                         # Save only weights (not full LightningModule)
-                #     auto_insert_metric_name=False,                                                                                  # Prevent metric name in filename
-                #     every_n_epochs=1,                                                                                               # Run every epoch                    
-                #     enable_version_counter=False,
-                #     verbose=True
-                # ) ,                 
-            ]
+            callbacks=[ ClearCacheCallback()]
          )
     start = time.time()
     trainer.fit(pl_model, dataset.data_train_loader,
@@ -154,11 +92,6 @@ def pretrain(kwargs, wandb_logger):
     train_time = time.time() - start
     print(train_time)
     torch.save(pl_model.model.state_dict(), path_model)
-    #best_model_path = trainer.checkpoint_callback.best_model_path
-    #print(F'LOADING CHECKPOINT FILE {best_model_path}')
-    #best_model_path = '/home/barbera/calibration/localibration/checkpoints/pre-train/otto_9_classes_None_features/classifier_seed-42_ep-100_tmp_1.0.pt.ckpt'
-    #checkpoint = torch.load(best_model_path)
-    #pl_model.load_state_dict(checkpoint['state_dict'])
     
     if kwargs.return_features:
         raws = []
@@ -172,7 +105,6 @@ def pretrain(kwargs, wandb_logger):
                 raw = pl_model.extract_features(batch)
                 raws.append(raw)
 
-        #all_features = torch.cat(all_features)
         print('features shape: ', raws[1]['features'].shape, raws[1]['preds'].shape, raws[1]['true'].shape)
         res = get_raw_res(raws, features=True, reduced_dim=kwargs.similarity_dim)
     else:
@@ -192,7 +124,6 @@ def pretrain(kwargs, wandb_logger):
                 raw = pl_model.extract_features(batch)
                 raws.append(raw)
 
-        #all_raws = torch.cat(all_raws)
         print('features shape: ', raws[1]['features'].shape)
         res = get_raw_res(raws, features=True, reduced_dim=kwargs.similarity_dim)
     else:

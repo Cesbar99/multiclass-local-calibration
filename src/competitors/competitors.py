@@ -9,13 +9,11 @@ from sklearn.linear_model import LogisticRegression
 class TemperatureScaler(nn.Module):
     def __init__(self, max_iter=50, lr=0.01):
         super(TemperatureScaler, self).__init__()
-        #self.model = model
-        self.temperature = nn.Parameter(torch.ones(1) * 1.5)  # init T > 1
+        self.temperature = nn.Parameter(torch.ones(1) * 1.5)  
         self.max_iter = max_iter
         self.lr = lr
 
     def forward(self, logits):
-        # Scale logits by temperature
         return logits / self.temperature
 
     def predict_proba(self, logits):
@@ -27,8 +25,6 @@ class TemperatureScaler(nn.Module):
         Optimize temperature using validation set.
         """
         self.to(device)
-        #self.model.to(device)
-        #self.model.eval()
 
         logits_list = []
         labels_list = []
@@ -96,11 +92,11 @@ class IsotonicCalibrator():
                 logits_list.append(init_logits)
                 labels_list.append(y)
 
-        logits = torch.cat(logits_list).cpu().numpy()   # (N, C)
-        labels = torch.cat(labels_list).cpu().numpy()   # (N,)
+        logits = torch.cat(logits_list).cpu().numpy()   
+        labels = torch.cat(labels_list).cpu().numpy()   
 
         # convert to probabilities
-        probs = F.softmax(torch.tensor(logits), dim=1).numpy()  # (N, C)
+        probs = F.softmax(torch.tensor(logits), dim=1).numpy()  
 
         # one-vs-rest isotonic regression per class
         for c in range(self.out_dim):
@@ -110,12 +106,9 @@ class IsotonicCalibrator():
         return self
 
     def predict_proba(self, logits, device="cuda"):
-        """
-        Apply isotonic regression to logits → calibrated probabilities.
-        """
         logits = logits.to(device)
-        probs = F.softmax(logits, dim=1).cpu().numpy()  # (B, C)
-
+        probs = F.softmax(logits, dim=1).cpu().numpy()  
+        
         calibrated = np.zeros_like(probs)
         for c, model in enumerate(self.models):
             calibrated[:, c] = model.predict(probs[:, c])
@@ -131,11 +124,13 @@ class IsotonicCalibrator():
             init_logits = init_logits.to(device)                                              
             init_pca = init_pca.to(device)
             init_preds = init_preds.to(device)
+
+            new_logits = self.predict_proba(init_logits)
         
             out = {    
                 "features": init_pca, 
-                "logits": self.predict_proba(init_logits), #init_logits / self.temperature,        
-                "preds": init_preds,        
+                "logits": new_logits,        
+                "preds": torch.argmax(new_logits, dim=-1).view(-1,1),        
                 "true": torch.argmax(y_one_hot, dim=-1).view(-1,1)
             }
         return out    
@@ -175,77 +170,54 @@ class PlattScaler():
         return self
 
     def predict_proba(self, logits, device="cuda"):
-        """
-        Apply Platt scaling to logits → calibrated probabilities.
-        """
         logits = logits.to(device)
         probs = F.softmax(logits, dim=1).cpu().numpy()  # (B, C)
 
         calibrated = np.zeros_like(probs)
         for c, model in enumerate(self.models):
             calibrated[:, c] = model.predict_proba(probs)[:, 1]
-
-        # renormalize
+        
         calibrated /= calibrated.sum(axis=1, keepdims=True)
         return torch.tensor(calibrated, device=device, dtype=torch.float32)
     
-    def calibrated_predictions(self, batch, device="cuda"):
-        """Return calibrated probabilities."""        
+    def calibrated_predictions(self, batch, device="cuda"):              
         with torch.no_grad():
             init_feats, init_logits, init_pca, y_one_hot, init_preds, init_preds_one_hot = batch
             init_logits = init_logits.to(device)                                              
             init_pca = init_pca.to(device)
             init_preds = init_preds.to(device)
+
+            new_logits = self.predict_proba(init_logits)
         
             out = {    
                 "features": init_pca, 
-                "logits": self.predict_proba(init_logits), #init_logits / self.temperature,        
-                "preds": init_preds,        
+                "logits": new_logits,        
+                "preds": torch.argmax(new_logits, dim=-1).view(-1,1),        
                 "true": torch.argmax(y_one_hot, dim=-1).view(-1,1)
             }
         return out    
     
 
 class DirichletCalibrator(nn.Module):
-    """
-    Dirichlet Calibration for multi-class classifiers.
-    Based on: Kull et al. "Beyond temperature scaling: Obtaining well-calibrated
-    multiclass probabilities with Dirichlet calibration" (NeurIPS 2019).
-    """
     def __init__(self, n_classes, lr=0.01, max_iter=100):
         super().__init__()
-        self.n_classes = n_classes
-        # Feature size = probs + log(probs) + bias term
+        self.n_classes = n_classes        
         self.feature_dim = 2 * n_classes + 1
         self.W = nn.Parameter(torch.zeros(self.n_classes, self.feature_dim))
         self.lr = lr
         self.max_iter = max_iter
 
     def _features(self, probs):
-        """
-        Build feature vector phi(x) = [log(p), p, 1]
-        probs: (N, C) predicted probabilities
-        Returns: (N, 2C+1) feature tensor
-        """
         log_probs = torch.log(probs + 1e-12)
         ones = torch.ones(probs.shape[0], 1, device=probs.device)
         return torch.cat([log_probs, probs, ones], dim=1)
 
     def forward(self, probs):
-        """
-        Calibrate probabilities.
-        probs: (N, C) predicted probabilities (from softmax)
-        Returns: (N, C) calibrated probabilities
-        """
         features = self._features(probs)  # (N, 2C+1)
         logits = features @ self.W.t()    # (N, C)
         return F.softmax(logits, dim=1)
 
     def fit(self, val_loader, device="cuda"):
-        """
-        Fit Dirichlet calibrator on validation set.
-        Expects val_loader yielding (logits, labels) or similar.
-        """
         self.to(device)
         probs_list, labels_list = [], []
 
@@ -261,8 +233,8 @@ class DirichletCalibrator(nn.Module):
                 probs_list.append(probs)
                 labels_list.append(y)
 
-        probs = torch.cat(probs_list)     # (N, C)
-        labels = torch.cat(labels_list)   # (N,)
+        probs = torch.cat(probs_list)     
+        labels = torch.cat(labels_list)   
 
         optimizer = optim.LBFGS([self.W], lr=self.lr, max_iter=self.max_iter)
         nll_criterion = nn.NLLLoss()
@@ -294,7 +266,7 @@ class DirichletCalibrator(nn.Module):
 
             return {
                 "features": init_pca.to(device),
-                "logits": calibrated_probs, #init_logits,
-                "preds": init_preds, #calibrated_probs,
+                "logits": calibrated_probs,
+                "preds": torch.argmax(calibrated_probs, dim=-1).view(-1, 1), 
                 "true": torch.argmax(y_one_hot, dim=-1).view(-1, 1)
             }

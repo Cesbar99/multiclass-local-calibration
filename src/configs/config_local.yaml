@@ -44,8 +44,8 @@ only_test: False
 #init_logits_scaling: 1.
 
 # weight and bias
-wandb_entity: cesare-barbera-university-of-trento
-wandb_project: calibration-experiments
+wandb_entity: ""
+wandb_project: ""
 wandb_id:
 use_wandb: True
 
@@ -53,10 +53,9 @@ use_wandb: True
 n_bins_calibration_metrics: 15
 bin_strategy: # 'quantile' for same size bins or 'default' which uses probabilities theresholds (equivalent to uniform)
 gamma: 0.1 # bandwidth for LCE
-save_path_calibration_plots: /home/barbera/calibration/localibration/results/plots/
-save_path_calibration_metrics: /home/barbera/calibration/localibration/results/metrics/
-save_path_boxplots: /home/barbera/calibration/localibration/results/boxplots/
-
+save_path_calibration_plots: "ADD THE PATH TO CALIBRATION PLOTS HERE"
+save_path_calibration_metrics: "ADD YOUR METRICS RESULTS FILE HERE"
+save_path_boxplots: "BOXPLOTS"
 # default behaviour for batch size
 batch_size_map:
   pre-train: 32

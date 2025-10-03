@@ -1,6 +1,0 @@
-results/*
-outputs/*
-checkpoints/*
-data/*
-optuna_logs/*
-hyperparams/*

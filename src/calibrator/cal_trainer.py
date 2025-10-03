@@ -161,7 +161,6 @@ class AuxTrainerV2(pl.LightningModule):
         # KL divergence
         js_loss = compute_multiclass_js_dist(p2, p1, self.num_classes)
 
-        
         target = y_one_hot 
         scores = p1    
             
@@ -204,13 +203,8 @@ class AuxTrainerV2(pl.LightningModule):
         
         # Forward pass
         latents_class, latents_sim = self(init_feats, init_logits, init_pca)
-        means = latents_sim[:, :self.similarity_dim] #init_pca
+        means = latents_sim[:, :self.similarity_dim] 
                 
-        var_tensor = torch.full((1,), self.log_var_initializer)
-        var_tensor = torch.log(torch.exp(var_tensor) - 1)       
-        stddev = F.softplus(var_tensor).to(self.device_name)             
-        
-        # Reparameterization        
         new_logits = latents_class
         
         # Probabilities and Labels      

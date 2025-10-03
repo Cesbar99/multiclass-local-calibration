@@ -28,9 +28,9 @@ def main(cfg: DictConfig):
     base_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
     base_dir = os.path.join(os.path.dirname(os.path.dirname(base_dir)), 'result')
     
-    exp_name = f'{kwargs.exp_name}_{kwargs.data}_{now.strftime("%m%d_%H%M")}' #target
+    exp_name = f'{kwargs.exp_name}_{kwargs.data}_{now.strftime("%m%d_%H%M")}' 
     if kwargs.use_optuna:
-        exp_name = 'optuna_'+ exp_name #{kwargs.data}_{now.strftime("%m%d_%H%M")}' 
+        exp_name = 'optuna_'+ exp_name 
     if kwargs.use_wandb:
         if kwargs.resume_training and kwargs.wandb_id:
              wandb_logger = WandbLogger(name=exp_name, project=kwargs.wandb_project, entity=kwargs.wandb_entity, save_dir=base_dir, offline=kwargs.offline, id=kwargs.wandb_id, resume='allow')

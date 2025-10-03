@@ -130,7 +130,7 @@ class AuxTrainerV2(pl.LightningModule):
                       self.alpha1 * constraint_loss)
 
         self.log("train_total", total_loss, on_epoch=True, on_step=False, prog_bar=True)
-        self.log("train_js", kl_loss, on_epoch=True, on_step=False, prog_bar=False)
+        self.log("train_js", js_loss, on_epoch=True, on_step=False, prog_bar=False)
         self.log("train_con_loss", constraint_loss, on_epoch=True, on_step=False, prog_bar=True)
 
         return total_loss
@@ -172,7 +172,7 @@ class AuxTrainerV2(pl.LightningModule):
             
         self.log("val_total", total_loss, on_epoch=True, on_step=False, prog_bar=True)
         self.log("optuna_loss", optuna_loss, on_epoch=True, on_step=False, prog_bar=True)
-        self.log("val_js", kl_loss, on_epoch=True, on_step=False, prog_bar=True)
+        self.log("val_js", js_loss, on_epoch=True, on_step=False, prog_bar=True)
         self.log("val_con_loss", constraint_loss, on_epoch=True, on_step=False, prog_bar=False)
 
     def configure_optimizers(self):

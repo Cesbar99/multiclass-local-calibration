@@ -49,14 +49,13 @@ class AuxiliaryMLPV2(pl.LightningModule):
     def forward(self, feats, logits, pca):        
         x = F.relu(self.dense1(feats))
         x = self.dropout1(x)
-                
-        if self.fixed_var:
-            if self.linearly_combine_pca:
-                similarity_out =  self.similarity_head(x) + self.alpha_sim*pca + self.beta_sim 
-                classification_out = self.classifcation_head(x) + self.alpha_cls*logits + self.beta_cls.unsqueeze(0)
-            else:
-                similarity_out = self.similarity_head(x) + pca 
-                classification_out = self.classifcation_head(x) + logits 
+
+        if self.linearly_combine_pca:
+            similarity_out =  self.similarity_head(x) + self.alpha_sim*pca + self.beta_sim 
+            classification_out = self.classifcation_head(x) + self.alpha_cls*logits + self.beta_cls.unsqueeze(0)
+        else:
+            similarity_out = self.similarity_head(x) + pca 
+            classification_out = self.classifcation_head(x) + logits 
         
         return classification_out, similarity_out
     

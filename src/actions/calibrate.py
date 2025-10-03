@@ -25,118 +25,74 @@ def calibrate(kwargs, wandb_logger):
     seed = kwargs.seed
     total_epochs = kwargs.models.epochs    
     cuda_device = kwargs.cuda_device
-    #pl.seed_everything(seed, workers=True)  
-    
-    if kwargs.data == 'synthetic':
-        dataset = SynthData(kwargs, experiment=kwargs.exp_name)  
-    elif kwargs.data == 'covtype':
-        dataset = CovTypeData(kwargs, experiment=kwargs.exp_name)  
-    elif kwargs.data == 'otto':
-        dataset = OttoData(kwargs, experiment=kwargs.exp_name)                    
-    elif kwargs.data == 'mnist':
-        if kwargs.dataset.variant:
-            kwargs.data = kwargs.data + '_' + kwargs.dataset.variant                        
-        dataset = MnistData(kwargs, experiment=kwargs.exp_name)
-    elif kwargs.data == 'tissue':
+
+    if kwargs.data == 'tissue':
         dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)   
-    elif kwargs.data == 'path':
-        dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)       
     elif kwargs.data == 'cifar10':
         dataset = Cifar10Data(kwargs, experiment=kwargs.exp_name)
-    elif kwargs.data == 'cifar10_ood':
-        dataset = Cifar10OODData(calibration=kwargs.calibration)
-    elif kwargs.data == 'cifar10LT':
-        dataset = Cifar10LongTailData(kwargs, experiment=kwargs.exp_name)
     elif kwargs.data == 'cifar100':
         dataset = Cifar10Data(kwargs, experiment=kwargs.exp_name) 
-    elif kwargs.data == 'cifar100_longtail':
-        dataset = Cifar100LongTailData(calibration=kwargs.calibration)
-    elif kwargs.data == 'Imagenet':
-        dataset = ImagenetData(calibration=kwargs.calibration)
-    elif kwargs.data == 'imagenet_ood':
-        dataset = ImagenetOODData(calibration=kwargs.calibration)
-    elif kwargs.data == 'imagenet_longtail':
-        dataset = ImagenetLongTailData(calibration=kwargs.calibration)    
+           
+    path = f"checkpoints/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features/"
+    os.makedirs(path, exist_ok=True) 
+    os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
     
-    
-    if kwargs.data == 'synthetic':
-        path = f"checkpoints/{kwargs.exp_name}/{kwargs.data}_{kwargs.checkpoint.num_classes}_classes_{kwargs.checkpoint.num_features}_features"
-        os.makedirs(path, exist_ok=True)    
-        os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}_{kwargs.checkpoint.num_classes}_classes_{kwargs.checkpoint.num_features}_features", exist_ok=True)    
-        
-        pl_model = AuxTrainer(kwargs.models, num_classes=kwargs.checkpoint.num_classes)    
-
-        raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
-                kwargs.exp_name,
-                kwargs.data,
-                kwargs.checkpoint.num_classes,
-                kwargs.checkpoint.num_features,
-                seed,
-                total_epochs           
-            )        
-    else:        
-        path = f"checkpoints/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features/"
-        os.makedirs(path, exist_ok=True) 
-        os.makedirs(f"results/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
-        
-        if kwargs.use_optuna:  
-            if kwargs.multi_obj:
-                study = optuna.create_study(
-                    directions=["minimize", "minimize"],  
-                    sampler=NSGAIISampler(),
-                    study_name="multi_objective"
-                )
-                calls = [multi_obj_print_callback]
-            else:  
-                study = optuna.create_study(direction="minimize", study_name="standard")
-                calls = [print_callback]
-            study.optimize(
-                lambda trial: objective(trial, kwargs, dataset.data_train_cal_loader, dataset.data_val_cal_loader, wandb_logger),
-                n_trials=kwargs.n_trials,
-                show_progress_bar=True,
-                callbacks=calls
+    if kwargs.use_optuna:  
+        if kwargs.multi_obj:
+            study = optuna.create_study(
+                directions=["minimize", "minimize"],  
+                sampler=NSGAIISampler(),
+                study_name="multi_objective"
             )
-            if kwargs.multi_obj:
-                fig = optuna.visualization.plot_pareto_front(study)    
-                appendix = kwargs.exp_name + '_' + kwargs.data + '_' + f'{kwargs.dataset.num_classes}_classes_' + f'{kwargs.dataset.num_features}_features'        
-                fig.write_html(f"results/plots/{appendix}/pare_front.html") #plt.savefig("results/plots/"+ appendix) #fig.write_image(f"results/plots/{kwargs.exp_name}/pareto_front.png")
-                pareto_trials = study.best_trials  # List of Pareto-optimal trials
-                for trial in pareto_trials:
-                    print(f"Trial {trial.number}: KL={trial.values[0]}, Constraint={trial.values[1]}")
-                best = min(pareto_trials, key=lambda t: t.values[0] + t.values[1])  # Simple sum             
-                for key, value in best.params.items():
-                    print(f"    {key}: {value}")
-                    kwargs.models[key] = value  
-            else:
-                # Print best result
-                print("Best trial:")
-                print(f"  Value: {study.best_trial.value}")
-                for key, value in study.best_trial.params.items():
-                    print(f"    {key}: {value}")
-                    kwargs.models[key] = value
-            # Params: {'lambda_kl': 1.191, 'alpha1': 1.001, 'log_var_initializer': 0.2715}
-        if kwargs.calibrator_version == 'v2':
-            pl_model = AuxTrainerV2(kwargs.models, num_classes=kwargs.dataset.num_classes, 
-                                    feature_dim=kwargs.dataset.feature_dim, similarity_dim=kwargs.similarity_dim)    
+            calls = [multi_obj_print_callback]
+        else:  
+            study = optuna.create_study(direction="minimize", study_name="standard")
+            calls = [print_callback]
+        study.optimize(
+            lambda trial: objective(trial, kwargs, dataset.data_train_cal_loader, dataset.data_val_cal_loader, wandb_logger),
+            n_trials=kwargs.n_trials,
+            show_progress_bar=True,
+            callbacks=calls
+        )
+        if kwargs.multi_obj:
+            fig = optuna.visualization.plot_pareto_front(study)    
+            appendix = kwargs.exp_name + '_' + kwargs.data + '_' + f'{kwargs.dataset.num_classes}_classes_' + f'{kwargs.dataset.num_features}_features'        
+            fig.write_html(f"results/plots/{appendix}/pare_front.html") #plt.savefig("results/plots/"+ appendix) #fig.write_image(f"results/plots/{kwargs.exp_name}/pareto_front.png")
+            pareto_trials = study.best_trials  # List of Pareto-optimal trials
+            for trial in pareto_trials:
+                print(f"Trial {trial.number}: KL={trial.values[0]}, Constraint={trial.values[1]}")
+            best = min(pareto_trials, key=lambda t: t.values[0] + t.values[1])  # Simple sum             
+            for key, value in best.params.items():
+                print(f"    {key}: {value}")
+                kwargs.models[key] = value  
         else:
-            pl_model = AuxTrainer(kwargs.models, num_classes=kwargs.dataset.num_classes)    
-        
-        raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
-                kwargs.exp_name,
-                kwargs.data,
-                kwargs.dataset.num_classes,
-                kwargs.dataset.num_features,
-                seed,
-                total_epochs           
-            )
-        raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}.csv".format(
+            # Print best result
+            print("Best trial:")
+            print(f"  Value: {study.best_trial.value}")
+            for key, value in study.best_trial.params.items():
+                print(f"    {key}: {value}")
+                kwargs.models[key] = value
+                
+    if kwargs.calibrator_version == 'v2':
+        pl_model = AuxTrainerV2(kwargs.models, num_classes=kwargs.dataset.num_classes, 
+                                feature_dim=kwargs.dataset.feature_dim, similarity_dim=kwargs.similarity_dim)     
+    
+    raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
             kwargs.exp_name,
             kwargs.data,
             kwargs.dataset.num_classes,
             kwargs.dataset.num_features,
             seed,
-            total_epochs,                       
+            total_epochs           
         )
+    raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}.csv".format(
+        kwargs.exp_name,
+        kwargs.data,
+        kwargs.dataset.num_classes,
+        kwargs.dataset.num_features,
+        seed,
+        total_epochs,                       
+    )
         
     print(F'BEGIN CALIBRATION FOR {total_epochs} EPOCHS WITH SEED {seed}!')        
     trainer = pl.Trainer(
@@ -146,27 +102,7 @@ def calibrate(kwargs, wandb_logger):
             logger=wandb_logger,
             check_val_every_n_epoch=1,
             #gradient_clip_val=5,
-            deterministic=False,
-            callbacks=[ CalibrationPlotCallback(kwargs, dataset.data_train_cal_loader, every_n_epochs=5, device="cuda", type='train'), 
-                        CalibrationPlotCallback(kwargs, dataset.data_test_cal_loader, every_n_epochs=5, device="cuda", type='test'),
-                        # EarlyStopping(monitor="val_kl", 
-                        #               patience=10, 
-                        #               mode="min", 
-                        #               verbose=True, 
-                        #               min_delta=0.0),
-                        # ModelCheckpoint(monitor="val_kl",                                                                                               # Metric to track
-                        #     mode="min",                                                                                                     # Lower is better
-                        #     save_top_k=1,                                                                                                   # Only keep the best model
-                        #     filename=f"classifier_seed-{seed}_ep-{total_epochs}",                                                           # Static filename (no epoch suffix)
-                        #     dirpath=path,                                                                                                   # Save in your existing checkpoint folder
-                        #     save_weights_only=True,                                                                                         # Save only weights (not full LightningModule)
-                        #     auto_insert_metric_name=False,                                                                                  # Prevent metric name in filename
-                        #     every_n_epochs=1,                                                                                               # Run every epoch                    
-                        #     enable_version_counter=False,
-                        #     verbose=True
-                        # ) 
-            ]
-    )   
+            deterministic=False)   
     start = time.time()
     trainer.fit(pl_model, dataset.data_train_cal_loader,
                     dataset.data_val_cal_loader)
@@ -175,10 +111,6 @@ def calibrate(kwargs, wandb_logger):
     
     path_model = join(path, f"classifier_seed-{seed}_ep-{total_epochs}")
     torch.save(pl_model.model.state_dict(), path_model)
-    #best_model_path = trainer.checkpoint_callback.best_model_path
-    #print(F'LOADING CHECKPOINT FILE {best_model_path}')
-    #checkpoint = torch.load(best_model_path)
-    #pl_model.load_state_dict(checkpoint['state_dict'])
 
     raws = []
     pl_model.eval()
@@ -191,12 +123,9 @@ def calibrate(kwargs, wandb_logger):
             raw = pl_model.extract_pca(batch)
             raws.append(raw)
 
-    #all_raws = torch.cat(all_raws)
     print('pca shape: ', raws[1]['features'].shape)
     res = get_raw_res(raws, features=True, adabw=kwargs.models.adabw, reduced_dim=None)
     
-    #raws = trainer.predict(pl_model, dataset.data_train_cal_loader) #dataset.data_train_cal_loader
-    #res = get_raw_res(raws)
     res.to_csv(raw_results_path_train_cal, index=False)
     
     raws = []
@@ -210,12 +139,8 @@ def calibrate(kwargs, wandb_logger):
             raw = pl_model.extract_pca(batch)
             raws.append(raw)
 
-    #all_raws = torch.cat(all_raws)
     print('pca shape: ', raws[1]['features'].shape)
     res = get_raw_res(raws, features=True, adabw=kwargs.models.adabw, reduced_dim=None)
-    
-    #raws = trainer.predict(pl_model, dataset.data_test_cal_loader)
-    #res = get_raw_res(raws)
     res.to_csv(raw_results_path_test_cal, index=False)
 
     print("CALIBRATION OVER!")
@@ -231,9 +156,6 @@ def calibrate(kwargs, wandb_logger):
     print("\nSTART TESTING!")        
     test(kwargs)
         
-
-    # optuna: total=0.9974, kl=0.05042, const=0.93656
-    # me: total=4.73172, kl=0.05753, const=0.93483
     
     
     

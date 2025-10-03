@@ -100,9 +100,7 @@ def calibrate(kwargs, wandb_logger):
             accelerator="cuda",
             devices=[cuda_device],
             logger=wandb_logger,
-            check_val_every_n_epoch=1,
-            #gradient_clip_val=5,
-            deterministic=False)   
+            check_val_every_n_epoch=1)   
     start = time.time()
     trainer.fit(pl_model, dataset.data_train_cal_loader,
                     dataset.data_val_cal_loader)

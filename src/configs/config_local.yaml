@@ -6,7 +6,7 @@ defaults:
 
 calibrator_version: v2
 return_features: True # run calibration on features embeddings
-similarity_dim: 5 #number of pca dimensions to use
+similarity_dim: 50 #number of pca dimensions to use
 
 # Global parameters
 seeds: [42, 43, 44, 45, 46] # for multiple runs

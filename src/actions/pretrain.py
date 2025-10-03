@@ -20,18 +20,8 @@ from tqdm import tqdm
 def pretrain(kwargs, wandb_logger):
     
     seed = kwargs.seed
-    #pl.seed_everything(seed, workers=True)  
     total_epochs = kwargs.models.epochs
     cuda_device = kwargs.cuda_device
-    
-    if kwargs.data == 'synthetic':
-        dataset = SynthData(kwargs.dataset, experiment=kwargs.exp_name)
-        pl_model = SynthTab(input_dim=kwargs.dataset.num_features,            
-                            output_dim=kwargs.dataset.num_classes,
-                            temperature=kwargs.models.temperature,
-                            optimizer_cfg=kwargs.models.optimizer,
-                            use_acc=kwargs.models.use_acc
-                        )
 
     if kwargs.data == 'tissue':
         dataset = MedMnistData(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data)

@@ -17,7 +17,7 @@ import wandb
     
 def main(cfg: DictConfig):
     
-    kwargs = cfg #OmegaConf.create(cfg)  
+    kwargs = cfg 
     
     now = datetime.now()
     start = time.time()    
@@ -38,10 +38,7 @@ def main(cfg: DictConfig):
             wandb_logger = WandbLogger(name=exp_name, project=kwargs.wandb_project, entity=kwargs.wandb_entity, save_dir=base_dir, offline=kwargs.offline)        
     else:
         wandb_logger = WandbLogger(name=exp_name, project='Test', entity=kwargs.wandb_entity, save_dir=base_dir, offline=kwargs.offline)
-    #if kwargs.use_optuna:
-    #    wandb_optuna_logger = WandbLogger(name=optuna_exp_name, project=kwargs.wandb_project, entity=kwargs.wandb_entity, save_dir=base_dir, offline=kwargs.offline)
-    #else: 
-    #    wandb_optuna_logger = None
+    
     kwargs.wandb_id = wandb_logger.version
     
     if kwargs.pretrain:
@@ -55,8 +52,7 @@ def main(cfg: DictConfig):
             kwargs.checkpoint = fix_default_checkpoint(kwargs)
             print("Pretraining model...")
             pretrain(kwargs, wandb_logger)
-        # Pretrain the model here if needed
-        # This is a placeholder for pretraining logic
+        
     elif kwargs.test:
         print("Testing model...")        
         for seed in kwargs.seeds:   
@@ -80,8 +76,7 @@ def main(cfg: DictConfig):
                 kwargs.seed = seed
                 kwargs.checkpoint.seed = seed
                 test(kwargs)                     
-        # Logic to resume training from a checkpoint
-        # This is a placeholder for resuming logic
+
     elif kwargs.calibrate:                
         kwargs.exp_name = 'calibrate'
         if kwargs.dataset.batch_size is None:
@@ -92,6 +87,7 @@ def main(cfg: DictConfig):
             pl.seed_everything(seed)     
             kwargs.seed = seed
             calibrate(kwargs, wandb_logger)
+            
     elif kwargs.competition:        
         kwargs.exp_name = 'competition'
         if kwargs.dataset.batch_size is None:
@@ -103,8 +99,9 @@ def main(cfg: DictConfig):
             kwargs.seed = seed
             kwargs.checkpoint.seed = seed
             competition(kwargs, wandb_logger)
+            
     elif kwargs.viz_and_test:
-        print("Computing visualisations and computing aggreagting metricss...")                                 
+        print("Visualisations and computing aggreagting metrics...")                                 
         viz_and_test(kwargs)
     
     wandb.finish()
@@ -114,11 +111,9 @@ def main(cfg: DictConfig):
     time_elapsed = end-start
     print('Total running time: {:.0f}h {:.0f}m'.
         format(time_elapsed // 3600, (time_elapsed % 3600)//60))
-    
-#@hydra.main(config_path='./src/configs', config_name='config_local', version_base=None)
+
 def main_entry():            
-    
-    #cli_overrides = [arg for arg in sys.argv[1:] if "=" in arg]
+        
     excluded_keys = {"dataset", "models"}
     init_overrides = [
         arg for arg in sys.argv[1:]
@@ -165,18 +160,17 @@ def main_entry():
                 model_name = 'competition'
                 cfg = compose(config_name="config_local", overrides=full_overrides)
                 
-        elif cfg.competition: #.exp_name == 'competition':
+        elif cfg.competition: 
             model_name = 'competition'
             full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides
             cfg = compose(config_name="config_local", overrides=full_overrides)
             
-        elif cfg.viz_and_test: #.exp_name == 'competition':
+        elif cfg.viz_and_test: 
             model_name = 'competition'
             full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides
             cfg = compose(config_name="config_local", overrides=full_overrides)
                                       
-    main(cfg) #main(cfg, split) #main(**OmegaConf.to_container(cfg, resolve=True) )
-    
+    main(cfg) 
 
 if __name__ == "__main__":
     main_entry()

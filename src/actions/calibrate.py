@@ -31,7 +31,7 @@ def calibrate(kwargs, wandb_logger):
     elif kwargs.data == 'cifar10':
         dataset = Cifar10Data(kwargs, experiment=kwargs.exp_name)
     elif kwargs.data == 'cifar100':
-        dataset = Cifar10Data(kwargs, experiment=kwargs.exp_name) 
+        dataset = Cifar100Data(kwargs, experiment=kwargs.exp_name) 
            
     path = f"checkpoints/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features/"
     os.makedirs(path, exist_ok=True) 

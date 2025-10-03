@@ -27,38 +27,13 @@ def competition(kwargs, wandb_logger=None):
     cuda_device = kwargs.cuda_device
     pl.seed_everything(seed, workers=True)  
     
-    if kwargs.data == 'synthetic':
-        dataset = SynthData(kwargs, experiment=kwargs.exp_name)  
-    elif kwargs.data == 'covtype':
-        dataset = CovTypeData(kwargs, experiment=kwargs.exp_name)  
-    elif kwargs.data == 'otto':
-        dataset = OttoData(kwargs, experiment=kwargs.exp_name)                    
-    elif kwargs.data == 'mnist':
-        if kwargs.dataset.variant:
-            kwargs.data = kwargs.data + '_' + kwargs.dataset.variant                        
-        dataset = MnistData(kwargs, experiment=kwargs.exp_name)
     elif kwargs.data == 'tissue':
         dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)   
-    elif kwargs.data == 'path':
-        dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)       
     elif kwargs.data == 'cifar10':
         dataset = Cifar10Data(kwargs, experiment=kwargs.exp_name)
-    elif kwargs.data == 'cifar10_ood':
-        dataset = Cifar10OODData(calibration=kwargs.calibration)
-    elif kwargs.data == 'cifar10LT':
-        dataset = Cifar10LongTailData(kwargs, experiment=kwargs.exp_name)
     elif kwargs.data == 'cifar100':
         dataset = Cifar100Data(kwargs, experiment=kwargs.exp_name)  
-    elif kwargs.data == 'cifar100_longtail':
-        dataset = Cifar100LongTailData(calibration=kwargs.calibration)
-    elif kwargs.data == 'Imagenet':
-        dataset = ImagenetData(calibration=kwargs.calibration)
-    elif kwargs.data == 'imagenet_ood':
-        dataset = ImagenetOODData(calibration=kwargs.calibration)
-    elif kwargs.data == 'imagenet_longtail':
-        dataset = ImagenetLongTailData(calibration=kwargs.calibration)    
 
-    
     if 'DC' in kwargs.methods:
         kwargs.method = 'DC' #DIRICHLET CALIBRATION
         #num_classes}_classes_{kwargs.dataset.num_features}_features/"

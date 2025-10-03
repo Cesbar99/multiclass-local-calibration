@@ -2,7 +2,7 @@ defaults:
   - _self_
 
 model: calibrator
-data_name: 'cifar10'
+data_name: 
 
 optimizer:
   name: adam 

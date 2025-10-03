@@ -20,15 +20,11 @@ alpha1: 15.                # Classification contraint penalty                   
 lambda_js: 10.             # JS-distance hyperparameter                                                                                                                  #
 epochs: 100                # Number of epochs                                                                                                                            #
 smoothing: 0.              # Random label-smootihng parameter to improve on sparse data (many classes -> more sparse matrices!) 4.5e-2                                   #
-logits_scaling: 1.         # Scaling logits to make softmax more picked for                                                                                              #
-sampling: False            # If true uses parametrised varances to to add noise to latent representations via reparametrisation trick                                    #
 use_empirical_freqs: True  # If true computes cross-entropy with empirical frequencies about of each point in place else uses softmax of new latent encodings            #
 predict_labels: True       # If true computes cross-entropy with true labels else uses predicted labels of frozen model                                                  #
 js_distance: True          # If true copmutes JS distance in place of kl divergence between model scroes and kernel estimates                                            #
-interpolation_epochs: 0.   # Number of epochs for lambda_kl to drop to alpha1. To not interolate set as 0                                                                #
 dropout: 0.1               # Dropout to regularize calibrator
 
-adabw: False              # If true uses adaptive bandwidth for lce computation else fixed bandwidth
-fixed_var: False
+fixed_var: True
 linearly_combine_pca: False  # If true learns a linear combination of pca components to add to similarity embeddings else adds pca components directly
 

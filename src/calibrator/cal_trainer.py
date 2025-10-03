@@ -204,8 +204,6 @@ class AuxTrainerV2(pl.LightningModule):
         # Forward pass
         latents_class, latents_sim = self(init_feats, init_logits, init_pca)
         means = latents_sim[:, :self.similarity_dim] 
-                
-        new_logits = latents_class
         
         # Probabilities and Labels      
         preds = torch.argmax(latents_class, dim=-1).view(-1,1)
@@ -222,16 +220,12 @@ class AuxTrainerV2(pl.LightningModule):
         
         # Forward pass
         logits, latents_sim = self(init_feats, init_logits, init_pca)
-        means = latents_sim[:, :self.similarity_dim] #init_pca        
-        var_tensor = torch.full((1,), self.log_var_initializer)
-        var_tensor = torch.log(torch.exp(var_tensor) - 1)       
-        stddev = F.softplus(var_tensor).to(self.device_name)        
-        sigma = stddev**2
-                
-        preds = torch.argmax(logits, dim=-1).view(-1,1)  # predicted class
+        means = latents_sim[:, :self.similarity_dim]                              
+        preds = torch.argmax(logits, dim=-1).view(-1,1)  
+        
         # Create dict in the same format as predict outputs            
         out = {
-            "features": means, #means, #init_pca       
+            "features": means, 
             "logits": logits,
             "preds": preds,     
             "true": torch.argmax(y_one_hot, dim=-1).view(-1,1)

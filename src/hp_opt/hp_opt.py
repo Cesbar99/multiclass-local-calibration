@@ -15,15 +15,13 @@ def objective(trial, kwargs, train_loader, val_loader, wandb_logger):
     )
 
     # Suggest hyperparameters
-    lambda_kl = trial.suggest_float("lambda_kl", 1.0, 10.0)
-    alpha1 = trial.suggest_float("alpha1", 1.0, 10.0)
-    log_var_initializer = trial.suggest_float("log_var_initializer", 0.001, 10.0)
-    #smoothing = trial.suggest_float("smoothing", 0.001, 0.2)
+    lambda_kl = trial.suggest_float("lambda_kl", .0, 1.0)
+    alpha1 = trial.suggest_float("alpha1", .0, 1.0)
+    log_var_initializer = trial.suggest_float("log_var_initializer", 0.001, 50.0)
     
     kwargs.models.lambda_kl = lambda_kl
     kwargs.models.alpha1 = alpha1
     kwargs.models.log_var_initializer = log_var_initializer
-    #kwargs.models.smoothing = smoothing
 
     # Build your model with these hyperparameters
     model = AuxTrainer(kwargs.models, num_classes=kwargs.dataset.num_classes)    

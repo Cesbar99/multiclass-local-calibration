@@ -5,8 +5,8 @@ from utils.utils import *
 
 def viz_and_test(kwargs):
 
-    all_metrics = []  # store metric values for all seeds
-    collected_results = {}  # dict: method -> {metric_name: [values across seeds]}
+    all_metrics = []  
+    collected_results = {}  
     method_name = "JSD"
     
     collected_results[method_name] = {}
@@ -28,8 +28,6 @@ def viz_and_test(kwargs):
 
         # Read CSV
         df = pd.read_csv(metrics_file)
-
-        # Assumption: first row = metric names, second row = values
         metric_values = df.iloc[0].values.astype(float) if df.shape[0] == 1 else df.iloc[1].values.astype(float)
         
         # Store per metric
@@ -104,10 +102,7 @@ def viz_and_test(kwargs):
         results_df.to_csv(output_file, index=False)  
 
     # --- make boxplots ---
-    # Example: fix one metric
     for chosen_metric in ["ECCE", "ECE", "MCE", "Brier", "NLL", "LCE", "MLCE"]:
-        #chosen_metric = "ECE"  # replace with the metric you want to plot
-
         plt.figure(figsize=(8, 6))
         data = []
         labels = []

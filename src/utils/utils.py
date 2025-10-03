@@ -45,38 +45,23 @@ class CalibrationPlotCallback(pl.Callback):
 
         with torch.no_grad():
             for batch in self.dataloader:
-                if self.verion == 'v2':
-                    init_feats, init_logits, init_pca, y_one_hot, _, _ = batch # it is actually init_feats!!!!!
-                    init_feats = init_feats.to(self.device)
-                    init_pca = init_pca.to(self.device)
-                else:
-                    init_logits, y_one_hot, _, _ = batch
+    
+                init_feats, init_logits, init_pca, y_one_hot, _, _ = batch # it is actually init_feats!!!!!
+                init_feats = init_feats.to(self.device)
+                init_pca = init_pca.to(self.device)
+        
                 init_logits = init_logits.to(self.device)
                 y_one_hot = y_one_hot.to(self.device)
-
-                # Add noise
-                epsilon = torch.randn_like(init_logits)
-                noisy_logits = init_logits + pl_module.noise * epsilon
 
                 # Optional label smoothing        
                 noisy_y_one_hot = label_smoothing(y_one_hot, pl_module.smoothing) if pl_module.smoothing else y_one_hot
 
                 # Forward pass                
-                if self.verion != 'v2':
-                    latents = pl_module(noisy_logits)
-                    means = latents[:, :pl_module.num_classes]
-                    log_std = latents[:, pl_module.num_classes:]
-                    stddev = F.softplus(log_std)
-
-                    # Reparameterization
-                    epsilon = torch.randn_like(means)
-                    z_hat = means + stddev * epsilon if pl_module.sampling else means
-                else:
-                    latents, _ = pl_module(init_feats, init_logits, init_pca)
-                    z_hat = latents
+                latents, _ = pl_module(init_feats, init_logits, init_pca)
+                z_hat = latents
                     
-                # Scaled probabilities
-                probs = F.softmax(z_hat / pl_module.logits_scaling, dim=1)                               
+                # Probabilities
+                probs = F.softmax(z_hat, dim=1)                               
 
                 all_probs.append(probs.cpu())
                 all_targets.append(torch.argmax(noisy_y_one_hot.cpu(), dim=1))
@@ -427,7 +412,7 @@ def multiclass_calibration_plot(
         ax.plot(mean_pred, frac_pos, "o-", color=color, markersize=5)
 
         # Axes formatting
-        ax.set_title(f"Class {class_idx}", pad=10) #ax.set_title(CIFAR10_CLASSES[class_idx], pad=10, weight="bold") #
+        ax.set_title(f"Class {class_idx}", pad=10) 
         ax.set_xlabel("Predicted probability")
         ax.set_ylabel("Empirical frequency")
         ax.set_xlim(0, 1)
@@ -450,20 +435,6 @@ def label_smoothing(one_hot_labels: torch.Tensor, smoothing: float) -> torch.Ten
     num_classes = one_hot_labels.size(1)
     smooth_labels = one_hot_labels * (1.0 - smoothing) + smoothing / num_classes
     return smooth_labels
-
-
-def random_label_smoothing(one_hot_labels, smoothing=0.1):
-    # Generate uniform random noise in [0, smoothing)
-    noise = torch.rand_like(one_hot_labels) * smoothing
-
-    # Apply smoothing
-    smoothed_labels = one_hot_labels * (1.0 - smoothing) + noise
-
-    # Optional: Normalize so each row sums to ~1
-    smoothed_labels = smoothed_labels / smoothed_labels.sum(dim=1, keepdim=True)
-
-    return smoothed_labels
-
 
 ######### WHEN TRAINING OV-RIDE DEFUALT CHECKPOINT DICT WITH ACTUAL USED VALUES #########   
 def fix_default_checkpoint(kwargs):

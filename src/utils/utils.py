@@ -179,17 +179,11 @@ def compute_multiclass_calibration_metrics_w_lce(
     if pca.shape[0] != N:
         raise ValueError("pca must have same first dimension as probs (N samples).")
 
-    # pairwise squared distances (N x N)
-    #diff = pca.unsqueeze(1) - pca.unsqueeze(0)         # (N, N, d)
-    #D = (diff * diff).sum(dim=2)                        # (N, N)
-    # pca: (N, d)
-
     if gamma <= 0:
         raise ValueError("gamma must be > 0")    
     eps = 1e-12
 
     for class_idx in range(n_classes):
-        print('Class ', class_idx)
         # One-vs-all labels & class probabilities
         labels_binary = (y_true == class_idx).float().to(device)   # (N,)
         probs_class = probs[:, class_idx].to(device)              # (N,)

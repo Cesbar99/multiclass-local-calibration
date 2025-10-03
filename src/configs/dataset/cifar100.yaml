@@ -1,8 +1,7 @@
 num_features : 
-num_classes : 100 # 10 classes but fixed no need to specify
+num_classes : 100 
 random_state : 42
-batch_size : # 1024 for calibration and 32 for pre-training
-variant: #'awgn', 'motion_blur', 'reduced_contrast'
-feature_dim: 2048 # Depnds on model used need to check it out!!!!!
-#size: 224
+batch_size : 
+variant: 
+feature_dim: 2048 
 

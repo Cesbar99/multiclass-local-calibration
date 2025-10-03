@@ -36,8 +36,6 @@ def competition(kwargs, wandb_logger=None):
 
     if 'DC' in kwargs.methods:
         kwargs.method = 'DC' #DIRICHLET CALIBRATION
-        #num_classes}_classes_{kwargs.dataset.num_features}_features/"
-        #os.makedirs(path, exist_ok=True) 
         os.makedirs(f"results/{kwargs.exp_name}_{kwargs.method}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
         raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
                     kwargs.exp_name,
@@ -95,8 +93,6 @@ def competition(kwargs, wandb_logger=None):
     
     if 'TS' in kwargs.methods:
         kwargs.method = 'TS' #TEMPERATURE SCALING
-        #num_classes}_classes_{kwargs.dataset.num_features}_features/"
-        #os.makedirs(path, exist_ok=True) 
         os.makedirs(f"results/{kwargs.exp_name}_{kwargs.method}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
         raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
                     kwargs.exp_name,
@@ -154,8 +150,6 @@ def competition(kwargs, wandb_logger=None):
 
     if 'IR' in kwargs.methods:    
         kwargs.method = 'IR' #ISOTONIC REGRESSION
-        #num_classes}_classes_{kwargs.dataset.num_features}_features/"
-        #os.makedirs(path, exist_ok=True) 
         os.makedirs(f"results/{kwargs.exp_name}_{kwargs.method}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
         raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
                     kwargs.exp_name,
@@ -209,8 +203,6 @@ def competition(kwargs, wandb_logger=None):
 
     if 'PS' in kwargs.methods:    
         kwargs.method = 'PS' #PLATT SCALING
-        #num_classes}_classes_{kwargs.dataset.num_features}_features/"
-        #os.makedirs(path, exist_ok=True) 
         os.makedirs(f"results/{kwargs.exp_name}_{kwargs.method}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
         raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
                     kwargs.exp_name,

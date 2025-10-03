@@ -57,7 +57,7 @@ def calibrate(kwargs, wandb_logger):
         if kwargs.multi_obj:
             fig = optuna.visualization.plot_pareto_front(study)    
             appendix = kwargs.exp_name + '_' + kwargs.data + '_' + f'{kwargs.dataset.num_classes}_classes_' + f'{kwargs.dataset.num_features}_features'        
-            fig.write_html(f"results/plots/{appendix}/pare_front.html") #plt.savefig("results/plots/"+ appendix) #fig.write_image(f"results/plots/{kwargs.exp_name}/pareto_front.png")
+            fig.write_html(f"results/plots/{appendix}/pare_front.html")
             pareto_trials = study.best_trials  # List of Pareto-optimal trials
             for trial in pareto_trials:
                 print(f"Trial {trial.number}: KL={trial.values[0]}, Constraint={trial.values[1]}")

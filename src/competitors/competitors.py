@@ -61,11 +61,13 @@ class TemperatureScaler(nn.Module):
             init_logits = init_logits.to(device)                                              
             init_pca = init_pca.to(device)
             init_preds = init_preds.to(device)
+
+            new_logits = init_logits / self.temperature
         
             out = {    
                 "features": init_pca, 
-                "logits": init_logits / self.temperature,        
-                "preds": init_preds,        
+                "logits": new_logits,        
+                "preds": torch.argmax(new_logits, dim=-1).view(-1,1),        
                 "true": torch.argmax(y_one_hot, dim=-1).view(-1,1)
             }
         return out        

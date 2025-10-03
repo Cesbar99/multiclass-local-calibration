@@ -118,7 +118,7 @@ class AuxTrainerV2(pl.LightningModule):
         # Neighborhood-based probabilities
         p1, weights = multiclass_neighborhood_class0_prob(means, z_hat, sigma=sigma, y=noisy_y_one_hot, ret_weights=True) 
 
-        # KL divergence
+        # JS distance
         js_loss = compute_multiclass_js_dist(p2, p1, self.num_classes)
         
         target = y_one_hot        
@@ -158,7 +158,7 @@ class AuxTrainerV2(pl.LightningModule):
         # Neighborhood-based probabilities
         p1, weights = multiclass_neighborhood_class0_prob(means, z_hat, sigma=sigma, y=noisy_y_one_hot, ret_weights=True) 
 
-        # KL divergence
+        # JS distance
         js_loss = compute_multiclass_js_dist(p2, p1, self.num_classes)
 
         target = y_one_hot 

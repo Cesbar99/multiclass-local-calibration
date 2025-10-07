@@ -26,7 +26,7 @@ class TissueMNISTResNet50(nn.Module):
             nn.Dropout(p=0.2)
         )
         self.resnet50.fc = nn.Sequential(
-                nn.Dropout(p=0.1),                
+                #nn.Dropout(p=0.1),                
                 nn.Linear(self.num_features, num_labels))
         self.n_classes = num_labels
         

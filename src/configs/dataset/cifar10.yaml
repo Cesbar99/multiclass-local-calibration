@@ -4,4 +4,4 @@ random_state : 42
 batch_size :
 variant:
 feature_dim: 2048
-
+class_freqs: [.1, .1, .1, .1, .1, .1, .1, .1, .1, .1]

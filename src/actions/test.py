@@ -7,7 +7,7 @@ from sklearn.preprocessing import StandardScaler
 from utils.utils import *
 
 def test(kwargs):
-    class_freqs = kwargs.class_freqs  
+    class_freqs = kwargs.dataset.class_freqs  
     
     if kwargs.exp_name == 'pre-train':              
         gamma = kwargs.gamma            

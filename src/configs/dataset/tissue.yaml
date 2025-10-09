@@ -5,4 +5,4 @@ batch_size :
 variant: 
 size: 224
 feature_dim: 2048 
-
+class_freqs: [0.321, 0.047, 0.035, 0.093, 0.071, 0.047, 0.237, 0.149]

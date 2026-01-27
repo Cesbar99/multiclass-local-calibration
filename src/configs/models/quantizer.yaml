@@ -2,25 +2,25 @@ defaults:
   - _self_
 
 model: quantiser
-data_name: 'otto'
+data_name: 'tissue'
 
 optimizer:
-  name: adam #sgd #adam 
+  name: adam 
   lr: 1e-3 #1e-3
-  weight_decay: 0. #0.0001
+  weight_decay: 0. 
   maxiter: 500
 
 loss:
-  name: #focal
+  name:
   gamma: 2
 
 # calibration hyper-parameters                                                                                                                                                                                        
 slots: [64] # [16, 32, 128, 256]
 S: 64
-d: 8 #32
+d: 32
 kappas: [16, 32, 128, 256]
-K: 64 #[64] #tissue: 16 # 32 64?
-vq_decay: 0.99 #0.7
+K: 64 
+vq_decay: 0.99 
 vq_eps: 1e-5
 hidden: 0.
 dropout: 0.1

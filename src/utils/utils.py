@@ -251,7 +251,7 @@ def compute_multiclass_calibration_metrics_w_lce(
             
             print(idx_in_bin.numel())
             # ---------- LCE computation for all samples in this bin ----------
-            if idx_in_bin.numel() > 0: #and idx_in_bin.numel() < 17000
+            if idx_in_bin.numel() > 0: #increase if want to evalutae only in dense bins.
                 #bin_indices = torch.where(idx_in_bin)[0]   # indices of samples in this bin
                 pca_bin = pca[idx_in_bin]               # (n_b, d)
 

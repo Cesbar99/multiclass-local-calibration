@@ -28,7 +28,7 @@ class VQCalibrator(pl.LightningModule):
         # feats: (B, 2048) or already (B,S,d)
         if feats.dim() == 2:
             B, D = feats.shape
-            #assert D == self.feature_dim, f"Expected feature_dim={self.feature_dim}, got {D}"
+            assert D == self.feature_dim, f"Expected feature_dim={self.feature_dim}, got {D}"
             z = feats.view(B, self.vqclassifier.S, self.vqclassifier.d)
         elif feats.dim() == 3:
             z = feats

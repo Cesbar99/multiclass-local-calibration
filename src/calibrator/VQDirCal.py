@@ -15,16 +15,6 @@ def log_multivariate_beta(alpha, dim=1):
 
     
 class VQDirCal(nn.Module):
-    """
-    Implements:
-      W(x) = [a_{s(1)}^T; ...; a_{s(S)}^T] in R^{S x C}
-      U(x) = [b_{s(1)}^T; ...; b_{s(S)}^T] in R^{S x C}
-      A(x) = W(x)^T U(x) in R^{C x C}
-      alpha^{(j)}(x) = softplus(A(x)[:, j]) + eps
-      log P(y=j | p_hat, V) = b_j + (alpha^{(j)}-1)^T log p_hat + const
-      b_j = log pi_j|V - log B(alpha^{(j)})
-    As in Eqs. (30)-(34). :contentReference[oaicite:2]{index=2}
-    """
 
     def __init__(self, K: int, C: int, S: int, eps: float = 1e-4, learn_pi: bool = False, learn_bias: bool=False,
                  random: bool = False, standard_dirichlet: bool = False): #1e-8
@@ -108,19 +98,18 @@ class VQDirCal(nn.Module):
                 indices = torch.randint(low=0, high=K, size=(B, S), generator=g, device=indices.device)            
                 
             # Build W(x), U(x) by selecting vectors per slot: (B, S, C)
-            # W rows are a_{s(i)}, U rows are b_{s(i)}  (Eq. 30) :contentReference[oaicite:3]{index=3}
+            # W rows are a_{s(i)}, U rows are b_{s(i)} 
             W = self.A_code(indices.long())  # (B,S,C)
             U = self.B_code(indices.long())  # (B,S,C)                  
             
-            # A(x) = W^T U -> (B, C, C)   (Eq. 31) :contentReference[oaicite:4]{index=4}
+            # A(x) = W^T U -> (B, C, C)   
             T = self.T_code.view(1, self.S, 1)      # (1,S,1) for broadcasting
             U_w = U * T
             A = torch.matmul(W.transpose(1, 2), U_w)                        
             
-            # Positivity constraint for Dirichlet concentrations (PDF remark) :contentReference[oaicite:5]{index=5}            
+            # Positivity constraint for Dirichlet concentrations           
             alpha = F.softplus(A) + 1e-8 #F.softplus(A).pow(self.tau) + 1e-8 #torch.exp(A / self.tau) + self.eps  # (B,C,C) + T.sum(dim=1).unsqueeze(-1)
 
-            # alpha^{(j)} is column j: alpha[:, :, j] in (B,C)
             alpha_minus_1 = alpha - 1.0                                     # initialised as all 1s matrix
             I = torch.eye(C, device=alpha.device).unsqueeze(0)              # Identity matrix
             alpha_minus_1 = alpha_minus_1 + I # -1.0                        # make alpha_minus_1 initally identity matrix
@@ -128,8 +117,7 @@ class VQDirCal(nn.Module):
             
             # log p_hat
             logp = torch.log(p_hat.clamp_min(self.eps))  # (B,C)
-
-            # scores_j = sum_i (alpha_{i,j}-1) * logp_i  (Eq. 20 with w=alpha-1) :contentReference[oaicite:6]{index=6}
+            
             # alpha is (B,i,j) and logp is (B,i) -> (B,j)
             linear_term = torch.einsum("bij,bi->bj", alpha_minus_1, logp)  # (B,C)                        
             

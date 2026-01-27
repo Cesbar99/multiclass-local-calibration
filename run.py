@@ -6,6 +6,7 @@ from omegaconf import DictConfig, open_dict, OmegaConf
 from src.actions.pretrain import *
 from src.actions.test import *
 from src.actions.calibrate import *
+from src.actions.quantize import *
 from src.actions.competition import *
 from src.actions.viz_and_test import *
 from pytorch_lightning.loggers import WandbLogger
@@ -17,7 +18,7 @@ import wandb
     
 def main(cfg: DictConfig):
     
-    kwargs = cfg 
+    kwargs = cfg #OmegaConf.create(cfg)  
     
     now = datetime.now()
     start = time.time()    
@@ -28,9 +29,9 @@ def main(cfg: DictConfig):
     base_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
     base_dir = os.path.join(os.path.dirname(os.path.dirname(base_dir)), 'result')
     
-    exp_name = f'{kwargs.exp_name}_{kwargs.data}_{now.strftime("%m%d_%H%M")}' 
+    exp_name = f'{kwargs.exp_name}_{kwargs.data}_{now.strftime("%m%d_%H%M")}' #target
     if kwargs.use_optuna:
-        exp_name = 'optuna_'+ exp_name 
+        exp_name = 'optuna_'+ exp_name #{kwargs.data}_{now.strftime("%m%d_%H%M")}' 
     if kwargs.use_wandb:
         if kwargs.resume_training and kwargs.wandb_id:
              wandb_logger = WandbLogger(name=exp_name, project=kwargs.wandb_project, entity=kwargs.wandb_entity, save_dir=base_dir, offline=kwargs.offline, id=kwargs.wandb_id, resume='allow')
@@ -38,7 +39,10 @@ def main(cfg: DictConfig):
             wandb_logger = WandbLogger(name=exp_name, project=kwargs.wandb_project, entity=kwargs.wandb_entity, save_dir=base_dir, offline=kwargs.offline)        
     else:
         wandb_logger = WandbLogger(name=exp_name, project='Test', entity=kwargs.wandb_entity, save_dir=base_dir, offline=kwargs.offline)
-    
+    #if kwargs.use_optuna:
+    #    wandb_optuna_logger = WandbLogger(name=optuna_exp_name, project=kwargs.wandb_project, entity=kwargs.wandb_entity, save_dir=base_dir, offline=kwargs.offline)
+    #else: 
+    #    wandb_optuna_logger = None
     kwargs.wandb_id = wandb_logger.version
     
     if kwargs.pretrain:
@@ -52,13 +56,16 @@ def main(cfg: DictConfig):
             kwargs.checkpoint = fix_default_checkpoint(kwargs)
             print("Pretraining model...")
             pretrain(kwargs, wandb_logger)
-        
+        # Pretrain the model here if needed
+        # This is a placeholder for pretraining logic
     elif kwargs.test:
         print("Testing model...")        
         for seed in kwargs.seeds:   
             if 'competition' in exp_name:    
                 kwargs.exp_name = 'competition'                        
-                for method in kwargs.methods:                    
+                for method in kwargs.methods:       
+                    if kwargs.only_test:
+                        print(f'Using method: {method}')             
                     pl.seed_everything(seed)       
                     kwargs.seed = seed
                     kwargs.checkpoint.seed = seed
@@ -72,11 +79,15 @@ def main(cfg: DictConfig):
                 test(kwargs)     
             elif 'pre-train' in exp_name:    
                 kwargs.exp_name = 'pre-train'
-                pl.seed_everything(seed)       
-                kwargs.seed = seed
-                kwargs.checkpoint.seed = seed
-                test(kwargs)                     
-
+                for seed in kwargs.seeds:   
+                    pl.seed_everything(seed)     
+                    kwargs.seed = seed
+                    # pl.seed_everything(seed)       
+                    # kwargs.seed = seed
+                    # kwargs.checkpoint.seed = seed
+                    test(kwargs)                     
+        # Logic to resume training from a checkpoint
+        # This is a placeholder for resuming logic
     elif kwargs.calibrate:                
         kwargs.exp_name = 'calibrate'
         if kwargs.dataset.batch_size is None:
@@ -87,7 +98,6 @@ def main(cfg: DictConfig):
             pl.seed_everything(seed)     
             kwargs.seed = seed
             calibrate(kwargs, wandb_logger)
-            
     elif kwargs.competition:        
         kwargs.exp_name = 'competition'
         if kwargs.dataset.batch_size is None:
@@ -99,10 +109,25 @@ def main(cfg: DictConfig):
             kwargs.seed = seed
             kwargs.checkpoint.seed = seed
             competition(kwargs, wandb_logger)
-            
     elif kwargs.viz_and_test:
-        print("Visualisations and computing aggreagting metrics...")                                 
+        print("Computing visualisations and computing aggreagting metricss...")                                 
         viz_and_test(kwargs)
+    elif kwargs.quantize:                
+        kwargs.exp_name = 'quantize'
+        if kwargs.dataset.batch_size is None:
+            kwargs.dataset.batch_size = kwargs.batch_size_map.get(kwargs.exp_name, 512)  # fallback default        
+            print('Using default batch_size set to: ', kwargs.dataset.batch_size)            
+        for slot in kwargs.models.slots:
+            kwargs.models.S = slot
+            kwargs.models.d = int(2048/slot)
+            print(f'Quantizing model with {kwargs.models.S} slots...')
+            for kappa in kwargs.models.kappas:
+                kwargs.models.K = kappa               
+                print(f'Quantizing model with {kwargs.models.K} codewords...')
+                for seed in kwargs.seeds:               
+                    pl.seed_everything(seed)     
+                    kwargs.seed = seed
+                    quantize(kwargs, wandb_logger)
     
     wandb.finish()
     del wandb_logger
@@ -111,9 +136,11 @@ def main(cfg: DictConfig):
     time_elapsed = end-start
     print('Total running time: {:.0f}h {:.0f}m'.
         format(time_elapsed // 3600, (time_elapsed % 3600)//60))
-
+    
+#@hydra.main(config_path='./src/configs', config_name='config_local', version_base=None)
 def main_entry():            
-        
+    
+    #cli_overrides = [arg for arg in sys.argv[1:] if "=" in arg]
     excluded_keys = {"dataset", "models"}
     init_overrides = [
         arg for arg in sys.argv[1:]
@@ -137,10 +164,15 @@ def main_entry():
             model_name = 'calibrator'
             full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides            
             cfg = compose(config_name="config_local", overrides=full_overrides)
+        
+        elif cfg.quantize:
+            model_name = 'quantizer'
+            full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides            
+            cfg = compose(config_name="config_local", overrides=full_overrides)
             
         elif cfg.test:
-            if cfg.exp_name not in ['pre-train', 'calibrate', 'competition']:
-                raise ValueError(f"Explicitly provide 'exp_name' argument from CLI when testing! Allowed values are 'pre-train' and 'calibrate'. Instead '{cfg.exp_name}' was given!")                 
+            if cfg.exp_name not in ['pre-train', 'calibrate', 'competition', 'quantize']:
+                raise ValueError(f"Explicitly provide 'exp_name' argument from CLI when testing! Allowed values are 'pre-train', 'calibrate', 'competition', 'quantize'. Instead '{cfg.exp_name}' was given!")                 
             
             elif cfg.exp_name == 'pre-train':
                 model_name = cfg.models_map[cfg.data].strip() 
@@ -154,23 +186,30 @@ def main_entry():
                 model_name = 'calibrator'
                 cfg = compose(config_name="config_local", overrides=full_overrides)
                 
+            elif cfg.exp_name == 'quantize':
+                model_name = 'quantizer'
+                full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides
+                model_name = 'quantizer'
+                cfg = compose(config_name="config_local", overrides=full_overrides)
+                
             elif cfg.exp_name == 'competition':
                 model_name = 'competition'
                 full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides
                 model_name = 'competition'
                 cfg = compose(config_name="config_local", overrides=full_overrides)
                 
-        elif cfg.competition: 
+        elif cfg.competition: #.exp_name == 'competition':
             model_name = 'competition'
             full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides
             cfg = compose(config_name="config_local", overrides=full_overrides)
             
-        elif cfg.viz_and_test: 
+        elif cfg.viz_and_test: #.exp_name == 'competition':
             model_name = 'competition'
             full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides
             cfg = compose(config_name="config_local", overrides=full_overrides)
                                       
-    main(cfg) 
+    main(cfg) #main(cfg, split) #main(**OmegaConf.to_container(cfg, resolve=True) )
+    
 
 if __name__ == "__main__":
     main_entry()

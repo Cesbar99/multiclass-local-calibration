@@ -39,10 +39,7 @@ def main(cfg: DictConfig):
             wandb_logger = WandbLogger(name=exp_name, project=kwargs.wandb_project, entity=kwargs.wandb_entity, save_dir=base_dir, offline=kwargs.offline)        
     else:
         wandb_logger = WandbLogger(name=exp_name, project='Test', entity=kwargs.wandb_entity, save_dir=base_dir, offline=kwargs.offline)
-    #if kwargs.use_optuna:
-    #    wandb_optuna_logger = WandbLogger(name=optuna_exp_name, project=kwargs.wandb_project, entity=kwargs.wandb_entity, save_dir=base_dir, offline=kwargs.offline)
-    #else: 
-    #    wandb_optuna_logger = None
+
     kwargs.wandb_id = wandb_logger.version
     
     if kwargs.pretrain:
@@ -56,8 +53,7 @@ def main(cfg: DictConfig):
             kwargs.checkpoint = fix_default_checkpoint(kwargs)
             print("Pretraining model...")
             pretrain(kwargs, wandb_logger)
-        # Pretrain the model here if needed
-        # This is a placeholder for pretraining logic
+
     elif kwargs.test:
         print("Testing model...")        
         for seed in kwargs.seeds:   
@@ -86,8 +82,7 @@ def main(cfg: DictConfig):
                     # kwargs.seed = seed
                     # kwargs.checkpoint.seed = seed
                     test(kwargs)                     
-        # Logic to resume training from a checkpoint
-        # This is a placeholder for resuming logic
+
     elif kwargs.calibrate:                
         kwargs.exp_name = 'calibrate'
         if kwargs.dataset.batch_size is None:

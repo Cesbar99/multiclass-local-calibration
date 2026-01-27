@@ -467,7 +467,7 @@ def apply_transform(example):
 
 def print_class_distribution(name, labels_tensor):
     label_counts = Counter(labels_tensor.tolist())
-    print(f"\n📊 Class distribution in {name}:")
+    print(f"\n Class distribution in {name}:")
     for cls in sorted(label_counts):
         print(f"  Class {cls}: {label_counts[cls]} samples")
 

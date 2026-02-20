@@ -204,7 +204,7 @@ class DirichletCalibrator(nn.Module):
     def __init__(self, n_classes, lr=0.01, max_iter=100):
         super().__init__()
         self.n_classes = n_classes        
-        self.feature_dim = 2 * n_classes + 1
+        self.feature_dim = n_classes + 1
         self.W = nn.Parameter(torch.zeros(self.n_classes, self.feature_dim))
         self.lr = lr
         self.max_iter = max_iter
@@ -212,7 +212,7 @@ class DirichletCalibrator(nn.Module):
     def _features(self, probs):
         log_probs = torch.log(probs + 1e-12)
         ones = torch.ones(probs.shape[0], 1, device=probs.device)
-        return torch.cat([log_probs, probs, ones], dim=1)
+        return torch.cat([log_probs, ones], dim=1)
 
     def forward(self, probs):
         features = self._features(probs)  # (N, 2C+1)

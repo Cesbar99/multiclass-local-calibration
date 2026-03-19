@@ -682,7 +682,7 @@ class MedMnistData(Dataset):
                                 batch_size = kwargs.batch_size,
                                 random_state = kwargs.random_state)      
         elif experiment == 'calibrate' or experiment == 'competition' or experiment == 'quantize'  or experiment == 'replicate':
-                #kwargs.dataset.class_freqs = [0.321, 0.047, 0.035, 0.093, 0.071, 0.047, 0.237, 0.149]
+                kwargs.dataset.class_freqs = [0.321, 0.047, 0.035, 0.093, 0.071, 0.047, 0.237, 0.149]
                 if kwargs.calibrator_version == 'v2':
                     self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationDatav2(kwargs)
                 else:

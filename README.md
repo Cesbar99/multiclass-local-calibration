@@ -24,3 +24,10 @@ To solve this problem deo the following:
 Now the code can access the calibration and test data!
 
 DON'T FORGET TO CHECK THE CONFIG FILE (config_local.yaml) AND CHANGE PATHS ACCORDINGLY!
+
+TO RUN A NEW MODEL OR A NEW DATASET:
+
+1) Go to config.yaml and edit models_map accordingly.
+2) Go to replicate.py and add at the top (line 65 circa) your dataset.
+3) Create a config file for your dataset (use configs/dataset/cifar10.yaml as a template. Either manually add the correct class priors or if you have a lot of classes override them loading the dataset as per the following step)
+4) Go to data_sets/dataset.py and write your dataloader there (use cifar10 as a template). 

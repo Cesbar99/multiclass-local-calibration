@@ -14,3 +14,9 @@ TO EVALUATE COMPETITORS RUN (SMS, DC, TS, PS, IR):
 CUDA_VISIBLE_DEVICES=1 python -u run.py pretrain=False calibrate=False quantize=False replicate=False test=False competition=True exp_name=competition data={one_of_the_possible_data_types} gamma=10 dataset.batch_size=128 return_features=True similarity_dim=50 models.max_iter=1000 checkpoint.num_classes={one_of_the-above_values} checkpoint.epochs=9 models.temp_lr=1e-3 n_bins_calibration_metrics=15
 
 ALERT THIS REQUIRES PRE-TRAINED CLASSIFIER WHICH IS MISSING FROM THE REPO!
+To solve this problem deo the following:
+in the cloned repo, create a new folder named results
+there keep a folder named pre-train
+inside keep the raw_results for each model (labels, predictios=ns, logits, features)
+Have a separate file for the calibration data and a file for the test data
+Now the code can access the calibration and test data!

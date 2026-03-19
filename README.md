@@ -27,7 +27,12 @@ DON'T FORGET TO CHECK THE CONFIG FILE (config_local.yaml) AND CHANGE PATHS ACCOR
 
 TO RUN A NEW MODEL OR A NEW DATASET:
 
-1) Go to config.yaml and edit models_map accordingly.
-2) Go to replicate.py and add at the top (line 65 circa) your dataset.
-3) Create a config file for your dataset (use configs/dataset/cifar10.yaml as a template. Either manually add the correct class priors or if you have a lot of classes override them loading the dataset as per the following step)
-4) Go to data_sets/dataset.py and write your dataloader there (use cifar10 as a template). 
+1) Create a config file for your dataset (use configs/dataset/cifar10.yaml as a template. Either manually add the correct class priors or if you have a lot of classes override them loading the dataset during the following step)
+2) Go to data_sets/dataset.py and write your dataloader there (use cifar10 as a template).
+3) Go to algorithms/networks.py and add ther your new architecture or model there
+4) Go to algorithms/trainers.py and add the training for your custom architecture
+5) Go to config.yaml and edit models_map accordingly.
+6) Go to replicate.py and add at the top (line 65 circa) your dataset.
+7) If your base-model to to pre-train does not support pytorch lightning, go to actions/pretrain.py and add your training code ther 
+
+REMEMBER THAT IF YOUR MODEL DOES NOT HAVE FEATURE REPRESENTATIONS, LOCAL METRICS CANNOT BE COMPUTED!

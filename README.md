@@ -22,3 +22,5 @@ To solve this problem deo the following:
 4) Have a separate file for the calibration data and a file for the test data
 
 Now the code can access the calibration and test data!
+
+DON'T FORGET TO CHECK THE CONFIG FILE (config_local.yaml) AND CHANGE PATHS ACCORDINGLY!

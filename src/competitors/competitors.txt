@@ -1,0 +1,14 @@
+1) temperature scaling (baseline)
+
+2) platt scaling (baseline)
+
+2) dirichlet calibration
+
+3) proximity informed calibration
+
+4) consistency calibration (???)
+
+5) cluster based calibration methods (which ones?)
+
+
+

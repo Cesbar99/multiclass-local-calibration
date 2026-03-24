@@ -10,15 +10,15 @@ defaults:
 ####### VERSION 2 OF CALIBRATOR WITH SIMILARITY EMBEDDING #######
 calibrator_version: v2
 return_features: True # run calibration on features embeddings or logits
-similarity_dim: 5 #number of pca dimensions to use
+similarity_dim: 50 #number of pca dimensions to use
 
 # Global parameters
-seeds: [42, 43, 44, 45, 46] # for multiple runs
+seeds: [42, 43, 44, 45, 46]  # [42, 123, 456, 789, 999] # for food, else: [42, 43, 44, 45, 46] 
 seed: 42
 resume_training: False
 offline: False
 device: cuda
-cuda_device: cuda #0
+cuda_device: 0 #cuda 
 
 # Checkpoints
 checkpoint:  
@@ -73,18 +73,20 @@ models_map:
   cifar10: cifar10_resnet50 #cifar10_vit
   cifar10LT: cifar10LT_vit
   cifar100: cifar100_resnet152 #cifar100_vit #cifar100_densenet121 #cifar100_resnet50 #cifar100_resnet18 
+  food101: food101_resnet152 #food101_resnet50 food101_resnet152 food101_vit food101_densenet121 food101_resnet18 
   covtype: covtype_resmlp #covtype_ftt
   otto: otto_resmlp #otto_ftt 
   cubic: cubic_resmlp #otto_ftt 
 
 # HP-optimisation
 use_optuna: False
+optuna_seed: 1234
 optuna_epochs: 30
 n_trials: 50
 multi_obj: False
 
 #competitors
-methods: ['SMS'] #['SMS', 'TS', 'IR', 'PS', 'DC'] #tempearature scaling, isotonic regression, platt scaling, dirichlet calibration
+methods: ['SMS', 'TS', 'IR', 'PS', 'DC'] #tempearature scaling, isotonic regression, platt scaling, dirichlet calibration
 method:
 gammas: [] #[0.1, 1., 5., 7., 10., 100.] #[0.1, 0.3, 1, 3, 5, 7, 10, 100]
 

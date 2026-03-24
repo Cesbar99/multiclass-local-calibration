@@ -1234,9 +1234,13 @@ class FitnessNet(nn.Module):
         self.eps = eps
         self.net = nn.Sequential(
             nn.Linear(n_classes, hidden), # + 1 * 2
-            nn.SiLU(),            
+            nn.SiLU(), #ReLU         
+            #nn.Dropout(0.3),   
             nn.Linear(hidden, n_classes)  # scalar potential
         ) 
+        
+        # nn.init.zeros_(self.net[-1].weight)
+        # nn.init.zeros_(self.net[-1].bias)
         
     def forward(self, x_feat: torch.Tensor, q: torch.Tensor):
         # q: (B, C) on simplex
@@ -1305,9 +1309,26 @@ def fitness_from_potential(Ftheta, x_feat, q, eps=1e-12, create_graph=True, deta
         # grad_logq = grad_logq - (q_cur * grad_logq).sum(dim=1, keepdim=True)
         return grad_logq, q_cur
 
+def smoothness_penalty_finite_diff(Ftheta, x_feat, q, eps=1e-12, sigma=1e-3):
+    """
+    Finite-difference smoothness penalty for s(log_q).
+
+    Works for non-potential case where s = Ftheta(x_feat, q).
+    """
+    log_q = torch.log(q + eps)
+    noise = torch.randn_like(log_q)
+    log_q_pert = log_q + sigma * noise
+
+    q_base = torch.softmax(log_q, dim=1)
+    q_pert = torch.softmax(log_q_pert, dim=1)
+
+    s_base = Ftheta(x_feat, q_base)
+    s_pert = Ftheta(x_feat, q_pert)
+
+    return ((s_pert - s_base).pow(2).sum(dim=1) / (sigma**2)).mean()
 
 class PotentialReplicatorCalibrator(nn.Module):
-    def __init__(self, n_classes, data='cifar10', n_steps=5, eta=0.1, hidden=64, lin_comb=0.9, ceiling=0.1, kl_reg=0.0, l2_reg=0.0, lr=1e-3, weight_decay=0.0, epochs=5, fit_stage=False, potential=True, eps=1e-12, detach_q_during_train=False):
+    def __init__(self, n_classes, data='cifar10', n_steps=5, eta=0.1, hidden=64, lin_comb=0.9, ceiling=0.1, kl_reg=0.0, jac_reg=0.0, l2_reg=0.0, optimizer='adam', lr=1e-3, weight_decay=0.0, epochs=5, fit_stage=False, potential=True, eps=1e-12, detach_q_during_train=False):
         super().__init__()
         self.name = 'REPLICATOR'
         self.n_classes = n_classes               
@@ -1316,6 +1337,8 @@ class PotentialReplicatorCalibrator(nn.Module):
         self.eps = eps
         self.detach_q_during_train = detach_q_during_train
         self.kl_reg = kl_reg
+        self.jac_reg = jac_reg
+        self.optimizer = optimizer
         self.lr = lr
         self.weight_decay = weight_decay
         self.epochs = epochs
@@ -1330,43 +1353,52 @@ class PotentialReplicatorCalibrator(nn.Module):
             raise ValueError("ceiling weight should be in [0,1]. Instead {} was given!".format(self.ceiling))
 
         self.init_eta = eta
-        # self.log_eta = nn.Parameter(torch.tensor(torch.log(torch.tensor([eta]))))        
+        #self.log_eta = nn.Parameter(torch.tensor(torch.log(torch.tensor([eta]))))         
         self.log_eta = nn.ParameterList([
         nn.Parameter(torch.full((1,), math.log(eta), dtype=torch.float32)) for _ in range(n_steps) ]) #nn.Parameter(torch.tensor(torch.log(torch.tensor([eta] * self.n_steps)), dtype=torch.float32))
         # self.log_eta = nn.ParameterList([
         #     nn.Parameter(torch.full((n_classes,), math.log(eta), dtype=torch.float32)) for _ in range(n_steps)
         #     ])
         #self.Ftheta = PotentialNet(n_classes=n_classes, hidden=hidden, eps=eps)
+        # self.lin_comb = nn.ParameterList([
+        # nn.Parameter(torch.full((1,),  _ / n_steps , dtype=torch.float32)) for _ in range(n_steps) ])
+        
         if self.potential:
-            self.Ftheta = nn.ModuleList([PotentialNet(n_classes=n_classes, hidden=hidden, eps=eps) for t in range(n_steps)])
+            self.Ftheta = nn.ModuleList([PotentialNet(n_classes=n_classes, hidden=hidden, eps=eps) for _ in range(n_steps)])
         else:
-            self.Ftheta = nn.ModuleList([FitnessNet(n_classes=n_classes, hidden=hidden, eps=eps) for t in range(n_steps)])
+            self.Ftheta = nn.ModuleList([FitnessNet(n_classes=n_classes, hidden=hidden, eps=eps) for _ in range(n_steps)])
 
-    def replicator_step(self, q, s, eta, eps=1e-12):
+    def replicator_step(self, q, s, eta, t, eps=1e-12):                
+        init_q = q
+        # # s = s - s.max(dim=1, keepdim=True).values
+        # s = s - (q * s).sum(dim=1, keepdim=True)       
+        
         # eta = eta.unsqueeze(0) 
         # log_q = torch.log(q + eps) + eta * s
-        # ret = F.softmax(log_q, dim=1)
-        
-        init_q = q
+        # q = F.softmax(log_q, dim=1)
         
         s = s - (q * s).sum(dim=1, keepdim=True)        
             
-        #s = s - s.max(dim=1, keepdim=True).values
+        # s = s - s.max(dim=1, keepdim=True).values
         z = eta * s
         
         z = z - z.max(dim=1, keepdim=True).values
         
         q = q * torch.exp(z) # torch.exp(F.softplus(self.log_eta[t]) * s) #        
         q = q / (q.sum(dim=1, keepdim=True) + eps)
-        ret = (1 - self.lin_comb) * q + self.lin_comb * init_q
+        
+        ret = (1 - self.lin_comb) * q + self.lin_comb * init_q # (1 - self.lin_comb[t]) * q + self.lin_comb[t] * init_q #  
         return ret
     
     def forward(self, p, x_feat):
         q = p
+        if self.jac_reg > 0.0:
+            jac_pen_total = 0.0
         #eta = F.softplus(self.log_eta)
 
         for t in range(self.n_steps):
-            eta_t = self.init_eta + self.ceiling * torch.sigmoid(self.log_eta[t]) #F.softplus(self.log_eta[t]) # self.init_eta + 0.1 * torch.sigmoid(self.log_eta[t]) # # F.sigmoid(F.softplus(self.log_eta[t])) #F.softplus(self.log_eta)
+            eta_t = self.init_eta + self.ceiling * torch.sigmoid(self.log_eta[t]) # F.softplus(self.log_eta[t]) #F.softplus(self.log_eta[t]) # self.init_eta + 0.1 * torch.sigmoid(self.log_eta[t]) # # F.sigmoid(F.softplus(self.log_eta[t])) #F.softplus(self.log_eta)
+            
             if self.potential:
                 s, q_consistent = fitness_from_potential(
                     self.Ftheta[t], x_feat, q,
@@ -1375,12 +1407,18 @@ class PotentialReplicatorCalibrator(nn.Module):
                     detach_q=self.detach_q_during_train            
                 )
             else:
-                s = self.Ftheta[t](x_feat, q) # (B,) 
+                s = self.Ftheta[t](x_feat, q) # (B,)                 
                 q_consistent = q
                 
-            q = self.replicator_step(q_consistent, s, eta_t, eps=self.eps)
-
-        return q
+            if self.jac_reg > 0.0:
+                jac_pen_total += smoothness_penalty_finite_diff(self.Ftheta[t], x_feat, q_consistent)
+                
+            q = self.replicator_step(q_consistent, s, eta_t, t, eps=self.eps)
+            
+        if self.jac_reg > 0.0:
+            return q, jac_pen_total
+        else:
+            return q
 
     @torch.no_grad()
     def _apply_steps_no_grad(self, p, x_feat, upto_t_exclusive: int):
@@ -1413,8 +1451,15 @@ class PotentialReplicatorCalibrator(nn.Module):
             device = str(device)
         self.to(device)
         self.train()
-        opt = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
-        
+        if self.optimizer == 'adam':
+            opt = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+        elif self.optimizer == 'sgd':
+            opt = torch.optim.SGD(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+        elif self.optimizer == 'adamw':
+            opt = torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+        else:
+            raise ValueError(f"Unsupported optimizer: {self.optimizer}! Supported values are: ['adam', 'sgd', 'adamw']")
+
         self.best_val_nll = float("inf")
         full_path = f'checkpoints/replicate{self.n_steps}_{self.data}_{self.n_classes}_classes_None_features'   
         os.makedirs(full_path, exist_ok=True)
@@ -1433,14 +1478,20 @@ class PotentialReplicatorCalibrator(nn.Module):
                 p = F.softmax(logits, dim=1)
                 x_feat = logits  # simplest choice; or init_feats/init_pca
 
-                q = self.forward(p, x_feat)
+                if self.jac_reg > 0.0:
+                    q, jac_pen = self.forward(p, x_feat)
+                else:
+                    q = self.forward(p, x_feat)
+                    
                 loss = F.nll_loss(torch.log(q + self.eps), y)
                 if self.kl_reg > 0.0:
                     kl = (q * (torch.log(q + self.eps) - torch.log(p + self.eps))).sum(dim=1).mean()
                     loss = loss + self.kl_reg * kl
                 if self.l2_reg > 0.0:
                     loss = loss + self.l2_reg * self.l2_penalty()
-
+                if self.jac_reg > 0.0:
+                    loss = loss + self.jac_reg * jac_pen
+                    
                 opt.zero_grad()
                 loss.backward()
                 opt.step()
@@ -1463,7 +1514,10 @@ class PotentialReplicatorCalibrator(nn.Module):
 
                         p = F.softmax(logits, dim=1)
                         x_feat = logits  # simplest choice; or init_feats/init_pca
-                        q = self.forward(p, x_feat)
+                        if self.jac_reg > 0.0:
+                            q, jac_pen = self.forward(p, x_feat)
+                        else:
+                            q = self.forward(p, x_feat)
                         
                         all_test_probs.append(q.cpu())
                         
@@ -1496,7 +1550,10 @@ class PotentialReplicatorCalibrator(nn.Module):
 
                     p = F.softmax(logits, dim=1)
                     x_feat = logits  # simplest choice; or init_feats/init_pca
-                    q = self.forward(p, x_feat)
+                    if self.jac_reg > 0.0:
+                        q, jac_pen = self.forward(p, x_feat)
+                    else:
+                        q = self.forward(p, x_feat)
                     
                     all_test_probs.append(q.cpu())
                     
@@ -1686,7 +1743,10 @@ class PotentialReplicatorCalibrator(nn.Module):
                 # ---- build q_t from previous frozen steps (no grad) ----
                 calibrated_probs = self._apply_steps_no_grad(p, x_feat, upto_t_exclusive=self.n_steps)
             else:                
-                calibrated_probs = self.forward(p, x_feat)                                
+                if self.jac_reg> 0.0:
+                    calibrated_probs, jac_pen = self.forward(p, x_feat)                                
+                else:
+                    calibrated_probs = self.forward(p, x_feat)                                                            
 
             return { 
                     "features": init_pca.to(device), 

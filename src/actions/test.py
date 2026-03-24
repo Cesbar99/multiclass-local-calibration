@@ -12,7 +12,14 @@ def test(kwargs):
     if kwargs.data == 'mnist' and kwargs.dataset.variant:
             kwargs.data = kwargs.data + '_' + kwargs.dataset.variant 
             
-    if kwargs.exp_name == 'pre-train':              
+    if kwargs.exp_name == 'pre-train':   
+        # if kwargs.data != 'food101':
+        epochs = kwargs.checkpoint.epochs
+        temperature = kwargs.checkpoint.temperature
+        # else:
+        #     epochs = 'None'
+        #     temperature = 1.0    
+                   
         gamma = kwargs.gamma            
         n_bins = kwargs.n_bins_calibration_metrics        
         appendix =  kwargs.exp_name + '_' + kwargs.data + '_' + f'{kwargs.checkpoint.num_classes}_classes_' + f'{kwargs.checkpoint.num_features}_features'
@@ -26,17 +33,18 @@ def test(kwargs):
                 kwargs.checkpoint.num_classes,
                 kwargs.checkpoint.num_features,
                 kwargs.seed,
-                kwargs.checkpoint.epochs,
-                kwargs.checkpoint.temperature            
+                epochs,
+                temperature            
             )
+        
         test_results = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_seed-{}_ep-{}_tmp_{}.csv".format(
                 kwargs.exp_name,
                 kwargs.data,
                 kwargs.checkpoint.num_classes,
                 kwargs.checkpoint.num_features,
                 kwargs.seed,
-                kwargs.checkpoint.epochs,
-                kwargs.checkpoint.temperature            
+                epochs,
+                temperature            
             )
         
         # Load your data
@@ -70,6 +78,7 @@ def test(kwargs):
         y_eval_cal = df_test["true"].values
         p_eval_cal = df_test["preds"].values
 
+        # if kwargs.data != 'food101':
         # Split into 90% test and 10% val
         (feats_test, feats_val,
         logits_test, logits_val,
@@ -83,7 +92,7 @@ def test(kwargs):
             p_eval_cal,
             test_size=0.1, #0.1  # 10% for validation
             random_state=kwargs.seed, # for reproducibility
-            shuffle=True)  
+            shuffle=True) 
         
         df_test = pd.DataFrame(
             np.hstack([
@@ -101,22 +110,30 @@ def test(kwargs):
                 [f"pca_{i}" for i in range(pca_test.shape[1])]                                 
             )
         )
-
+        
         filename = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_seed-{}_ep-{}_tmp_{}_only_test.csv".format(
                 kwargs.exp_name,
                 kwargs.data,
                 kwargs.checkpoint.num_classes,
                 kwargs.checkpoint.num_features,
                 kwargs.seed,
-                kwargs.checkpoint.epochs,
-                kwargs.checkpoint.temperature            
+                epochs,
+                temperature            
             )
-        df_test.to_csv(filename, index=False)      
+        df_test.to_csv(filename, index=False)  
+        # else:
+        #     feats_test = feats_eval_cal            
+        #     logits_test = logits_eval_cal
+        #     pca_test = pca_eval_cal
+        #     y_test = y_eval_cal
+        #     p_test = p_eval_cal                     
         
         # Compute accuracy
         #accuracy_test = (df_test['preds'] == df_test['true']).mean()
         accuracy_test = (y_test == p_test).mean()
         print(f'Test accuracy: {accuracy_test:.2%}')
+        accs = {'acc': [accuracy_test]}
+        df_accs = pd.DataFrame(accs)
         #accuracy_cal = (df_cal['preds'] == df_cal['true']).mean()
         accuracy_cal = (y_train_cal == p_train_cal).mean()
         print(f'Cal accuracy: {accuracy_cal:.2%}')   
@@ -124,7 +141,8 @@ def test(kwargs):
         # Specify your directory and filename
         output_dir = join(kwargs.save_path_calibration_metrics, appendix)
         os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, "accs_eval_cal.csv")
+        output_file = os.path.join(output_dir, f"accs_eval_cal_seed_{kwargs.seed}.csv")
+        df_accs.to_csv(output_file, index=False) 
         
         if not kwargs.only_test: # COMPUTE METRIC IN ADDITION TO ACCURACY
         
@@ -157,7 +175,7 @@ def test(kwargs):
             # Compute calibration metrics
             #ecce_test, ece_test, mce_test, brier_test, nll_test = compute_multiclass_calibration_metrics(probs_test, y_true_test_, n_bins)
             #ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy) 
-            ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy) 
+            ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data) 
             results = {
                 "ECCE": [ecce_test],       
                 "ECE": [ece_test],
@@ -180,35 +198,35 @@ def test(kwargs):
             df.to_csv(output_file, index=False)  
             
             #ecce_cal, ece_cal, mce_cal, brier_cal, nll_cal = compute_multiclass_calibration_metrics(probs_cal, y_true_cal_, n_bins)
-            ecce_cal, ece_cal, mce_cal, brier_cal, nll_cal, lce_cal, mlce_cal = compute_multiclass_calibration_metrics_w_lce(probs_cal, y_true_cal_, pca_cal_, class_freqs, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy)         
-            results = {
-                "ECCE": [ecce_cal],       
-                "ECE": [ece_cal],
-                "MCE": [mce_cal],
-                "Brier": [brier_cal],
-                "NLL": [nll_cal],
-                "LCE": [lce_cal],
-                "MLCE": [mlce_cal]
-            }
+            # ecce_cal, ece_cal, mce_cal, brier_cal, nll_cal, lce_cal, mlce_cal = compute_multiclass_calibration_metrics_w_lce(probs_cal, y_true_cal_, pca_cal_, class_freqs, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy)         
+            # results = {
+            #     "ECCE": [ecce_cal],       
+            #     "ECE": [ece_cal],
+            #     "MCE": [mce_cal],
+            #     "Brier": [brier_cal],
+            #     "NLL": [nll_cal],
+            #     "LCE": [lce_cal],
+            #     "MLCE": [mlce_cal]
+            # }
 
-            # Convert to DataFrame
-            df = pd.DataFrame(results)
+            # # Convert to DataFrame
+            # df = pd.DataFrame(results)
 
-            # Specify your directory and filename
-            output_dir = join(kwargs.save_path_calibration_metrics, appendix)
-            os.makedirs(output_dir, exist_ok=True)
-            output_file = os.path.join(output_dir, f"metric_train_cal_seed_{kwargs.seed}.csv")
+            # # Specify your directory and filename
+            # output_dir = join(kwargs.save_path_calibration_metrics, appendix)
+            # os.makedirs(output_dir, exist_ok=True)
+            # output_file = os.path.join(output_dir, f"metric_train_cal_seed_{kwargs.seed}.csv")
 
-            # Save to CSV
-            df.to_csv(output_file, index=False)  
+            # # Save to CSV
+            # df.to_csv(output_file, index=False)  
 
             # Print results
             #print(f"Test Calibration — ECCE: {ecce_test:.4f}, ECE: {ece_test:.4f}, MCE: {mce_test:.4f}, Brier: {brier_test:.4f}, NLL: {nll_test:.4f}")
             print(f"Test Calibration — ECCE: {ecce_test:.4f}, ECE: {ece_test:.4f}, MCE: {mce_test:.4f}, Brier: {brier_test:.4f}, NLL: {nll_test:.4f}, LCE: {lce_test:.4f}") #, MLCE: {mlce_test:.4f}")                
             #print(f"Cal Calibration — ECCE: {ecce_cal:.4f}, ECE: {ece_cal:.4f}, MCE: {mce_cal:.4f}, Brier: {brier_cal:.4f}, NLL: {nll_cal:.4f}")
-            print(f"Cal Calibration — ECCE: {ecce_cal:.4f}, ECE: {ece_cal:.4f}, MCE: {mce_cal:.4f}, Brier: {brier_cal:.4f}, NLL: {nll_cal:.4f}, LCE: {lce_cal:.4f}") #, MLCE: {mlce_cal:.4f}")
+            #print(f"Cal Calibration — ECCE: {ecce_cal:.4f}, ECE: {ece_cal:.4f}, MCE: {mce_cal:.4f}, Brier: {brier_cal:.4f}, NLL: {nll_cal:.4f}, LCE: {lce_cal:.4f}") #, MLCE: {mlce_cal:.4f}")
             multiclass_calibration_plot(y_true_test_, probs_test, n_bins=n_bins, save_path=save_path, filename=test_file_name)
-            multiclass_calibration_plot(y_true_cal_, probs_cal, n_bins=n_bins, save_path=save_path, filename=cal_file_name)
+            #multiclass_calibration_plot(y_true_cal_, probs_cal, n_bins=n_bins, save_path=save_path, filename=cal_file_name)
             
     elif kwargs.exp_name == 'quantize':
         total_epochs = kwargs.models.epochs
@@ -337,7 +355,7 @@ def test(kwargs):
                 ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce_adabw(probs_test, y_true_test_, pca_test_, bw_test, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy) 
             else:
                 if kwargs.quantize or kwargs.test:
-                    ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy) 
+                    ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data) 
                     results = {
                         "ECCE": [ecce_test],       
                         "ECE": [ece_test],
@@ -366,7 +384,7 @@ def test(kwargs):
                     all_mlce = []                
                     for gamma in kwargs.gammas:
                         print(f'Computing metrics with gamma {gamma}')
-                        ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy) 
+                        ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data) 
                         all_lce.append(lce_test)
                         all_mlce.append(mlce_test)
                         # if gamma == kwargs.gamma:
@@ -564,7 +582,7 @@ def test(kwargs):
                 ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce_adabw(probs_test, y_true_test_, pca_test_, bw_test, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy) 
             else:
                 if kwargs.calibrate:
-                    ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy) 
+                    ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data) 
                     results = {
                         "ECCE": [ecce_test],       
                         "ECE": [ece_test],
@@ -593,7 +611,7 @@ def test(kwargs):
                     all_mlce = []                
                     for gamma in kwargs.gammas:
                         print(f'Computing metrics with gamma {gamma}')
-                        ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy) 
+                        ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data) 
                         all_lce.append(lce_test)
                         all_mlce.append(mlce_test)
                         if gamma == kwargs.gamma:
@@ -699,7 +717,7 @@ def test(kwargs):
                 bw_train = torch.tensor(bw_train.values, dtype=torch.float32).squeeze() 
                 ecce_train, ece_train, mce_train, brier_train, nll_train, lce_train, mlce_train = compute_multiclass_calibration_metrics_w_lce_adabw(probs_train, y_true_train_, pca_train_, bw_train, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy) 
             else:
-                ecce_train, ece_train, mce_train, brier_train, nll_train, lce_train, mlce_train = compute_multiclass_calibration_metrics_w_lce(probs_train, y_true_train_, pca_train_, class_freqs, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy) 
+                ecce_train, ece_train, mce_train, brier_train, nll_train, lce_train, mlce_train = compute_multiclass_calibration_metrics_w_lce(probs_train, y_true_train_, pca_train_, class_freqs, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data) 
                     
             results = {            
                 "ECCE": [ecce_train],       
@@ -784,7 +802,7 @@ def test(kwargs):
                 bw_test = torch.tensor(bw_test.values, dtype=torch.float32).squeeze() 
                 ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce_adabw(probs_test, y_true_test_, pca_test_, bw_test, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy) 
             else:                               
-                ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy) 
+                ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data) 
             
                 results = {
                     "ECCE": [ecce_test],       
@@ -814,7 +832,7 @@ def test(kwargs):
                 all_mlce = []
                 for gamma in kwargs.gammas:
                     print(f'Computing metrics with gamma {gamma}')     
-                    ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy) 
+                    ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data) 
                     all_lce.append(lce_test)
                     all_mlce.append(mlce_test)
 
@@ -924,7 +942,7 @@ def test(kwargs):
                             "NLL": [nll_test]                            
                         }
                     else:
-                        ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy) 
+                        ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data) 
                         results = {
                             "ECCE": [ecce_test],       
                             "ECE": [ece_test],
@@ -957,7 +975,7 @@ def test(kwargs):
                     if kwargs.data != 'cubic':         
                         for gamma in kwargs.gammas:
                             print(f'Computing metrics with gamma {gamma}')
-                            ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy) 
+                            ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data) 
                             all_lce.append(lce_test)
                             all_mlce.append(mlce_test)
 

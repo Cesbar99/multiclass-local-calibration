@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 import os
 from os.path import join
+import csv
 import pandas as pd 
 import sys
 import numpy as np
@@ -20,6 +21,9 @@ import torch
 
 import pytorch_lightning as pl
 import torch
+
+from data_sets.dataset import CalibrationDatasetv2
+from torch.utils.data import Dataset, DataLoader
 
 class CalibrationPlotCallback(pl.Callback):
     def __init__(self, kwargs, dataloader, every_n_epochs=10, device="cuda", type='train'):
@@ -140,7 +144,39 @@ def estimate_bandwidth_silverman(z_cal_full: torch.Tensor):
         factor = (4.0 / (D + 2.0)) ** (1.0 / (D + 4.0)) * (N ** (-1.0 / (D + 4.0)))
         h = factor * std  # (D,)
         return h
-                    
+  
+
+def load_optuna_config(csv_path, kwargs):
+    if not os.path.isfile(csv_path):
+        raise FileNotFoundError(f"CSV file not found: {csv_path}")
+
+    with open(csv_path, mode="r") as f:
+        reader = csv.DictReader(f)
+        row = next(reader)  # only one row assumed
+
+    print("Loaded Optuna config from CSV")
+
+    for key, value in row.items():
+        key = key.strip()
+        value = value.strip()
+        
+        if key in ["study_name", "value", "optuna_epochs"]:
+            continue
+
+        # type parsing
+        if value in ["True", "False"]:
+            parsed_value = value == "True"
+        else:
+            try:
+                parsed_value = int(value)
+            except ValueError:
+                try:
+                    parsed_value = float(value)
+                except ValueError:
+                    parsed_value = value  # string (e.g. optimizer)
+
+        kwargs.models[key] = parsed_value                    
+             
                     
 def get_raw_res(raws, features=False, adabw=False, reduced_dim=None, fit_pca=None, quantize=False):
     
@@ -507,7 +543,8 @@ def compute_multiclass_calibration_metrics_w_lce(
     n_bins: int = 15,
     gamma: float = 0.1,
     full_ece: bool = False,
-    bin_strategy: str = 'default' # quantile
+    bin_strategy: str = 'default', # quantile
+    data: str = 'cifar10'
 ):
     """
     Computes:
@@ -541,14 +578,23 @@ def compute_multiclass_calibration_metrics_w_lce(
     ecces = []
     eces = []
     mces = []
-    briers = []
+    # briers = []
     per_class_lce_avg = []   # mean abs LCE for each class
     per_class_mlce = []      # max abs LCE for each class
+        
+    if data == 'food101':
+        filter = 10 # less samples for classes so reduce
+    else:
+        filter = 20 # filter for too little ESS when computing local metrics
 
     # Negative log-likelihood
     log_probs = torch.log(probs + 1e-12)  # numerical stability
     loss = F.nll_loss(log_probs, y_true, reduction='mean')
     nll = loss.item()
+    
+    # Classic multiclass Brier score
+    y_onehot = F.one_hot(y_true, num_classes=n_classes).float().to(device)
+    avg_brier = torch.mean(torch.sum((probs - y_onehot) ** 2, dim=1)).item()
 
     # Precompute kernel matrix K from pca features (Gaussian kernel).
     # Ensure pca shape is (N, d) and on same device
@@ -576,7 +622,7 @@ def compute_multiclass_calibration_metrics_w_lce(
         probs_class = probs[:, class_idx].to(device)              # (N,)
 
         # Brier Score for this class
-        brier = torch.mean((probs_class - labels_binary) ** 2).item()
+        #brier = torch.mean((probs_class - labels_binary) ** 2).item()
         if bin_strategy == 'quantile':
             # probs_class: (N,) tensor
             arr = probs_class.detach().cpu().numpy()
@@ -639,7 +685,7 @@ def compute_multiclass_calibration_metrics_w_lce(
             
             print(idx_in_bin.numel())
             # ---------- LCE computation for all samples in this bin ----------
-            if idx_in_bin.numel() > 20: #and idx_in_bin.numel() < 17000
+            if idx_in_bin.numel() > filter: #and idx_in_bin.numel() < 17000
                 #bin_indices = torch.where(idx_in_bin)[0]   # indices of samples in this bin
                 pca_bin = pca[idx_in_bin]               # (n_b, d)
 
@@ -697,7 +743,7 @@ def compute_multiclass_calibration_metrics_w_lce(
         ecces.append(ecce_val)
         eces.append(ece)
         mces.append(mce)
-        briers.append(brier)
+        # briers.append(brier)
 
         # flatten valid indices
         if len(valid_idx) > 0:
@@ -721,7 +767,7 @@ def compute_multiclass_calibration_metrics_w_lce(
         lce_list = None
 
     avg_mce = np.dot(np.array(mces).T, np.array(class_freqs)) #sum(mces) / len(mces)
-    avg_brier = np.dot(np.array(briers).T, np.array(class_freqs)) #sum(briers) / len(briers)
+    # avg_brier = np.dot(np.array(briers).T, np.array(class_freqs)) #sum(briers) / len(briers)
 
     # LCE aggregated across classes
     avg_lce = np.dot(np.array(per_class_lce_avg).T, np.array(class_freqs)) # sum(per_class_lce_avg) / len(per_class_lce_avg) 

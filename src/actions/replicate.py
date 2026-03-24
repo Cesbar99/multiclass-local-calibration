@@ -52,6 +52,8 @@ def replicate(kwargs, wandb_logger=None):
         dataset = Cifar10LongTailData(kwargs, experiment=kwargs.exp_name)
     elif kwargs.data == 'cifar100':
         dataset = Cifar100Data(kwargs, experiment=kwargs.exp_name)  
+    elif kwargs.data == 'food101':
+        dataset = Food101Datav2(kwargs, experiment=kwargs.exp_name)  
     elif kwargs.data == 'cubic':
         dataset = CubicData(kwargs)
     elif kwargs.data == 'cifar100_longtail':
@@ -62,39 +64,7 @@ def replicate(kwargs, wandb_logger=None):
         dataset = ImagenetOODData(calibration=kwargs.calibration)
     elif kwargs.data == 'imagenet_longtail':
         dataset = ImagenetLongTailData(calibration=kwargs.calibration)    
-
-    
-    name = kwargs.exp_name
-    name += f'{kwargs.models.n_steps}'
-    if kwargs.models.kl_reg > 0:
-        name += '_KL'
-    if kwargs.models.state_dependent:
-        name += '_DEP'
         
-    kwargs.method = 'RC' #REPLICATOR CALIBRATION
-
-    path = f"checkpoints/{name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features/"    
-    os.makedirs(path, exist_ok=True) 
-    
-    result_path = f"results/{name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features"    
-    os.makedirs(result_path, exist_ok=True)    
-    
-    raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_replicate_seed-{}_ep-{}.csv".format(
-            name, 
-            kwargs.data,
-            kwargs.dataset.num_classes,
-            kwargs.dataset.num_features,
-            seed,
-            kwargs.models.max_iter           
-        )
-    raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_replicate_seed-{}_ep-{}.csv".format(
-        name, 
-        kwargs.data,
-        kwargs.dataset.num_classes,
-        kwargs.dataset.num_features,
-        seed,
-        kwargs.models.max_iter,                       
-    )
     
     if kwargs.data == 'cubic':
         data = kwargs.dataset.warp_type
@@ -148,7 +118,8 @@ def replicate(kwargs, wandb_logger=None):
         n_steps =               kwargs.models.n_steps,
         hidden =                kwargs.models.feature_dim,  
         lin_comb =              kwargs.models.lin_comb,
-        ceiling =               kwargs.models.ceiling,                     
+        ceiling =               kwargs.models.ceiling, 
+        optimizer =             kwargs.models.optimizer,                    
         lr =                    kwargs.models.lr,
         weight_decay=           kwargs.models.weight_decay,
         epochs =                kwargs.models.max_iter,        
@@ -160,10 +131,12 @@ def replicate(kwargs, wandb_logger=None):
         potential=              kwargs.models.potential
         )        
         
+                
+    ############## OPTUNA TIME ##############    
+    if kwargs.use_optuna:     
+        csv_path = f"optuna_logs/optuna_best_configs_new_{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features.csv"
         
-    ############## OPTUNA TIME ##############
-    if seed == 42: # only run optuna for one seed to save time
-        if kwargs.use_optuna:   
+        if seed == 42: # only run optuna for one seed to save time
             print(f'STARTING OPTUNA HYPERPARAMETER SEARCH FOR {kwargs.n_trials} TRIALS OF {kwargs.optuna_epochs} EPOCHS FORREPLICATOR CALIBRATOR...\n')       
             
             # search_space = {
@@ -190,8 +163,7 @@ def replicate(kwargs, wandb_logger=None):
                 print(f"    {key}: {value}")
                 kwargs.models[key] = value   
                 
-            # ---- SAVE BEST CONFIG TO CSV ----
-            csv_path = f"optuna_logs/optuna_best_configs_{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features.csv"
+            # ---- SAVE BEST CONFIG TO CSV ----            
 
             file_exists = os.path.isfile(csv_path)
 
@@ -207,7 +179,8 @@ def replicate(kwargs, wandb_logger=None):
                         "n_steps",
                         "step_size",
                         "optuna_epochs",
-                        "epochs",
+                        "max_iter",
+                        "optimizer",
                         "lr",
                         "weight_decay",
                         "kl_reg",
@@ -222,21 +195,62 @@ def replicate(kwargs, wandb_logger=None):
                 writer.writerow({
                     "study_name": study.study_name,                                                            
                     "value": study.best_trial.value,
-                    "lin_comb": study.best_trial.params["lin_comb"],
+                    "lin_comb": study.best_trial.params["lin_comb"], # kwargs.models.lin_comb, 
                     "ceiling": study.best_trial.params["ceiling"],
                     "feature_dim": study.best_trial.params["feature_dim"],
-                    "n_steps": kwargs.models.n_steps,
-                    "step_size": kwargs.models.step_size,
+                    "n_steps": study.best_trial.params["n_steps"], # kwargs.models.n_steps, 
+                    "step_size": study.best_trial.params["step_size"],
                     "optuna_epochs": kwargs.optuna_epochs,
-                    "epochs": kwargs.models.max_iter,
-                    "lr": kwargs.models.lr,
+                    "max_iter": kwargs.models.max_iter,
+                    "optimizer": study.best_trial.params["optimizer"], # kwargs.models.optimizer,
+                    "lr": study.best_trial.params["lr"],
                     "weight_decay": kwargs.models.weight_decay,
                     "kl_reg": kwargs.models.kl_reg,
                     "l2_reg": kwargs.models.l2_reg                    
                 })
 
-            print(f"Saved best hyperparameters to {csv_path}")          
+            print(f"Saved best hyperparameters to {csv_path}")  
+                    
+        else:
+            print("Loading hyperparameters from CSV...")
+            load_optuna_config(csv_path, kwargs)   
             
+            
+    ############## DEFINE PATH ##############         
+    name = kwargs.exp_name
+    name += f'{kwargs.models.n_steps}'
+    if kwargs.models.kl_reg > 0:
+        name += '_KL'
+    if kwargs.models.state_dependent:
+        name += '_DEP'
+        
+    kwargs.method = 'RC' #REPLICATOR CALIBRATION
+
+    path = f"checkpoints/{name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features/"    
+    os.makedirs(path, exist_ok=True) 
+    
+    result_path = f"results/{name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features"    
+    os.makedirs(result_path, exist_ok=True)    
+    
+    raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_replicate_seed-{}_ep-{}.csv".format(
+            name, 
+            kwargs.data,
+            kwargs.dataset.num_classes,
+            kwargs.dataset.num_features,
+            seed,
+            kwargs.models.max_iter           
+        )
+    raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_replicate_seed-{}_ep-{}.csv".format(
+        name, 
+        kwargs.data,
+        kwargs.dataset.num_classes,
+        kwargs.dataset.num_features,
+        seed,
+        kwargs.models.max_iter,                       
+    )                 
+    
+    
+    ################ FITTING TIME ##############                
     calibrator = PotentialReplicatorCalibrator(                      
         n_classes =             kwargs.dataset.num_classes,
         data =                  data,
@@ -244,6 +258,7 @@ def replicate(kwargs, wandb_logger=None):
         hidden =                kwargs.models.feature_dim,  
         lin_comb =              kwargs.models.lin_comb,
         ceiling =               kwargs.models.ceiling,                     
+        optimizer =             kwargs.models.optimizer,
         lr =                    kwargs.models.lr,
         weight_decay=           kwargs.models.weight_decay,
         epochs =                kwargs.models.max_iter,        

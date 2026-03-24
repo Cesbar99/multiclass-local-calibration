@@ -144,7 +144,7 @@ def generateCalibrationDatav2(kwargs, dataname=None):
             kwargs.checkpoint.temperature
         )           
     else:        
-        test_results = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_tmp_{}.csv".format(
+        cal_results = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_tmp_{}.csv".format(
             'pre-train',
             kwargs.data,
             kwargs.dataset.num_classes,
@@ -153,7 +153,7 @@ def generateCalibrationDatav2(kwargs, dataname=None):
             kwargs.checkpoint.epochs,
             kwargs.checkpoint.temperature       
         )
-        cal_results = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_seed-{}_ep-{}_tmp_{}.csv".format(
+        test_results = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_seed-{}_ep-{}_tmp_{}.csv".format(
             'pre-train',
             kwargs.data,
             kwargs.dataset.num_classes,
@@ -162,10 +162,23 @@ def generateCalibrationDatav2(kwargs, dataname=None):
             kwargs.checkpoint.epochs,
             kwargs.checkpoint.temperature
         )    
+        
+        # if kwargs.data == 'food101':
+        #     val_results = "results/{}/{}_{}_classes_{}_features/raw_results_val_cal_seed-{}_ep-{}_tmp_{}.csv".format(
+        #         'pre-train',
+        #         kwargs.data,
+        #         kwargs.dataset.num_classes,
+        #         kwargs.dataset.num_features,
+        #         kwargs.checkpoint.seed,
+        #         kwargs.checkpoint.epochs,
+        #         kwargs.checkpoint.temperature
+        #     )    
     
     # Load your data
-    df_train_calibration_data = pd.read_csv(test_results)
-    df_eval_calibration_data = pd.read_csv(cal_results)    
+    df_train_calibration_data = pd.read_csv(cal_results)
+    df_eval_calibration_data = pd.read_csv(test_results)   
+    # if kwargs.data == 'food101':
+    #     df_val_calibration_data = pd.read_csv(val_results)    
 
     # Extract features and labels
     cols = df_train_calibration_data.columns
@@ -202,7 +215,23 @@ def generateCalibrationDatav2(kwargs, dataname=None):
     #pca_eval_cal = df_eval_calibration_data.filter(regex=r'^pca').values
     y_eval_cal = df_eval_calibration_data["true"].values
     p_eval_cal = df_eval_calibration_data["preds"].values
-
+    
+    # if kwargs.data == 'food101':
+    #     cols = df_val_calibration_data.columns
+    #     # Single pass grouping
+    #     features_cols = [c for c in cols if c.startswith("features")]
+    #     logits_cols   = [c for c in cols if c.startswith("logits")]
+    #     pca_cols      = [c for c in cols if c.startswith("pca")]
+    #     # Extract values
+    #     feats_val_cal  = df_val_calibration_data[features_cols].values
+    #     logits_val_cal = df_val_calibration_data[logits_cols].values
+    #     pca_val_cal    = df_val_calibration_data[pca_cols].values
+    #     #feats_eval_cal = df_eval_calibration_data.filter(regex=r'^features').values #df_train_calibration_data.drop(columns=["true", "preds"]).values
+    #     #logits_eval_cal = df_eval_calibration_data.filter(regex=r'^logits').values
+    #     #pca_eval_cal = df_eval_calibration_data.filter(regex=r'^pca').values
+    #     y_val_cal = df_val_calibration_data["true"].values
+    #     p_val_cal = df_val_calibration_data["preds"].values
+    # else:
     # Split into 90% test and 10% val
     (feats_test, feats_val,
     logits_test, logits_val,
@@ -255,6 +284,227 @@ def generateCalibrationDatav2(kwargs, dataname=None):
     )
 
     return data_train_cal_loader, data_test_cal_loader, data_val_cal_loader 
+
+
+def generatefoodCalibrationData(kwargs, dataname=None):
+    #temperature = str(int(kwargs.checkpoint.temperature))
+    epochs = 'None'
+    temperature = 1.0
+            
+    cal_results = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_tmp_{}.csv".format(
+        'pre-train',
+        kwargs.data,
+        kwargs.dataset.num_classes,
+        kwargs.dataset.num_features,
+        kwargs.checkpoint.seed,
+        epochs,
+        temperature       
+    )
+    test_results = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_seed-{}_ep-{}_tmp_{}.csv".format(
+        'pre-train',
+        kwargs.data,
+        kwargs.dataset.num_classes,
+        kwargs.dataset.num_features,
+        kwargs.checkpoint.seed,
+        epochs,
+        temperature
+    )    
+    val_results = "results/{}/{}_{}_classes_{}_features/raw_results_val_cal_seed-{}_ep-{}_tmp_{}.csv".format(
+        'pre-train',
+        kwargs.data,
+        kwargs.dataset.num_classes,
+        kwargs.dataset.num_features,
+        kwargs.checkpoint.seed,
+        epochs,
+        temperature
+    )    
+        
+    # Load your data
+    df_train_calibration_data = pd.read_csv(cal_results)
+    df_eval_calibration_data = pd.read_csv(test_results)    
+    df_val_data = pd.read_csv(val_results)
+
+    # Extract features and labels
+    cols = df_train_calibration_data.columns
+    # Single pass grouping
+    features_cols = [c for c in cols if c.startswith("features")]
+    logits_cols   = [c for c in cols if c.startswith("logit")]
+    pca_cols      = [c for c in cols if c.startswith("pca")]
+    
+    # Extract values
+    feats_train_cal  = df_train_calibration_data[features_cols].values
+    logits_train_cal = df_train_calibration_data[logits_cols].values
+    pca_train_cal    = df_train_calibration_data[pca_cols].values
+
+    y_train_cal = df_train_calibration_data["true"].values
+    p_train_cal = df_train_calibration_data["preds"].values
+    
+    cols = df_eval_calibration_data.columns
+    # Single pass grouping
+    features_cols = [c for c in cols if c.startswith("features")]
+    logits_cols   = [c for c in cols if c.startswith("logit")]
+    pca_cols      = [c for c in cols if c.startswith("pca")]
+    # Extract values
+    feats_test  = df_eval_calibration_data[features_cols].values
+    logits_test = df_eval_calibration_data[logits_cols].values
+    pca_test    = df_eval_calibration_data[pca_cols].values
+
+    y_test = df_eval_calibration_data["true"].values
+    p_test = df_eval_calibration_data["preds"].values
+    
+    cols = df_val_data.columns
+    # Single pass grouping
+    features_cols = [c for c in cols if c.startswith("features")]
+    logits_cols   = [c for c in cols if c.startswith("logit")]
+    pca_cols      = [c for c in cols if c.startswith("pca")]
+    # Extract values
+    feats_val  = df_val_data[features_cols].values
+    logits_val = df_val_data[logits_cols].values
+    pca_val    = df_val_data[pca_cols].values
+        
+    y_val = df_val_data["true"].values
+    p_val = df_val_data["preds"].values   
+    
+    print(f'Learn Calibration shape: {feats_train_cal.shape}, Validation shape: {feats_val.shape}, Test Calibration shape: {feats_test.shape}')
+    # Convert to PyTorch tensors
+    feats_train_cal = torch.tensor(feats_train_cal, dtype=torch.float32)
+    logits_train_cal = torch.tensor(logits_train_cal, dtype=torch.float32)
+    pca_train_cal = torch.tensor(pca_train_cal, dtype=torch.float32)
+    y_train_cal = torch.tensor(y_train_cal, dtype=torch.long)
+    p_train_cal = torch.tensor(p_train_cal, dtype=torch.long)
+
+    feats_test_cal = torch.tensor(feats_test, dtype=torch.float32)
+    logits_test_cal = torch.tensor(logits_test, dtype=torch.float32)
+    pca_test_cal = torch.tensor(pca_test, dtype=torch.float32)
+    y_test_cal = torch.tensor(y_test, dtype=torch.long)
+    p_test_cal = torch.tensor(p_test, dtype=torch.long)
+    
+    feats_val_cal = torch.tensor(feats_val, dtype=torch.float32)
+    logits_val_cal = torch.tensor(logits_val, dtype=torch.float32)
+    pca_val_cal = torch.tensor(pca_val, dtype=torch.float32)
+    y_val_cal = torch.tensor(y_val, dtype=torch.long)
+    p_val_cal = torch.tensor(p_val, dtype=torch.long)
+
+    # Create datasets
+    train_cal_set = CalibrationDatasetv2(feats_train_cal, logits_train_cal, pca_train_cal, y_train_cal, p_train_cal, num_classes=kwargs.dataset.num_classes)
+    test_cal_set = CalibrationDatasetv2(feats_test_cal, logits_test_cal, pca_test_cal, y_test_cal, p_test_cal, num_classes=kwargs.dataset.num_classes)
+    val_cal_set = CalibrationDatasetv2(feats_val_cal, logits_val_cal, pca_val_cal, y_val_cal, p_val_cal, num_classes=kwargs.dataset.num_classes)
+    
+    # Create data loaders
+    data_train_cal_loader = DataLoader(
+        train_cal_set, batch_size=kwargs.dataset.batch_size, shuffle=True, num_workers=8, pin_memory=True
+    )
+    data_test_cal_loader = DataLoader(
+        test_cal_set, batch_size=kwargs.dataset.batch_size, shuffle=False, num_workers=8, pin_memory=True
+    )
+    data_val_cal_loader = DataLoader(
+        val_cal_set, batch_size=kwargs.dataset.batch_size, shuffle=False, num_workers=8, pin_memory=True
+    )
+
+    return data_train_cal_loader, data_test_cal_loader, data_val_cal_loader 
+
+
+def generatefoodDataforPca(kwargs):
+    #temperature = str(int(kwargs.checkpoint.temperature))
+            
+    test_results = "results/{}/{}_{}_classes_{}_features/test_set_food101_seed{}.pkl".format(
+        'pre-train',
+        kwargs.data,
+        kwargs.dataset.num_classes,
+        kwargs.dataset.num_features,
+        kwargs.checkpoint.seed                
+    )
+    cal_results = "results/{}/{}_{}_classes_{}_features/cal_set_food101_seed{}.pkl".format(
+        'pre-train',
+        kwargs.data,
+        kwargs.dataset.num_classes,
+        kwargs.dataset.num_features,
+        kwargs.checkpoint.seed
+    )        
+    val_results = "results/{}/{}_{}_classes_{}_features/hold_set_food101_seed{}.pkl".format(
+        'pre-train',
+        kwargs.data,
+        kwargs.dataset.num_classes,
+        kwargs.dataset.num_features,
+        kwargs.checkpoint.seed
+    )    
+        
+    # Load your data
+    df_eval_calibration_data = pd.read_pickle(test_results)
+    df_train_calibration_data = pd.read_pickle(cal_results)        
+    df_val_data = pd.read_pickle(val_results)
+
+    # Extract features and labels
+    cols = df_train_calibration_data.columns
+    # Single pass grouping
+    features_cols = [c for c in cols if c.startswith("features")]
+    logits_cols   = [c for c in cols if c.startswith("logit")]    
+    
+    # Extract values
+    feats_train_cal  = df_train_calibration_data[features_cols].values
+    logits_train_cal = df_train_calibration_data[logits_cols].values    
+
+    y_train_cal = df_train_calibration_data["true_labels"].values
+    p_train_cal = df_train_calibration_data["predicted_labels"].values
+    
+    # Extract features and labels
+    cols = df_eval_calibration_data.columns    
+    # Single pass grouping
+    features_cols = [c for c in cols if c.startswith("features")]
+    logits_cols   = [c for c in cols if c.startswith("logit")]
+    # Extract values
+    feats_test  = df_eval_calibration_data[features_cols].values
+    logits_test = df_eval_calibration_data[logits_cols].values    
+
+    y_test = df_eval_calibration_data["true_labels"].values
+    p_test = df_eval_calibration_data["predicted_labels"].values
+    
+    # Extract features and labels
+    cols = df_val_data.columns  
+    # Single pass grouping
+    features_cols = [c for c in cols if c.startswith("features")]
+    logits_cols   = [c for c in cols if c.startswith("logit")]  
+    # Extract values
+    feats_val  = df_val_data[features_cols].values
+    logits_val = df_val_data[logits_cols].values    
+        
+    y_val = df_val_data["true_labels"].values
+    p_val = df_val_data["predicted_labels"].values   
+    
+    print(f'Learn Calibration shape: {feats_train_cal.shape}, Validation shape: {feats_val.shape}, Test Calibration shape: {feats_test.shape}')
+    # Convert to PyTorch tensors
+    feats_train_cal = torch.tensor(feats_train_cal, dtype=torch.float32)
+    logits_train_cal = torch.tensor(logits_train_cal, dtype=torch.float32)    
+    y_train_cal = torch.tensor(y_train_cal, dtype=torch.long)
+    p_train_cal = torch.tensor(p_train_cal, dtype=torch.long)
+
+    feats_test_cal = torch.tensor(feats_test, dtype=torch.float32)
+    logits_test_cal = torch.tensor(logits_test, dtype=torch.float32)    
+    y_test_cal = torch.tensor(y_test, dtype=torch.long)
+    p_test_cal = torch.tensor(p_test, dtype=torch.long)
+    
+    feats_val_cal = torch.tensor(feats_val, dtype=torch.float32)
+    logits_val_cal = torch.tensor(logits_val, dtype=torch.float32)    
+    y_val_cal = torch.tensor(y_val, dtype=torch.long)
+    p_val_cal = torch.tensor(p_val, dtype=torch.long)
+
+    # Create datasets
+    train_cal_set = FoodCalibrationDataset(feats_train_cal, logits_train_cal, y_train_cal, p_train_cal, num_classes=kwargs.dataset.num_classes)
+    test_cal_set = FoodCalibrationDataset(feats_test_cal, logits_test_cal, y_test_cal, p_test_cal, num_classes=kwargs.dataset.num_classes)
+    val_cal_set = FoodCalibrationDataset(feats_val_cal, logits_val_cal, y_val_cal, p_val_cal, num_classes=kwargs.dataset.num_classes)
+    
+    # Create data loaders
+    data_train_cal_loader = DataLoader(
+        train_cal_set, batch_size=kwargs.dataset.batch_size, shuffle=True, num_workers=8, pin_memory=True
+    )
+    data_test_cal_loader = DataLoader(
+        test_cal_set, batch_size=kwargs.dataset.batch_size, shuffle=False, num_workers=8, pin_memory=True
+    )
+    data_val_cal_loader = DataLoader(
+        val_cal_set, batch_size=kwargs.dataset.batch_size, shuffle=False, num_workers=8, pin_memory=True
+    )
+
+    return data_train_cal_loader, data_test_cal_loader, data_val_cal_loader
 
 
 class CalibrationDataset(Dataset):
@@ -792,6 +1042,46 @@ class Cifar10Data(Dataset):
         print("Loading CIFAR10 data for pre-training complete") 
 
 
+class Food101Data(Dataset):    
+    def __init__(self, kwargs, experiment=None, name='food101'):     
+        self.name = name  
+        kwargs.dataset.class_freqs = [1/kwargs.dataset.num_classes]*kwargs.dataset.num_classes                 
+        if experiment == 'pre-train':                                    
+            self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generatefoodDataforPca(kwargs)            
+        else:                                        
+            # if kwargs.calibrator_version == 'v2':
+            #     self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationDatav2(kwargs)
+            # else:
+            self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generatefoodCalibrationData(kwargs) 
+        #print("Loading synthetic data for calibration complete") 
+        
+
+class FoodCalibrationDataset(Dataset):
+    def __init__(self, feats, logits, y, p, num_classes, transforms_fn=None):
+        self.num_classes = num_classes
+        self.transforms_fn = transforms_fn
+        self.feats = torch.tensor(feats, dtype=torch.float32)
+        self.logits = torch.tensor(logits, dtype=torch.float32)        
+        self.y = torch.tensor(y, dtype=torch.long)  # one-hot encoded
+        self.p = torch.tensor(p, dtype=torch.long)  # one-hot encoded
+        self.y_onehot = F.one_hot(self.y, num_classes=self.num_classes).float()
+        self.p_onehot = F.one_hot(self.p, num_classes=self.num_classes).float()        
+
+    def __len__(self):
+        return len(self.feats)
+
+    def __getitem__(self, idx):
+        if self.transforms_fn is not None:
+            feats = self.transforms_fn(self.feats[idx])
+        else:
+            feats = self.feats[idx]        
+        logits = self.logits[idx]        
+        y_onehot = self.y_onehot[idx]
+        p_onehot = self.p_onehot[idx]
+        p = self.p[idx]
+        return feats, logits, y_onehot, p, p_onehot
+
+
 class Cifar10LongTailData(Dataset):    
     def __init__(self, kwargs, experiment=None, name='cifar10LT'):       
         self.name = name   
@@ -975,6 +1265,58 @@ class Cifar100Data(Dataset):
         self.data_train_cal_loader  = DataLoader(train_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
         
         print("Loading CIFAR100 data for pre-training complete") 
+
+class Food101Datav2(Dataset):    
+    def __init__(self, kwargs, experiment=None, name='food101'):       
+        self.name = name   
+        if experiment == 'pre-train':    
+            kwargs.class_freqs = [1/kwargs.num_classes]*kwargs.num_classes
+            self.generatePretrainingFood101Data(
+                                    batch_size = kwargs.batch_size,
+                                    random_state = kwargs.random_state)      
+        elif experiment == 'calibrate' or experiment == 'competition' or experiment == 'quantize'  or experiment == 'replicate':
+            kwargs.dataset.class_freqs = [1/kwargs.dataset.num_classes]*kwargs.dataset.num_classes
+            if kwargs.calibrator_version == 'v2':
+                self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationDatav2(kwargs)
+            else:
+                self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationData(kwargs) 
+        print("Loading synthetic data for calibration complete")   
+
+    def generatePretrainingFood101Data(self, 
+                                batch_size,
+                                random_state):  
+        data_dir =  f"./data/{self.name.upper()}"                     
+        os.makedirs(data_dir, exist_ok=True)
+        generator = torch.Generator().manual_seed(random_state)
+        
+        l_transform = transforms.Compose([
+             transforms.Resize((224, 224)),
+             transforms.ToTensor(),
+             transforms.Normalize(                        # use ImageNet mean/std for ViT
+                mean=[0.485, 0.456, 0.406], 
+                std=[0.229, 0.224, 0.225]
+            ),
+        ])
+
+        full_train = datasets.Food101(root=data_dir, split='train', 
+                                        transform=l_transform, download=True)
+        
+        train_size = int(0.6 * len(full_train)) # 45.150
+        val_size = int(0.1 * len(full_train)) # 4.515
+        eval_cal_size = len(full_train) - train_size - val_size # 30.100
+        train_set, val_set, eval_cal_set = random_split(full_train, [train_size, val_size, eval_cal_size], generator=generator)
+
+        train_cal_set = datasets.Food101(root=data_dir, split='test', # 25.250
+                                        transform=l_transform, download=True)
+        
+        print(f'Train shape: {len(train_set)}, Learn Calibration shape: {len(train_cal_set)}, Validation shape: {len(val_set)}, Eval Calibration shape: {len(eval_cal_set)}')
+
+        self.data_train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True)
+        self.data_eval_cal_loader   = DataLoader(eval_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        self.data_val_loader   = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        self.data_train_cal_loader  = DataLoader(train_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        
+        print("Loading Food101 data for pre-training complete") 
 
 
 def Cifar10OODData():

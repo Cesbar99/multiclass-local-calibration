@@ -68,16 +68,20 @@ def replicator_objective(trial, kwargs, train_loader, val_loader, test_loader, w
     total_epochs = kwargs.optuna_epochs   
     
     # Reproducibility
-    seed = 1234 + trial.number  # Different seed for each trial
+    seed = kwargs.optuna_seed #+ trial.number  # Different seed for each trial
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed) 
 
     # Suggest hyperparameters        
-    lin_comb = trial.suggest_categorical("lin_comb", [0.7, 0.8, 0.85, 0.9, 0.95, 0.97, 0.99])
-    ceiling = trial.suggest_categorical("ceiling", [0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5])
-    hidden_dim = trial.suggest_categorical("feature_dim", [8, 10, 16, 32, 64, 128])
-
+    lin_comb = trial.suggest_float("lin_comb", 0.6, 0.99, log=True) # 0.01 # trial.suggest_categorical("lin_comb", [0.85, 0.9, 0.95, 0.97, 0.99]) # 0.7, 0.8, 
+    ceiling = trial.suggest_float("ceiling", 1e-3, 3e-1, log=True) # ceiling = trial.suggest_categorical("ceiling", [0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5])
+    lr = trial.suggest_float("lr", 1e-4, 1e-2, log=True) # lr = trial.suggest_categorical("lr", [0.001, 0.005, 0.01, 0.0005])
+    n_steps = trial.suggest_categorical("n_steps", [10, 25, 50, 75, 100]) # 20, 30, 70, 85
+    eta = trial.suggest_float("step_size", 1e-4, 1e-1, log=True) # eta = trial.suggest_categorical("step_size", [0.01, 0.05, 0.1, 0.005, 0.001]) # initial step size vaues for the potential replicator
+    optimizer = trial.suggest_categorical("optimizer", ['adam', 'adamw']) # 'sgd'
+    hidden_dim = trial.suggest_categorical("feature_dim", [8, 16, 32, 64, 128, 256, 512]) # 10
+    
     # kwargs.models.lin_comb = lin_comb
     # kwargs.models.ceiling = ceiling
     # kwargs.models.feature_dim = hidden_dim
@@ -86,19 +90,20 @@ def replicator_objective(trial, kwargs, train_loader, val_loader, test_loader, w
     calibrator = PotentialReplicatorCalibrator(                      
         n_classes =             kwargs.dataset.num_classes,
         data =                  kwargs.data,
-        n_steps =               kwargs.models.n_steps,
+        n_steps =               n_steps, # n_steps,
         hidden =                hidden_dim,
-        lin_comb =              lin_comb,
-        ceiling =               ceiling,                     
-        lr =                    kwargs.models.lr,
+        lin_comb =              lin_comb, # lin_comb,
+        ceiling =               ceiling,  
+        optimizer =             optimizer, # kwargs.models.
+        lr =                    lr,
         weight_decay=           kwargs.models.weight_decay,
         epochs =                total_epochs,        
-        eta =                   kwargs.models.step_size,        
+        eta =                   eta,       
         eps =                   1e-8,        
         kl_reg =                kwargs.models.kl_reg, 
         l2_reg =                kwargs.models.l2_reg,
         fit_stage =             kwargs.models.fit_stage,
-        potential=              kwargs.models.potential
+        potential =             kwargs.models.potential
         )   
     
     # Train and validate

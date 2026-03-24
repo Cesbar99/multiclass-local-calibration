@@ -58,8 +58,6 @@ def main(cfg: DictConfig):
             kwargs.checkpoint = fix_default_checkpoint(kwargs)
             print("Pretraining model...")
             pretrain(kwargs, wandb_logger)
-        # Pretrain the model here if needed
-        # This is a placeholder for pretraining logic
         
     elif kwargs.test:
         print("Testing model...")        
@@ -116,6 +114,7 @@ def main(cfg: DictConfig):
         for seed in kwargs.seeds:   
             pl.seed_everything(seed)     
             kwargs.seed = seed
+            kwargs.checkpoint.seed = seed
             calibrate(kwargs, wandb_logger)
             
     elif kwargs.competition:        
@@ -158,6 +157,7 @@ def main(cfg: DictConfig):
                 for seed in kwargs.seeds:               
                     pl.seed_everything(seed)     
                     kwargs.seed = seed
+                    kwargs.checkpoint.seed = seed
                     quantize(kwargs, wandb_logger)
 
     elif kwargs.replicate:                
@@ -171,6 +171,7 @@ def main(cfg: DictConfig):
             print('Starting replicator calibration')              
             pl.seed_everything(seed)     
             kwargs.seed = seed
+            kwargs.checkpoint.seed = seed
             replicate(kwargs, wandb_logger)
     
     wandb.finish()

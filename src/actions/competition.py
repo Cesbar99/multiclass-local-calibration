@@ -49,6 +49,8 @@ def competition(kwargs, wandb_logger=None):
         dataset = Cifar10LongTailData(kwargs, experiment=kwargs.exp_name)
     elif kwargs.data == 'cifar100':
         dataset = Cifar100Data(kwargs, experiment=kwargs.exp_name)  
+    elif kwargs.data == 'food101':
+        dataset = Food101Datav2(kwargs, experiment=kwargs.exp_name)  
     elif kwargs.data == 'cifar100_longtail':
         dataset = Cifar100LongTailData(calibration=kwargs.calibration)
     elif kwargs.data == 'Imagenet':

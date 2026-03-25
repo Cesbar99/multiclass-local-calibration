@@ -14,13 +14,14 @@ class VQCalibrator(pl.LightningModule):
         self.vqclassifier.eval()
         for p in self.vqclassifier.parameters():
             p.requires_grad = False
+        self.diag = kwargs.models.diag
         self.learn_pi = kwargs.models.learn_pi     
         self.learn_bias = kwargs.models.learn_bias
         self.random = kwargs.models.random   
         self.standard_dirichlet = kwargs.models.standard_dirichlet
         self.quadratic = kwargs.models.quadratic
 
-        self.cal = VQDirCal(K=kwargs.models.K, C=kwargs.dataset.num_classes, S=kwargs.models.S, quadratic=self.quadratic, learn_pi=self.learn_pi, learn_bias=self.learn_bias, random=self.random, standard_dirichlet=self.standard_dirichlet)
+        self.cal = VQDirCal(K=kwargs.models.K, C=kwargs.dataset.num_classes, S=kwargs.models.S, diag=self.diag, quadratic=self.quadratic, learn_pi=self.learn_pi, learn_bias=self.learn_bias, random=self.random, standard_dirichlet=self.standard_dirichlet)
         self.optimizer_cfg = kwargs.models.optimizer
         self.lambda_reg = kwargs.models.lambda_reg
         self.quantization_only = kwargs.models.quantization_only

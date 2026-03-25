@@ -2,6 +2,7 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+import random as pyrandom
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
 from algorithms.networks.networks import *
@@ -19,10 +20,17 @@ from tqdm import tqdm
 import optuna
 from optuna.samplers import NSGAIISampler
 from hp_opt.hp_opt import *
-from imagecorruptions import corrupt_batch
+from imagecorruptions import corrupt #corrupt_batch
+
+def corrupt_batch(batch, corruption_name, severity):
+    return np.stack([
+        corrupt(img, corruption_name=corruption_name, severity=severity)
+        for img in batch
+    ])
 
 def pretrain(kwargs, wandb_logger):
     
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     seed = kwargs.seed
     #pl.seed_everything(seed, workers=True)  
     # if kwargs.data != 'food101':
@@ -40,12 +48,19 @@ def pretrain(kwargs, wandb_logger):
         "shot_noise",
         "impulse_noise",
         "defocus_blur",
+        "glass_blur",
         "motion_blur",
+        "zoom_blur",
         "fog",
-        "brightness",
-        "contrast"
+        "snow",
+        "frost", # try        
+        "brightness", # good
+        "contrast",
+        "pixelate",        
     ]
-
+    
+    if (kwargs.corruption_type) and (kwargs.corruption_type not in corruptions):
+        raise ValueError(f'Unknown corruption type! {kwargs.corruption_type} was given.')
     
     if kwargs.data == 'synthetic':
         dataset = SynthData(kwargs.dataset, experiment=kwargs.exp_name)
@@ -129,21 +144,23 @@ def pretrain(kwargs, wandb_logger):
             total_epochs,
             temperature
         )
-    if kwargs.data.corrupt:
-        raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_seed-{}_ep-{}_tmp_{}.csv".format(
+    if kwargs.corruption_type:
+        raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}_tmp_{}.csv".format(
                 kwargs.exp_name,
                 kwargs.data,
                 kwargs.dataset.num_classes,
                 kwargs.dataset.num_features,
+                kwargs.corruption_type,
                 seed,
                 total_epochs,
                 temperature            
             )
-        raw_results_path_eval_cal = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_corrupt_seed-{}_ep-{}_tmp_{}.csv".format(
+        raw_results_path_eval_cal = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_corrupt_{}_seed-{}_ep-{}_tmp_{}.csv".format(
                 kwargs.exp_name,
                 kwargs.data,
                 kwargs.dataset.num_classes,
                 kwargs.dataset.num_features,
+                kwargs.corruption_type,
                 seed,
                 total_epochs,
                 temperature            
@@ -179,8 +196,11 @@ def pretrain(kwargs, wandb_logger):
     #     )
     
     # if kwargs.data != 'food101':
-            
-    if not kwargs.data.corrupt:        
+    if kwargs.corruption_type:
+        best_model_path = path + f"classifier_seed-{seed}_ep-{kwargs.checkpoint.epochs}_tmp_{kwargs.models.temperature}.pt"                        # Static filename (no epoch suffix)                
+        checkpoint = torch.load(best_model_path, map_location=device)
+        pl_model.model.load_state_dict(checkpoint)
+    else:      
         if kwargs.use_optuna:     
             csv_path = f"optuna_logs/optuna_best_configs_pretrain_{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features.csv"
             
@@ -295,12 +315,10 @@ def pretrain(kwargs, wandb_logger):
         # torch.save(pl_model.model.state_dict(), path_model)
         best_model_path = trainer.checkpoint_callback.best_model_path
         #print(F'LOADING CHECKPOINT FILE {best_model_path}')
-        #best_model_path = '/home/barbera/calibration/localibration/checkpoints/pre-train/otto_9_classes_None_features/classifier_seed-42_ep-100_tmp_1.0.pt.ckpt'
-    else:
-        best_model_path = path + f"classifier_seed-{seed}_ep-{kwargs.checkpoint.epochs}_tmp_{kwargs.models.temperature}.pt",                        # Static filename (no epoch suffix)
+        #best_model_path = '/home/barbera/calibration/localibration/checkpoints/pre-train/otto_9_classes_None_features/classifier_seed-42_ep-100_tmp_1.0.pt.ckpt'            
         
-    checkpoint = torch.load(best_model_path)
-    pl_model.load_state_dict(checkpoint['state_dict'])
+        checkpoint = torch.load(best_model_path)
+        pl_model.load_state_dict(checkpoint['state_dict'])
     
     if kwargs.return_features:
         raws = []
@@ -308,10 +326,52 @@ def pretrain(kwargs, wandb_logger):
         # if kwargs.data != 'food101':
         pl_model.eval()        
         pl_model.to(device)
+        shown = False
 
         with torch.no_grad():
             for batch in tqdm(dataset.data_train_cal_loader, desc="Extracting features"):
-                batch = [b.to(device) for b in batch]    
+                batch = [b.to(device) for b in batch] 
+                
+                if kwargs.corruption_type:
+                    images = batch[0]
+                    # ---- APPLY CORRUPTION ----
+                    images_np = (images.permute(0, 2, 3, 1).cpu().numpy() * 255).astype('uint8') 
+                    if not shown:  
+                        save_path = "results/debug_images/"
+                        os.makedirs(save_path, exist_ok=True) 
+                        plt.imsave(save_path+"True_sample.png", images_np[0]) 
+                        print(f"Saved image to: {save_path}")                                    
+
+                    images_np = corrupt_batch(
+                        images_np,
+                        corruption_name=kwargs.corruption_type, #"gaussian_noise",  # change as needed
+                        severity=1, #pyrandom.randint(1, 5)
+                    )
+
+                    images = torch.from_numpy(images_np).permute(0, 3, 1, 2).float() / 255.0
+                    images = images.to(device)
+                    
+                    # 👇 show only once
+                    if not shown:
+                        # plt.imshow(images_np[0])
+                        # plt.title("Corrupted image")
+                        # plt.axis("off")
+                        # plt.show()
+                        # shown = True
+                        
+                        # Save
+                        save_path = "results/debug_images/"
+                        os.makedirs(save_path, exist_ok=True) 
+                        plt.imsave(save_path+"corrupted_sample.png", images_np[0])
+
+                        print(f"Saved image to: {save_path}")
+                        shown = True
+
+                    images = torch.from_numpy(images_np).permute(0, 3, 1, 2).float() / 255.0
+                    images = images.to(device)
+
+                    batch[0] = images
+                       
                 # if kwargs.data != 'food101':            
                 raw = pl_model.extract_features(batch)
                 raws.append(raw)
@@ -347,19 +407,20 @@ def pretrain(kwargs, wandb_logger):
             for batch in tqdm(dataset.data_eval_cal_loader, desc="Extracting features"):
                 batch = [b.to(device) for b in batch]               
                     
-                if kwargs.data.corrupt == True:
+                if kwargs.corruption_type:
+                    images = batch[0]
                     # ---- APPLY CORRUPTION ----
-                    images_np = (images.permute(0, 2, 3, 1).cpu().numpy() * 255).astype('uint8')
+                    images_np = (images.permute(0, 2, 3, 1).cpu().numpy() * 255).astype('uint8')                                        
 
                     images_np = corrupt_batch(
                         images_np,
-                        corruption_name=random.choice(corruptions), #"gaussian_noise",  # change as needed
-                        severity=random.randint(1, 5)
+                        corruption_name=kwargs.corruption_type, #"gaussian_noise",  # change as needed
+                        severity=1, #pyrandom.randint(1, 5)
                     )
 
                     images = torch.from_numpy(images_np).permute(0, 3, 1, 2).float() / 255.0
                     images = images.to(device)
-
+                    
                     batch[0] = images
                                  
                 raw = pl_model.extract_features(batch)

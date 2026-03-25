@@ -153,3 +153,8 @@ BUGS
 number of bins: range(1, n_bins+1) -> range(n_bins) in test w_lce
 
 values of alpha_sim and alpha_cls. How to find good initialisations? -> OPTUNA
+
+
+
+lr': 0.0013074313226366392
+, 'name': 'adam', 'weight_decay': 0.0008606176141084062

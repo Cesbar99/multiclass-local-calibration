@@ -57,7 +57,21 @@ def calibrate(kwargs, wandb_logger):
         dataset = ImagenetOODData(calibration=kwargs.calibration)
     elif kwargs.data == 'imagenet_longtail':
         dataset = ImagenetLongTailData(calibration=kwargs.calibration)    
-        
+    
+    corruptions = [
+        "gaussian_noise",
+        "shot_noise",
+        "impulse_noise",
+        "defocus_blur",
+        "motion_blur",
+        "fog",
+        "brightness",
+        "contrast"
+    ]
+    
+    if (kwargs.corruption_type) and (kwargs.corruption_type not in corruptions):
+        raise ValueError(f'Unknown corruption type! {kwargs.corruption_type} was given.')
+    
     if kwargs.models.lambda_kl == 0:
         print("PROCEED SAFELY WITH REFERENCE KERNEL CALIBRATION!")
     if kwargs.models.kernel_only:
@@ -135,54 +149,60 @@ def calibrate(kwargs, wandb_logger):
         else:
             pl_model = AuxTrainer(kwargs.models, num_classes=kwargs.dataset.num_classes)    
         
-        if kwargs.data.corrupt:
-            raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_seed-{}_ep-{}.csv".format(
+        if kwargs.corruption_type:
+            raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
                     kwargs.exp_name,
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
+                    kwargs.corruption_type,
                     seed,
                     total_epochs           
                 )
-            raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_seed-{}_ep-{}.csv".format(
+            raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
                 kwargs.exp_name,
                 kwargs.data,
                 kwargs.dataset.num_classes,
                 kwargs.dataset.num_features,
+                kwargs.corruption_type,
                 seed,
                 total_epochs,                       
             )
             if kwargs.models.lambda_kl == 0:
-                raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_seed-{}_ep-{}.csv".format(
+                raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
                     'reference_kernel',
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
+                    kwargs.corruption_type,
                     seed,
                     total_epochs           
                 )
-                raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_seed-{}_ep-{}.csv".format(
+                raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
                     'reference_kernel',
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
+                    kwargs.corruption_type,
                     seed,
                     total_epochs,                       
                 )
             if kwargs.models.kernel_only:
-                raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_seed-{}_ep-{}.csv".format(
+                raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
                     'kernel_only',
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
+                    kwargs.corruption_type,
                     seed,
                     total_epochs           
                 )
-                raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_seed-{}_ep-{}.csv".format(
+                raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
                     'kernel_only',
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
+                    kwargs.corruption_type,
                     seed,
                     total_epochs,                       
                 )            
@@ -237,8 +257,13 @@ def calibrate(kwargs, wandb_logger):
                     seed,
                     total_epochs,                       
                 )
-                
-    if not kwargs.data.corrupt:
+    
+    if kwargs.corruption_type:
+        print(F'LOADING CHECKPOINT FILE {best_model_path}')
+        best_model_path = path + f"classifier_seed-{seed}_ep-{total_epochs}"   
+        checkpoint = torch.load(best_model_path, map_location='cpu')
+        pl_model.model.load_state_dict(checkpoint)         
+    else:
         print(F'BEGIN CALIBRATION FOR {total_epochs} EPOCHS WITH SEED {seed}!')        
         trainer = pl.Trainer(
                 max_epochs=total_epochs,
@@ -276,13 +301,11 @@ def calibrate(kwargs, wandb_logger):
         
         # path_model = join(path, f"classifier_seed-{seed}_ep-{total_epochs}")
         # torch.save(pl_model.model.state_dict(), path_model)
-        best_model_path = trainer.checkpoint_callback.best_model_path
-    else:
-        best_model_path = path + f"classifier_seed-{seed}_ep-{total_epochs}"
+        best_model_path = trainer.checkpoint_callback.best_model_path    
         
-    print(F'LOADING CHECKPOINT FILE {best_model_path}')
-    checkpoint = torch.load(best_model_path)
-    pl_model.load_state_dict(checkpoint['state_dict'])
+        print(F'LOADING CHECKPOINT FILE {best_model_path}')
+        checkpoint = torch.load(best_model_path)
+        pl_model.load_state_dict(checkpoint['state_dict'])
     # path_model = join(path, f"classifier_seed-{seed}_ep-{total_epochs}")
     # torch.save(pl_model.model.state_dict(), path_model)
 

@@ -25,6 +25,7 @@ from tqdm import tqdm
 
 def quantize(kwargs, wandb_logger):
     
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
     seed = kwargs.seed
     total_epochs = kwargs.models.epochs    
     cuda_device = kwargs.cuda_device
@@ -60,6 +61,20 @@ def quantize(kwargs, wandb_logger):
         dataset = ImagenetOODData(calibration=kwargs.calibration)
     elif kwargs.data == 'imagenet_longtail':
         dataset = ImagenetLongTailData(calibration=kwargs.calibration)    
+        
+    corruptions = [
+        "gaussian_noise",
+        "shot_noise",
+        "impulse_noise",
+        "defocus_blur",
+        "motion_blur",
+        "fog",
+        "brightness",
+        "contrast"
+    ]
+    
+    if (kwargs.corruption_type) and (kwargs.corruption_type not in corruptions):
+        raise ValueError(f'Unknown corruption type! {kwargs.corruption_type} was given.')
         
     name = kwargs.exp_name
     if kwargs.models.S != 64:
@@ -138,20 +153,22 @@ def quantize(kwargs, wandb_logger):
     if kwargs.models.quadratic:
         name += '_quadratic'
     
-    if kwargs.data.corrupt:
-        raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_quant_corrupt_seed-{}_ep-{}.csv".format(
+    if kwargs.corruption_type:
+        raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_quant_corrupt_{}_seed-{}_ep-{}.csv".format(
                 name, #kwargs.exp_name,
                 kwargs.data,
                 kwargs.dataset.num_classes,
                 kwargs.dataset.num_features,
+                kwargs.corruption_type,
                 seed,
                 total_epochs           
             )
-        raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_quant_corrupt_seed-{}_ep-{}.csv".format(
+        raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_quant_corrupt_{}_seed-{}_ep-{}.csv".format(
             name, #kwargs.exp_name,
             kwargs.data,
             kwargs.dataset.num_classes,
             kwargs.dataset.num_features,
+            kwargs.corruption_type,
             seed,
             total_epochs,                       
         )
@@ -173,7 +190,15 @@ def quantize(kwargs, wandb_logger):
             total_epochs,                       
         )
     
-    if not kwargs.data.corrupt:
+    if kwargs.corruption_type:
+        best_model_path = path + f"VQHEAD_seed-{seed}_ep-{total_epochs}.ckpt"
+        print(F'LOADING CHECKPOINT FILE {best_model_path}')
+        checkpoint = torch.load(best_model_path, map_location=device, weights_only=False)
+        # import pdb; pdb.set_trace()
+        state_dict = checkpoint["state_dict"]
+        print(state_dict.keys())
+        pl_model.load_state_dict(state_dict)
+    else:
         print(F'BEGIN QUANTISATION FOR {total_epochs} EPOCHS WITH SEED {seed}!')        
         trainer = pl.Trainer(
                 max_epochs=total_epochs,
@@ -212,12 +237,11 @@ def quantize(kwargs, wandb_logger):
         # path_model = join(path, f"classifier_seed-{seed}_ep-{total_epochs}")
         # torch.save(pl_model.model.state_dict(), path_model)
         best_model_path = trainer.checkpoint_callback.best_model_path
-    else:
-        best_model_path = path + f"VQHEAD_seed-{seed}_ep-{total_epochs}"
         
-    print(F'LOADING CHECKPOINT FILE {best_model_path}')
-    checkpoint = torch.load(best_model_path, weights_only=False, map_location="cpu")
-    pl_model.load_state_dict(checkpoint["state_dict"], strict=True)
+        print(F'LOADING CHECKPOINT FILE {best_model_path}')
+        checkpoint = torch.load(best_model_path, weights_only=False, map_location="cpu")
+        pl_model.load_state_dict(checkpoint["state_dict"], strict=True)
+        
     vq_classifier = pl_model
     # checkpoint = torch.load(best_model_path)
     # pl_model.load_state_dict(checkpoint['state_dict'])
@@ -245,20 +269,22 @@ def quantize(kwargs, wandb_logger):
     if kwargs.models.quadratic:
         name += '_quadratic'
     
-    if kwargs.data.corrupt:
-        raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_calquant_corrupt_seed-{}_ep-{}.csv".format(
+    if kwargs.corruption_type:
+        raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_calquant_corrupt_{}_seed-{}_ep-{}.csv".format(
                 name, #kwargs.exp_name,
                 kwargs.data,
                 kwargs.dataset.num_classes,
                 kwargs.dataset.num_features,
+                kwargs.corruption_type,
                 seed,
                 total_epochs           
             )
-        raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_calquant_corrupt_seed-{}_ep-{}.csv".format(
+        raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_calquant_corrupt_{}_seed-{}_ep-{}.csv".format(
             name, #kwargs.exp_name,
             kwargs.data,
             kwargs.dataset.num_classes,
             kwargs.dataset.num_features,
+            kwargs.corruption_type,
             seed,
             total_epochs,                       
         )        
@@ -279,7 +305,16 @@ def quantize(kwargs, wandb_logger):
             seed,
             total_epochs,                       
         )
-    if not kwargs.data.corrupt:
+        
+    if kwargs.corruption_type:
+        print(F'LOADING CHECKPOINT FILE {best_model_path}')
+        best_model_path = path + f"VQCALIBRATOR_seed-{seed}_ep-{total_epochs}.ckpt"
+        checkpoint = torch.load(best_model_path, map_location=device, weights_only=False)        
+        # import pdb; pdb.set_trace()
+        state_dict = checkpoint["state_dict"]
+        print(state_dict.keys())
+        pl_model.load_state_dict(state_dict)
+    else:
         print(F'BEGIN VQCALIBRATION FOR {total_epochs} EPOCHS WITH SEED {seed}!')        
         trainer = pl.Trainer(
                 max_epochs=total_epochs,
@@ -318,12 +353,11 @@ def quantize(kwargs, wandb_logger):
         # path_model = join(path, f"classifier_seed-{seed}_ep-{total_epochs}")
         # torch.save(pl_model.model.state_dict(), path_model)
         best_model_path = trainer.checkpoint_callback.best_model_path
-    else:
-        best_model_path = path + f"VQCALIBRATOR_seed-{seed}_ep-{total_epochs}",
-        
-    print(F'LOADING CHECKPOINT FILE {best_model_path}')
-    checkpoint = torch.load(best_model_path, weights_only=False, map_location="cpu")
-    pl_model.load_state_dict(checkpoint["state_dict"], strict=True)
+    
+        print(F'LOADING CHECKPOINT FILE {best_model_path}')
+        checkpoint = torch.load(best_model_path, weights_only=False, map_location="cpu")
+        pl_model.load_state_dict(checkpoint["state_dict"], strict=True)
+    
     # checkpoint = torch.load(best_model_path)
     # pl_model.load_state_dict(checkpoint['state_dict'])
     # path_model = join(path, f"classifier_seed-{seed}_ep-{total_epochs}")

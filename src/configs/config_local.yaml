@@ -41,6 +41,7 @@ exp_name:
 data: 'synthetic'
 calibration_method: "local_calibration"
 only_test: False
+corruption_type: 
 
 # synthetic data model
 #init_logits_scaling: 1.
@@ -86,7 +87,7 @@ n_trials: 50
 multi_obj: False
 
 #competitors
-methods: ['SMS', 'TS', 'IR', 'PS', 'DC'] #tempearature scaling, isotonic regression, platt scaling, dirichlet calibration
+methods: ['PC'] #['SMS', 'TS', 'IR', 'PS', 'DC', 'PC'] #tempearature scaling, isotonic regression, platt scaling, dirichlet calibration
 method:
 gammas: [] #[0.1, 1., 5., 7., 10., 100.] #[0.1, 0.3, 1, 3, 5, 7, 10, 100]
 

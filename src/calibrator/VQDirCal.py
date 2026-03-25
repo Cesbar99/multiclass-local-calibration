@@ -50,9 +50,10 @@ class VQDirCal(nn.Module):
             self.B_code = nn.Embedding(K, C)  # corresponds to {b_1,...,b_K} in R^C      
             if learn_bias:        
                 self.bias_code = nn.Embedding(K, C)  # corresponds to {b_1,...,b_K} in R^C 
-                nn.init.normal_(self.bias_code.weight, mean=0., std=0.01)             
-            self.T_code = nn.Parameter(torch.ones(S))  # corresponds to {b_1,...,b_K} in R^C     
-            nn.init.normal_(self.T_code, mean=1., std=0.01)   
+                nn.init.normal_(self.bias_code.weight, mean=0., std=0.01)       
+            if self.diag:      
+                self.T_code = nn.Parameter(torch.ones(S))  # corresponds to {b_1,...,b_K} in R^C     
+                nn.init.normal_(self.T_code, mean=1., std=0.01)   
             if self.quadratic:
                 self.Q = nn.Embedding(K, C)  # for quadratic terms
                 self.P = nn.Embedding(K, C)  # for quadratic terms
@@ -118,9 +119,9 @@ class VQDirCal(nn.Module):
             W = self.A_code(indices.long())  # (B,S,C)
             U = self.B_code(indices.long())  # (B,S,C)                  
             
-            # A(x) = W^T U -> (B, C, C)   (Eq. 31) :contentReference[oaicite:4]{index=4}
-            T = self.T_code.view(1, self.S, 1)      # (1,S,1) for broadcasting
+            # A(x) = W^T U -> (B, C, C)   (Eq. 31) :contentReference[oaicite:4]{index=4}            
             if self.diag:
+                T = self.T_code.view(1, self.S, 1)      # (1,S,1) for broadcasting
                 U_w = U * T #(T**2)
             else:
                 U_w = U

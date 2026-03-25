@@ -123,6 +123,20 @@ def generateCalibrationData(kwargs, dataname=None):
 
 def generateCalibrationDatav2(kwargs, dataname=None):
     #temperature = str(int(kwargs.checkpoint.temperature))
+    
+    corruptions = [
+        "gaussian_noise",
+        "shot_noise",
+        "impulse_noise",
+        "defocus_blur",
+        "motion_blur",
+        "fog",
+        "brightness",
+        "contrast"
+    ]
+    
+    if (kwargs.corruption_type) and (kwargs.corruption_type not in corruptions):
+        raise ValueError(f'Unknown corruption type! {kwargs.corruption_type} was given.')
 
     if kwargs.data == 'synthetic':   
         test_results = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_tmp_{}.csv".format(
@@ -144,21 +158,23 @@ def generateCalibrationDatav2(kwargs, dataname=None):
             kwargs.checkpoint.temperature
         )           
     else:        
-        if kwargs.data.corrupt:
-            cal_results = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_seed-{}_ep-{}_tmp_{}.csv".format(
+        if kwargs.corruption_type:
+            cal_results = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}_tmp_{}.csv".format(
                 'pre-train',
                 kwargs.data,
                 kwargs.dataset.num_classes,
                 kwargs.dataset.num_features,
+                kwargs.corruption_type,
                 kwargs.checkpoint.seed,
                 kwargs.checkpoint.epochs,
                 kwargs.checkpoint.temperature       
             )
-            test_results = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_corrupt_seed-{}_ep-{}_tmp_{}.csv".format(
+            test_results = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_corrupt_{}_seed-{}_ep-{}_tmp_{}.csv".format(
                 'pre-train',
                 kwargs.data,
                 kwargs.dataset.num_classes,
                 kwargs.dataset.num_features,
+                kwargs.corruption_type,
                 kwargs.checkpoint.seed,
                 kwargs.checkpoint.epochs,
                 kwargs.checkpoint.temperature

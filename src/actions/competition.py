@@ -38,26 +38,26 @@ def competition(kwargs, wandb_logger=None):
             kwargs.data = kwargs.data + '_' + kwargs.dataset.variant                        
         dataset = MnistData(kwargs, experiment=kwargs.exp_name)
     elif kwargs.data == 'tissue':
-        corrupt = kwargs.data.corrupt
-        kwargs.data.corrupt = False
+        corrupt = kwargs.corruption_type
+        kwargs.corruption_type = None
         dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)   
     elif kwargs.data == 'path':
         dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)       
     elif kwargs.data == 'cifar10':
-        corrupt = kwargs.data.corrupt
-        kwargs.data.corrupt = False
+        corrupt = kwargs.corruption_type
+        kwargs.corruption_type = None
         dataset = Cifar10Data(kwargs, experiment=kwargs.exp_name)
     elif kwargs.data == 'cifar10_ood':
         dataset = Cifar10OODData(calibration=kwargs.calibration)
     elif kwargs.data == 'cifar10LT':
         dataset = Cifar10LongTailData(kwargs, experiment=kwargs.exp_name)
     elif kwargs.data == 'cifar100':
-        corrupt = kwargs.data.corrupt
-        kwargs.data.corrupt = False
+        corrupt = kwargs.corruption_type
+        kwargs.corruption_type = None
         dataset = Cifar100Data(kwargs, experiment=kwargs.exp_name)  
     elif kwargs.data == 'food101':
-        corrupt = kwargs.data.corrupt
-        kwargs.data.corrupt = False
+        corrupt = kwargs.corruption_type
+        kwargs.corruption_type = None
         dataset = Food101Datav2(kwargs, experiment=kwargs.exp_name)  
     elif kwargs.data == 'cifar100_longtail':
         dataset = Cifar100LongTailData(calibration=kwargs.calibration)
@@ -68,6 +68,19 @@ def competition(kwargs, wandb_logger=None):
     elif kwargs.data == 'imagenet_longtail':
         dataset = ImagenetLongTailData(calibration=kwargs.calibration)    
 
+    corruptions = [
+        "gaussian_noise",
+        "shot_noise",
+        "impulse_noise",
+        "defocus_blur",
+        "motion_blur",
+        "fog",
+        "brightness",
+        "contrast"
+    ]
+    
+    if (kwargs.corruption_type) and (kwargs.corruption_type not in corruptions):
+        raise ValueError(f'Unknown corruption type! {kwargs.corruption_type} was given.')
     
     if 'SMS' in kwargs.methods:
         kwargs.method = 'SMS' # STRUCTURED MATRIX SCALING
@@ -126,7 +139,7 @@ def competition(kwargs, wandb_logger=None):
         res.to_csv(raw_results_path_train_cal, index=False)
         
         if corrupt:            
-            kwargs.data.corrupt = True
+            kwargs.corruption_type = corrupt
             if kwargs.data == 'tissue':
                 dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)                
             elif kwargs.data == 'cifar10':                                
@@ -134,21 +147,23 @@ def competition(kwargs, wandb_logger=None):
             elif kwargs.data == 'cifar100':
                 dataset = Cifar100Data(kwargs, experiment=kwargs.exp_name)                 
                 
-            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_seed-{}_ep-{}.csv".format(
+            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
                         kwargs.exp_name,
                         kwargs.method,
                         kwargs.data,
                         kwargs.dataset.num_classes,
                         kwargs.dataset.num_features,
+                        kwargs.corruption_type,
                         seed,
                         kwargs.models.max_iter           
                     )
-            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_seed-{}_ep-{}.csv".format(
+            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
                     kwargs.exp_name,
                     kwargs.method,
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
+                    kwargs.corruption_type,
                     seed,
                     kwargs.models.max_iter                      
                 )
@@ -241,7 +256,7 @@ def competition(kwargs, wandb_logger=None):
         res.to_csv(raw_results_path_train_cal, index=False)
         
         if corrupt:            
-            kwargs.data.corrupt = True
+            kwargs.corruption_type = corrupt
             if kwargs.data == 'tissue':
                 dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)                
             elif kwargs.data == 'cifar10':                                
@@ -249,21 +264,23 @@ def competition(kwargs, wandb_logger=None):
             elif kwargs.data == 'cifar100':
                 dataset = Cifar100Data(kwargs, experiment=kwargs.exp_name)                 
                 
-            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_seed-{}_ep-{}.csv".format(
+            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
                         kwargs.exp_name,
                         kwargs.method,
                         kwargs.data,
                         kwargs.dataset.num_classes,
                         kwargs.dataset.num_features,
+                        kwargs.corruption_type,
                         seed,
                         kwargs.models.max_iter           
                     )
-            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_seed-{}_ep-{}.csv".format(
+            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
                     kwargs.exp_name,
                     kwargs.method,
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
+                    kwargs.corruption_type,
                     seed,
                     kwargs.models.max_iter                      
                 )
@@ -356,7 +373,7 @@ def competition(kwargs, wandb_logger=None):
         res.to_csv(raw_results_path_train_cal, index=False)
         
         if corrupt:            
-            kwargs.data.corrupt = True
+            kwargs.corruption_type = corrupt
             
             if kwargs.data == 'tissue':
                 dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)                
@@ -365,21 +382,23 @@ def competition(kwargs, wandb_logger=None):
             elif kwargs.data == 'cifar100':
                 dataset = Cifar100Data(kwargs, experiment=kwargs.exp_name)                 
                 
-            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_seed-{}_ep-{}.csv".format(
+            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
                         kwargs.exp_name,
                         kwargs.method,
                         kwargs.data,
                         kwargs.dataset.num_classes,
                         kwargs.dataset.num_features,
+                        kwargs.corruption_type,
                         seed,
                         kwargs.models.max_iter           
                     )
-            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_seed-{}_ep-{}.csv".format(
+            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
                     kwargs.exp_name,
                     kwargs.method,
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
+                    kwargs.corruption_type,
                     seed,
                     kwargs.models.max_iter                      
                 )
@@ -413,7 +432,7 @@ def competition(kwargs, wandb_logger=None):
             res.to_csv(raw_results_path_train_cal, index=False)       
             
         if corrupt:            
-            kwargs.data.corrupt = True
+            kwargs.corruption_type = corrupt
             
             if kwargs.data == 'tissue':
                 dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)                
@@ -422,21 +441,23 @@ def competition(kwargs, wandb_logger=None):
             elif kwargs.data == 'cifar100':
                 dataset = Cifar100Data(kwargs, experiment=kwargs.exp_name)                 
                 
-            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_seed-{}_ep-{}.csv".format(
+            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
                         kwargs.exp_name,
                         kwargs.method,
                         kwargs.data,
                         kwargs.dataset.num_classes,
                         kwargs.dataset.num_features,
+                        kwargs.corruption_type,
                         seed,
                         kwargs.models.max_iter           
                     )
-            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_seed-{}_ep-{}.csv".format(
+            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
                     kwargs.exp_name,
                     kwargs.method,
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
+                    kwargs.corruption_type,
                     seed,
                     kwargs.models.max_iter                      
                 )
@@ -525,7 +546,7 @@ def competition(kwargs, wandb_logger=None):
         res.to_csv(raw_results_path_train_cal, index=False)
         
         if corrupt:            
-            kwargs.data.corrupt = True
+            kwargs.corruption_type = corrupt
             
             if kwargs.data == 'tissue':
                 dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)                
@@ -534,21 +555,23 @@ def competition(kwargs, wandb_logger=None):
             elif kwargs.data == 'cifar100':
                 dataset = Cifar100Data(kwargs, experiment=kwargs.exp_name)                 
                 
-            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_seed-{}_ep-{}.csv".format(
+            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
                         kwargs.exp_name,
                         kwargs.method,
                         kwargs.data,
                         kwargs.dataset.num_classes,
                         kwargs.dataset.num_features,
+                        kwargs.corruption_type,
                         seed,
                         kwargs.models.max_iter           
                     )
-            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_seed-{}_ep-{}.csv".format(
+            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
                     kwargs.exp_name,
                     kwargs.method,
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
+                    kwargs.corruption_type,
                     seed,
                     kwargs.models.max_iter                      
                 )
@@ -638,7 +661,7 @@ def competition(kwargs, wandb_logger=None):
         res.to_csv(raw_results_path_train_cal, index=False)
         
         if corrupt:            
-            kwargs.data.corrupt = True
+            kwargs.corruption_type = corrupt
             
             if kwargs.data == 'tissue':
                 dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)                
@@ -647,21 +670,23 @@ def competition(kwargs, wandb_logger=None):
             elif kwargs.data == 'cifar100':
                 dataset = Cifar100Data(kwargs, experiment=kwargs.exp_name)                 
                 
-            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_seed-{}_ep-{}.csv".format(
+            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
                         kwargs.exp_name,
                         kwargs.method,
                         kwargs.data,
                         kwargs.dataset.num_classes,
                         kwargs.dataset.num_features,
+                        kwargs.corruption_type,
                         seed,
                         kwargs.models.max_iter           
                     )
-            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_seed-{}_ep-{}.csv".format(
+            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
                     kwargs.exp_name,
                     kwargs.method,
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
+                    kwargs.corruption_type,
                     seed,
                     kwargs.models.max_iter                      
                 )
@@ -699,7 +724,122 @@ def competition(kwargs, wandb_logger=None):
         test(kwargs)
     
 
-    
+    if 'PC' in kwargs.methods: # ProCal
+        kwargs.method = 'PC' # STRUCTURED MATRIX SCALING
+        #num_classes}_classes_{kwargs.dataset.num_features}_features/"
+        #os.makedirs(path, exist_ok=True) 
+        os.makedirs(f"results/{kwargs.exp_name}_{kwargs.method}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
+        raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
+                    kwargs.exp_name,
+                    kwargs.method,
+                    kwargs.data,
+                    kwargs.dataset.num_classes,
+                    kwargs.dataset.num_features,
+                    seed,
+                    kwargs.models.max_iter           
+                )
+        raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}.csv".format(
+                kwargs.exp_name,
+                kwargs.method,
+                kwargs.data,
+                kwargs.dataset.num_classes,
+                kwargs.dataset.num_features,
+                seed,
+                kwargs.models.max_iter                      
+            )
+        # Assume you already trained `model`
+        scaler = DensityRatioCalibration(num_neighbors=kwargs.models.num_neighbors)
+        # Fit on validation set
+        scaler.fit(dataset.data_train_cal_loader, device=cuda_device)
+        
+        raws = []
+        # scaler.eval()
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # scaler.to(device)
+
+        with torch.no_grad():
+            for batch in tqdm(dataset.data_test_cal_loader, desc="Extracting SMS Calibration logits"):
+                batch = [b.to(device) for b in batch]                
+                raw = scaler.calibrated_predictions(batch)
+                raws.append(raw)
+                
+        res, pca = get_raw_res(raws, features=True, reduced_dim=None)
+        res.to_csv(raw_results_path_test_cal, index=False)
+        
+        raws = []
+        # scaler.eval()
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # scaler.to(device)
+
+        with torch.no_grad():
+            for batch in tqdm(dataset.data_train_cal_loader, desc="Extracting SMS Calibration logits"):
+                batch = [b.to(device) for b in batch]                
+                raw = scaler.calibrated_predictions(batch)
+                raws.append(raw)
+                
+        res, pca = get_raw_res(raws, features=True, reduced_dim=None)
+        res.to_csv(raw_results_path_train_cal, index=False)
+        
+        if corrupt:            
+            kwargs.corruption_type = corrupt
+            if kwargs.data == 'tissue':
+                dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)                
+            elif kwargs.data == 'cifar10':                                
+                dataset = Cifar10Data(kwargs, experiment=kwargs.exp_name)       
+            elif kwargs.data == 'cifar100':
+                dataset = Cifar100Data(kwargs, experiment=kwargs.exp_name)                 
+                
+            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
+                        kwargs.exp_name,
+                        kwargs.method,
+                        kwargs.data,
+                        kwargs.dataset.num_classes,
+                        kwargs.dataset.num_features,
+                        kwargs.corruption_type,
+                        seed,
+                        kwargs.models.max_iter           
+                    )
+            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
+                    kwargs.exp_name,
+                    kwargs.method,
+                    kwargs.data,
+                    kwargs.dataset.num_classes,
+                    kwargs.dataset.num_features,
+                    kwargs.corruption_type,
+                    seed,
+                    kwargs.models.max_iter                      
+                )
+            
+            raws = []
+            # scaler.eval()
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            # scaler.to(device)
+
+            with torch.no_grad():
+                for batch in tqdm(dataset.data_test_cal_loader, desc="Extracting SMS Calibration logits"):
+                    batch = [b.to(device) for b in batch]                
+                    raw = scaler.calibrated_predictions(batch)
+                    raws.append(raw)
+                    
+            res, pca = get_raw_res(raws, features=True, reduced_dim=None)
+            res.to_csv(raw_results_path_test_cal, index=False)
+            
+            raws = []
+            # scaler.eval()
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            # scaler.to(device)
+
+            with torch.no_grad():
+                for batch in tqdm(dataset.data_train_cal_loader, desc="Extracting SMS Calibration logits"):
+                    batch = [b.to(device) for b in batch]                
+                    raw = scaler.calibrated_predictions(batch)
+                    raws.append(raw)
+                    
+            res, pca = get_raw_res(raws, features=True, reduced_dim=None)
+            res.to_csv(raw_results_path_train_cal, index=False)
+        
+        print(f"\nSTART TESTING {kwargs.method}!")        
+        test(kwargs)
     
     
     

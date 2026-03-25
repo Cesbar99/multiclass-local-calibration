@@ -16,6 +16,9 @@ from data_sets.dataset import *
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, LearningRateMonitor
 from actions.test import test
 from tqdm import tqdm
+import optuna
+from optuna.samplers import NSGAIISampler
+from hp_opt.hp_opt import *
 
 def pretrain(kwargs, wandb_logger):
     
@@ -144,6 +147,83 @@ def pretrain(kwargs, wandb_logger):
     
     # if kwargs.data != 'food101':
             
+            
+    if kwargs.use_optuna:     
+        csv_path = f"optuna_logs/optuna_best_configs_pretrain_{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features.csv"
+        
+        if seed == 42: # only run optuna for one seed to save time
+            print(f'STARTING OPTUNA HYPERPARAMETER SEARCH FOR {kwargs.n_trials} TRIALS OF {kwargs.optuna_epochs} EPOCHS PRE-TRAINING...\n')       
+            
+            # search_space = {
+            # "lin_comb": [0.7, 0.8, 0.85, 0.9, 0.95, 0.97, 0.99],
+            # "ceiling": [0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5],
+            # "feature_dim": [8, 10, 16, 32, 64, 128]
+            # }   
+            # sampler = optuna.samplers.GridSampler(search_space)
+            study = optuna.create_study(direction="maximize",study_name="hyper_params_pretrain", # "minimize"
+                                        pruner=optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=5))
+            calls = [print_callback]
+            study.optimize(
+                lambda trial: pretrain_objective(trial, kwargs, dataset.data_train_loader, 
+                                                dataset.data_val_loader, wandb_logger),
+                n_trials=kwargs.n_trials,
+                show_progress_bar=True,
+                callbacks=calls
+            )
+            
+            # Print best result
+            print("Best trial:")
+            print(f"  Value: {study.best_trial.value}")
+            for key, value in study.best_trial.params.items():
+                print(f"    {key}: {value}")
+                kwargs.models.optimizer[key] = value   
+                
+            # ---- SAVE BEST CONFIG TO CSV ----            
+
+            file_exists = os.path.isfile(csv_path)
+
+            with open(csv_path, mode="a", newline="") as f:
+                writer = csv.DictWriter(
+                    f,
+                    fieldnames=[
+                        "study_name",                        
+                        "value",                        
+                        "optuna_epochs",
+                        "train_epochs",
+                        "name",
+                        "lr",
+                        "weight_decay"                      
+                    ]
+                )
+
+                # write header only once
+                if not file_exists:
+                    writer.writeheader()
+
+                writer.writerow({
+                    "study_name": study.study_name,                                                            
+                    "value": study.best_trial.value,                                                                                
+                    "optuna_epochs": kwargs.optuna_epochs,
+                    "train_epochs": kwargs.models.epochs,
+                    "name": study.best_trial.params["name"], # kwargs.models.optimizer,
+                    "lr": study.best_trial.params["lr"],
+                    "weight_decay": study.best_trial.params["weight_decay"]                
+                })
+
+            print(f"Saved best hyperparameters to {csv_path}")  
+                    
+        else:
+            print("Loading hyperparameters from CSV...")
+            load_optuna_config(csv_path, kwargs.models.optimizer, pretrain=True)            
+                   
+                   
+    ############## FITTING TIME ##############
+    if kwargs.data == 'cifar10':
+        pl_model = Cifar10Model(kwargs.models)   
+    elif kwargs.data == 'cifar100':
+        pl_model = Cifar100Model(kwargs.models)   
+    elif kwargs.data == 'tissue':
+        pl_model = MedMnistModel(kwargs.models)           
     print(F'BEGIN PRE-TRAINING FOR {total_epochs} EPOCHS WITH SEED {seed} AND {kwargs.models.temperature} TEMPERATURE!')        
     trainer = pl.Trainer(
             max_epochs=total_epochs,

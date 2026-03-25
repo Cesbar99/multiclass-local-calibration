@@ -94,33 +94,33 @@ def test(kwargs):
             random_state=kwargs.seed, # for reproducibility
             shuffle=True) 
         
-        df_test = pd.DataFrame(
-            np.hstack([
-                y_test.reshape(-1, 1),
-                p_test.reshape(-1, 1),
-                logits_test,
-                feats_test,                                
-                pca_test                                
-            ]),
-            columns=(
-                ["true"] +
-                [f"preds"] +
-                [f"logits_{i}" for i in range(logits_test.shape[1])] +
-                [f"features_{i}" for i in range(feats_test.shape[1])] +                
-                [f"pca_{i}" for i in range(pca_test.shape[1])]                                 
-            )
-        )
+        # df_test = pd.DataFrame(
+        #     np.hstack([
+        #         y_test.reshape(-1, 1),
+        #         p_test.reshape(-1, 1),
+        #         logits_test,
+        #         feats_test,                                
+        #         pca_test                                
+        #     ]),
+        #     columns=(
+        #         ["true"] +
+        #         [f"preds"] +
+        #         [f"logits_{i}" for i in range(logits_test.shape[1])] +
+        #         [f"features_{i}" for i in range(feats_test.shape[1])] +                
+        #         [f"pca_{i}" for i in range(pca_test.shape[1])]                                 
+        #     )
+        # )
         
-        filename = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_seed-{}_ep-{}_tmp_{}_only_test.csv".format(
-                kwargs.exp_name,
-                kwargs.data,
-                kwargs.checkpoint.num_classes,
-                kwargs.checkpoint.num_features,
-                kwargs.seed,
-                epochs,
-                temperature            
-            )
-        df_test.to_csv(filename, index=False)  
+        # filename = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_seed-{}_ep-{}_tmp_{}_only_test.csv".format(
+        #         kwargs.exp_name,
+        #         kwargs.data,
+        #         kwargs.checkpoint.num_classes,
+        #         kwargs.checkpoint.num_features,
+        #         kwargs.seed,
+        #         epochs,
+        #         temperature            
+        #     )
+        # df_test.to_csv(filename, index=False)  
         # else:
         #     feats_test = feats_eval_cal            
         #     logits_test = logits_eval_cal
@@ -1000,5 +1000,4 @@ def test(kwargs):
                         
             print("probs_test min/max:", probs_test.min().item(), probs_test.max().item())
             # Calibration plot        
-            multiclass_calibration_plot(y_true_test_, probs_test, n_bins=n_bins, save_path=save_path, filename=test_file_name, bin_strategy=kwargs.bin_strategy)    
-                
+            multiclass_calibration_plot(y_true_test_, probs_test, n_bins=n_bins, save_path=save_path, filename=test_file_name, bin_strategy=kwargs.bin_strategy) 

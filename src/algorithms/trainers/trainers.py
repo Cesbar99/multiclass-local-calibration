@@ -175,7 +175,7 @@ class MnistModel(pl.LightningModule):
             "true": target,
             "logits": logits,
         }
-
+                                    
 
 class MedMnistModel(pl.LightningModule):
     def __init__(self, kwargs):
@@ -224,8 +224,8 @@ class MedMnistModel(pl.LightningModule):
         x, y = batch
         y = y.squeeze(1)
         logits = self(x)
-        val_loss = F.cross_entropy(logits, y)
-        self.log("val_loss", val_loss, on_epoch=True, on_step=False, prog_bar=True)
+        self.val_loss = F.cross_entropy(logits, y)
+        self.log("val_loss", self.val_loss, on_epoch=True, on_step=False, prog_bar=True)
         if self.use_acc:                          
             self.acc_val(logits, y)
             self.log('val_acc', self.acc_val, on_epoch=True, on_step=False, prog_bar=True)
@@ -241,9 +241,22 @@ class MedMnistModel(pl.LightningModule):
         wd = self.optimizer_cfg.get("weight_decay", 0.0)
 
         # Dynamically get the optimizer class
-        optimizer_class = getattr(torch.optim, opt_name.capitalize(), None)
-        if optimizer_class is None:
-            raise ValueError(f"Unsupported optimizer: {opt_name}")
+        # optimizer_class = getattr(torch.optim, opt_name.capitalize(), None)
+        # if 'adam'in opt_name:
+        #     optimizer_class = getattr(torch.optim, opt_name.capitalize(), None)
+        # else:
+        #     optimizer_class = getattr(torch.optim, opt_name.upper(), None)
+            
+        # if optimizer_class is None:
+        #     raise ValueError(f"Unsupported optimizer: {opt_name}")
+        
+        OPTIMIZERS = {
+            "adam": torch.optim.Adam,
+            "adamw": torch.optim.AdamW,
+            "sgd": torch.optim.SGD,
+        }
+
+        optimizer_class = OPTIMIZERS.get(opt_name.lower())
 
         # Build kwargs dynamically
         optimizer_kwargs = {"lr": lr, "weight_decay": wd}
@@ -316,11 +329,15 @@ class MedMnistModel(pl.LightningModule):
 
 class Cifar10Model(pl.LightningModule):
     def __init__(self, kwargs):
-        super().__init__()        
+        super().__init__()   
+        self.name = kwargs.model        
         self.temperature = kwargs.temperature
         self.optimizer_cfg = kwargs.optimizer
         self.use_acc = kwargs.use_acc
-        self.model = Cifar10ResNet50(self.temperature) #Cifar10Vit(self.temperature)            
+        if 'vit' in self.name:
+            self.model = Cifar10Vit(self.temperature) # Cifar100ResNet50(self.temperature) #Cifar100Vit(self.temperature)            ]
+        else:
+            self.model = Cifar10ResNet50(self.temperature) #Cifar10Vit(self.temperature)            
         num_classes = 10
         
         task = 'multiclass'        
@@ -347,8 +364,8 @@ class Cifar10Model(pl.LightningModule):
         x, y = batch
         #y = y.squeeze(1)
         logits = self(x)
-        val_loss = F.cross_entropy(logits, y)
-        self.log("val_loss", val_loss, on_epoch=True, on_step=False, prog_bar=True)
+        self.val_loss = F.cross_entropy(logits, y)
+        self.log("val_loss", self.val_loss, on_epoch=True, on_step=False, prog_bar=True)
         if self.use_acc:                          
             self.acc_val(logits, y)
             self.log('val_acc', self.acc_val, on_epoch=True, on_step=False, prog_bar=True)
@@ -364,10 +381,23 @@ class Cifar10Model(pl.LightningModule):
         wd = self.optimizer_cfg.get("weight_decay", 0.0)
 
         # Dynamically get the optimizer class
-        optimizer_class = getattr(torch.optim, opt_name.capitalize(), None)
-        if optimizer_class is None:
-            raise ValueError(f"Unsupported optimizer: {opt_name}")
+        # optimizer_class = getattr(torch.optim, opt_name.capitalize(), None)
+        # if 'adam'in opt_name:
+        #     optimizer_class = getattr(torch.optim, opt_name.capitalize(), None)
+        # else:
+        #     optimizer_class = getattr(torch.optim, opt_name.upper(), None)
+            
+        # if optimizer_class is None:
+        #     raise ValueError(f"Unsupported optimizer: {opt_name}")
+        
+        OPTIMIZERS = {
+            "adam": torch.optim.Adam,
+            "adamw": torch.optim.AdamW,
+            "sgd": torch.optim.SGD,
+        }
 
+        optimizer_class = OPTIMIZERS.get(opt_name.lower())
+        
         # Build kwargs dynamically
         optimizer_kwargs = {"lr": lr, "weight_decay": wd}
         if opt_name == "sgd":
@@ -592,8 +622,8 @@ class Cifar100Model(pl.LightningModule):
         x, y = batch
         #y = y.squeeze(1)
         logits = self(x)
-        val_loss = F.cross_entropy(logits, y)
-        self.log("val_loss", val_loss, on_epoch=True, on_step=False, prog_bar=True)
+        self.val_loss = F.cross_entropy(logits, y)
+        self.log("val_loss", self.val_loss, on_epoch=True, on_step=False, prog_bar=True)
         if self.use_acc:                          
             self.acc_val(logits, y)
             self.log('val_acc', self.acc_val, on_epoch=True, on_step=False, prog_bar=True)
@@ -609,13 +639,21 @@ class Cifar100Model(pl.LightningModule):
         wd = self.optimizer_cfg.get("weight_decay", 0.0)
 
         # Dynamically get the optimizer class
-        if 'adam'in opt_name:
-            optimizer_class = getattr(torch.optim, opt_name.capitalize(), None)
-        else:
-            optimizer_class = getattr(torch.optim, opt_name.upper(), None)
+        # if 'adam'in opt_name:
+        #     optimizer_class = getattr(torch.optim, opt_name.capitalize(), None)
+        # else:
+        #     optimizer_class = getattr(torch.optim, opt_name.upper(), None)
             
-        if optimizer_class is None:
-            raise ValueError(f"Unsupported optimizer: {opt_name}")
+        # if optimizer_class is None:
+        #     raise ValueError(f"Unsupported optimizer: {opt_name}")
+        
+        OPTIMIZERS = {
+            "adam": torch.optim.Adam,
+            "adamw": torch.optim.AdamW,
+            "sgd": torch.optim.SGD,
+        }
+
+        optimizer_class = OPTIMIZERS.get(opt_name.lower())
 
         # Build kwargs dynamically
         optimizer_kwargs = {"lr": lr, "weight_decay": wd}
@@ -743,8 +781,8 @@ class Food101Model(pl.LightningModule):
         x, y = batch
         #y = y.squeeze(1)
         logits = self(x)
-        val_loss = F.cross_entropy(logits, y)
-        self.log("val_loss", val_loss, on_epoch=True, on_step=False, prog_bar=True)
+        self.val_loss = F.cross_entropy(logits, y)
+        self.log("val_loss", self.val_loss, on_epoch=True, on_step=False, prog_bar=True)
         if self.use_acc:                          
             self.acc_val(logits, y)
             self.log('val_acc', self.acc_val, on_epoch=True, on_step=False, prog_bar=True)

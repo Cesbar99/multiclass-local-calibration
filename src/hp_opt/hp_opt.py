@@ -6,7 +6,13 @@ from calibrator.local_net import *
 from pytorch_lightning.loggers import CSVLogger
 from pytorch_lightning.callbacks import EarlyStopping
 from calibrator.replicator import *
+from algorithms.networks.networks import *
+from algorithms.trainers.trainers import *
+from optuna.integration import PyTorchLightningPruningCallback
 
+
+class OptunaPruningCallback(PyTorchLightningPruningCallback, pl.Callback):
+    pass
 
 def objective(trial, kwargs, train_loader, val_loader, wandb_logger):
     cuda_device = kwargs.cuda_device
@@ -113,6 +119,53 @@ def replicator_objective(trial, kwargs, train_loader, val_loader, test_loader, w
     optuna_loss = calibrator.best_val_nll 
     
     return optuna_loss    
+
+
+def pretrain_objective(trial, kwargs, train_loader, val_loader, wandb_logger):
+    cuda_device = kwargs.cuda_device
+    total_epochs = kwargs.optuna_epochs   
+    monitor_metric = 'val_acc' # 'val_loss'
+    
+    # Reproducibility
+    seed = kwargs.optuna_seed #+ trial.number  # Different seed for each trial
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed) 
+
+    # Suggest hyperparameters        
+    lr = trial.suggest_float("lr", 1e-4, 1e-2, log=True) # lr = trial.suggest_categorical("lr", [0.001, 0.005, 0.01, 0.0005])        
+    optimizer = trial.suggest_categorical("name", ['adam', 'adamw']) # 'sgd'4
+    wd = trial.suggest_float("weight_decay", 1e-4, 1e-1, log=True)    
+    
+    kwargs.models.optimizer.name = optimizer
+    kwargs.models.optimizer.lr = lr    
+    kwargs.models.optimizer.weight_decay = wd
+    
+    if kwargs.data == 'cifar10':
+        pl_model = Cifar10Model(kwargs.models)   
+    elif kwargs.data == 'cifar100':
+        pl_model = Cifar100Model(kwargs.models)   
+    elif kwargs.data == 'tissue':
+        pl_model = MedMnistModel(kwargs.models)   
+        
+    trainer = pl.Trainer(
+            max_epochs=total_epochs,
+            accelerator="cuda",
+            devices=[cuda_device],
+            logger=wandb_logger,
+            check_val_every_n_epoch=1,            
+            deterministic=True,
+            callbacks=[ ClearCacheCallback(),
+                       OptunaPruningCallback(trial, monitor=monitor_metric)
+                       ])
+        
+    trainer.fit(pl_model, train_loader, val_loader)
+
+    # Use final validation loss as objective
+    optuna_loss = trainer.callback_metrics[monitor_metric].item() # trainer.callback_metrics["val_loss"].item() 
+    
+    return optuna_loss    
+
 
 
 def print_callback(study, trial):

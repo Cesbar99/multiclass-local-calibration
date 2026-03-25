@@ -146,7 +146,7 @@ def estimate_bandwidth_silverman(z_cal_full: torch.Tensor):
         return h
   
 
-def load_optuna_config(csv_path, kwargs):
+def load_optuna_config(csv_path, kwargs, pretrain=False):
     if not os.path.isfile(csv_path):
         raise FileNotFoundError(f"CSV file not found: {csv_path}")
 
@@ -160,7 +160,7 @@ def load_optuna_config(csv_path, kwargs):
         key = key.strip()
         value = value.strip()
         
-        if key in ["study_name", "value", "optuna_epochs"]:
+        if key in ["study_name", "value", "optuna_epochs", "train_epochs", "max_iter"]:
             continue
 
         # type parsing
@@ -174,8 +174,10 @@ def load_optuna_config(csv_path, kwargs):
                     parsed_value = float(value)
                 except ValueError:
                     parsed_value = value  # string (e.g. optimizer)
-
-        kwargs.models[key] = parsed_value                    
+        if pretrain:
+            kwargs[key] = parsed_value                    
+        else:
+            kwargs.models[key] = parsed_value
              
                     
 def get_raw_res(raws, features=False, adabw=False, reduced_dim=None, fit_pca=None, quantize=False):

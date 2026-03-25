@@ -942,7 +942,7 @@ class MedMnistData(Dataset):
     def generatePretrainingMedMnistData(self, size,
                                 batch_size,
                                 random_state):                        
-        l_transforms = [transforms.Grayscale(num_output_channels=3), transforms.ToTensor()]
+        l_transform = [transforms.Grayscale(num_output_channels=3), transforms.ToTensor()]
         #if self.name == 'tissue':
         #    l_transforms.append()  # Convert to 3-channel RGB)
             #transforms.RandomHorizontalFlip(),
@@ -955,8 +955,19 @@ class MedMnistData(Dataset):
 
         # Remove any None or identity transforms
         #l_transforms = [t for t in l_transforms if not isinstance(t, transforms.Lambda)]
+        
+        # l_transform = transforms.Compose([ 
+        #         transforms.Grayscale(num_output_channels=3),                            
+        #         transforms.Resize((224, 224)),
+        #         transforms.RandomCrop(32, padding=4),
+        #         transforms.RandomHorizontalFlip(),
+        #         transforms.ToTensor(),
+        #         transforms.Normalize(
+        #             (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+        #         ),
+        # ])
 
-        trans = transforms.Compose(l_transforms)
+        trans = transforms.Compose(l_transform)
 
 
         print(f"Dataset source information : MedMNIST v{medmnist.__version__} @ {medmnist.HOMEPAGE}")
@@ -1021,6 +1032,16 @@ class Cifar10Data(Dataset):
             transforms.Resize((224, 224)),
             transforms.ToTensor()
         ])
+        
+        # l_transform = transforms.Compose([ 
+        #         transforms.Resize((224, 224)),
+        #         transforms.RandomCrop(32, padding=4),
+        #         transforms.RandomHorizontalFlip(),
+        #         transforms.ToTensor(),
+        #         transforms.Normalize(
+        #             (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+        #         ),
+        # ])
         full_train = datasets.CIFAR10(root=data_dir, train=True, 
                                         transform=l_transform, download=True)
         
@@ -1224,6 +1245,15 @@ class Cifar100Data(Dataset):
                 std=[0.229, 0.224, 0.225]
             ),
         ])
+        # l_transform = transforms.Compose([ 
+        #         transforms.Resize((224, 224)),                          
+        #         transforms.RandomCrop(32, padding=4),
+        #         transforms.RandomHorizontalFlip(),
+        #         transforms.ToTensor(),
+        #         transforms.Normalize(
+        #             (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+        #         ),
+        # ])
         # train_transform = transforms.Compose([
         #     transforms.Resize((224, 224)),               # match ViT input size
         #     transforms.RandomHorizontalFlip(p=0.5),      # common for CIFAR

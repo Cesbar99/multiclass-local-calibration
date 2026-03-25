@@ -6,4 +6,4 @@ variant: #'awgn', 'motion_blur', 'reduced_contrast'
 size: 224
 feature_dim: 2048 # Depnds on model used need to check it out!!!!!
 class_freqs: [.125, .125, .125, .125, .125, .125, .125, .125]
-
+corrupt: False

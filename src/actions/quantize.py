@@ -137,72 +137,93 @@ def quantize(kwargs, wandb_logger):
         name += '_stdcal'    
     if kwargs.models.quadratic:
         name += '_quadratic'
-        
-    raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_quant_seed-{}_ep-{}.csv".format(
+    
+    if kwargs.data.corrupt:
+        raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_quant_corrupt_seed-{}_ep-{}.csv".format(
+                name, #kwargs.exp_name,
+                kwargs.data,
+                kwargs.dataset.num_classes,
+                kwargs.dataset.num_features,
+                seed,
+                total_epochs           
+            )
+        raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_quant_corrupt_seed-{}_ep-{}.csv".format(
             name, #kwargs.exp_name,
             kwargs.data,
             kwargs.dataset.num_classes,
             kwargs.dataset.num_features,
             seed,
-            total_epochs           
+            total_epochs,                       
         )
-    raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_quant_seed-{}_ep-{}.csv".format(
-        name, #kwargs.exp_name,
-        kwargs.data,
-        kwargs.dataset.num_classes,
-        kwargs.dataset.num_features,
-        seed,
-        total_epochs,                       
-    )
+    else:    
+        raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_quant_seed-{}_ep-{}.csv".format(
+                name, #kwargs.exp_name,
+                kwargs.data,
+                kwargs.dataset.num_classes,
+                kwargs.dataset.num_features,
+                seed,
+                total_epochs           
+            )
+        raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_quant_seed-{}_ep-{}.csv".format(
+            name, #kwargs.exp_name,
+            kwargs.data,
+            kwargs.dataset.num_classes,
+            kwargs.dataset.num_features,
+            seed,
+            total_epochs,                       
+        )
     
-    
-    print(F'BEGIN QUANTISATION FOR {total_epochs} EPOCHS WITH SEED {seed}!')        
-    trainer = pl.Trainer(
-            max_epochs=total_epochs,
-            accelerator="cuda",
-            devices=[cuda_device],
-            logger=wandb_logger,
-            check_val_every_n_epoch=1,
-            #gradient_clip_val=5,
-            deterministic=False,
-            callbacks=[ #CalibrationPlotCallback(kwargs, dataset.data_train_cal_loader, every_n_epochs=1, device="cuda", type='train'), 
-                        #CalibrationPlotCallback(kwargs, dataset.data_test_cal_loader, every_n_epochs=1, device="cuda", type='test'),
-                        EarlyStopping(monitor="val_loss", #val_kl
-                                      patience=10, #5
-                                      mode="min", 
-                                      verbose=True, 
-                                      min_delta=0.0),
-                        ModelCheckpoint(monitor="val_loss", #val_kl                                                                                               # Metric to track
-                            mode="min",                                                                                                     # Lower is better
-                            save_top_k=1,                                                                                                   # Only keep the best model
-                            filename=f"classifier_seed-{seed}_ep-{total_epochs}",                                                           # Static filename (no epoch suffix)
-                            dirpath=path,                                                                                                   # Save in your existing checkpoint folder
-                            save_weights_only=True,                                                                                         # Save only weights (not full LightningModule)
-                            auto_insert_metric_name=False,                                                                                  # Prevent metric name in filename
-                            every_n_epochs=1,                                                                                               # Run every epoch                    
-                            enable_version_counter=False,
-                            verbose=True
-                        ) 
-            ]
-    )   
-    start = time.time()
-    trainer.fit(pl_model, dataset.data_train_cal_loader, #train
-                    dataset.data_val_cal_loader)
-    train_time = time.time() - start
-    print(train_time)
-    
-    # path_model = join(path, f"classifier_seed-{seed}_ep-{total_epochs}")
-    # torch.save(pl_model.model.state_dict(), path_model)
-    best_model_path = trainer.checkpoint_callback.best_model_path
+    if not kwargs.data.corrupt:
+        print(F'BEGIN QUANTISATION FOR {total_epochs} EPOCHS WITH SEED {seed}!')        
+        trainer = pl.Trainer(
+                max_epochs=total_epochs,
+                accelerator="cuda",
+                devices=[cuda_device],
+                logger=wandb_logger,
+                check_val_every_n_epoch=1,
+                #gradient_clip_val=5,
+                deterministic=False,
+                callbacks=[ #CalibrationPlotCallback(kwargs, dataset.data_train_cal_loader, every_n_epochs=1, device="cuda", type='train'), 
+                            #CalibrationPlotCallback(kwargs, dataset.data_test_cal_loader, every_n_epochs=1, device="cuda", type='test'),
+                            EarlyStopping(monitor="val_loss", #val_kl
+                                        patience=10, #5
+                                        mode="min", 
+                                        verbose=True, 
+                                        min_delta=0.0),
+                            ModelCheckpoint(monitor="val_loss", #val_kl                                                                                               # Metric to track
+                                mode="min",                                                                                                     # Lower is better
+                                save_top_k=1,                                                                                                   # Only keep the best model
+                                filename=f"VQHEAD_seed-{seed}_ep-{total_epochs}",                                                           # Static filename (no epoch suffix)
+                                dirpath=path,                                                                                                   # Save in your existing checkpoint folder
+                                save_weights_only=True,                                                                                         # Save only weights (not full LightningModule)
+                                auto_insert_metric_name=False,                                                                                  # Prevent metric name in filename
+                                every_n_epochs=1,                                                                                               # Run every epoch                    
+                                enable_version_counter=False,
+                                verbose=True
+                            ) 
+                ]
+        )   
+        start = time.time()
+        trainer.fit(pl_model, dataset.data_train_cal_loader, #train
+                        dataset.data_val_cal_loader)
+        train_time = time.time() - start
+        print(train_time)
+        
+        # path_model = join(path, f"classifier_seed-{seed}_ep-{total_epochs}")
+        # torch.save(pl_model.model.state_dict(), path_model)
+        best_model_path = trainer.checkpoint_callback.best_model_path
+    else:
+        best_model_path = path + f"VQHEAD_seed-{seed}_ep-{total_epochs}"
+        
     print(F'LOADING CHECKPOINT FILE {best_model_path}')
     checkpoint = torch.load(best_model_path, weights_only=False, map_location="cpu")
     pl_model.load_state_dict(checkpoint["state_dict"], strict=True)
     vq_classifier = pl_model
     # checkpoint = torch.load(best_model_path)
     # pl_model.load_state_dict(checkpoint['state_dict'])
-    path_model = join(path, f"classifier_seed-{seed}_ep-{total_epochs}")
-    torch.save(pl_model.state_dict(), path_model)
-    print("SAVED MODEL TO ", path_model)
+    # path_model = join(path, f"classifier_seed-{seed}_ep-{total_epochs}")
+    # torch.save(pl_model.state_dict(), path_model)
+    # print("SAVED MODEL TO ", path_model)
     print("QUANTISATION OVER!")
     
     ############################# VQ CALIBRATION #############################
@@ -223,71 +244,92 @@ def quantize(kwargs, wandb_logger):
         name += '_stdcal'    
     if kwargs.models.quadratic:
         name += '_quadratic'
-        
-    raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_calquant_seed-{}_ep-{}.csv".format(
+    
+    if kwargs.data.corrupt:
+        raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_calquant_corrupt_seed-{}_ep-{}.csv".format(
+                name, #kwargs.exp_name,
+                kwargs.data,
+                kwargs.dataset.num_classes,
+                kwargs.dataset.num_features,
+                seed,
+                total_epochs           
+            )
+        raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_calquant_corrupt_seed-{}_ep-{}.csv".format(
             name, #kwargs.exp_name,
             kwargs.data,
             kwargs.dataset.num_classes,
             kwargs.dataset.num_features,
             seed,
-            total_epochs           
+            total_epochs,                       
+        )        
+    else: 
+        raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_calquant_seed-{}_ep-{}.csv".format(
+                name, #kwargs.exp_name,
+                kwargs.data,
+                kwargs.dataset.num_classes,
+                kwargs.dataset.num_features,
+                seed,
+                total_epochs           
+            )
+        raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_calquant_seed-{}_ep-{}.csv".format(
+            name, #kwargs.exp_name,
+            kwargs.data,
+            kwargs.dataset.num_classes,
+            kwargs.dataset.num_features,
+            seed,
+            total_epochs,                       
         )
-    raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_calquant_seed-{}_ep-{}.csv".format(
-        name, #kwargs.exp_name,
-        kwargs.data,
-        kwargs.dataset.num_classes,
-        kwargs.dataset.num_features,
-        seed,
-        total_epochs,                       
-    )
+    if not kwargs.data.corrupt:
+        print(F'BEGIN VQCALIBRATION FOR {total_epochs} EPOCHS WITH SEED {seed}!')        
+        trainer = pl.Trainer(
+                max_epochs=total_epochs,
+                accelerator="cuda",
+                devices=[cuda_device],
+                logger=wandb_logger,
+                check_val_every_n_epoch=1,
+                #gradient_clip_val=5,
+                deterministic=False,
+                callbacks=[ #CalibrationPlotCallback(kwargs, dataset.data_train_cal_loader, every_n_epochs=1, device="cuda", type='train'), 
+                            #CalibrationPlotCallback(kwargs, dataset.data_test_cal_loader, every_n_epochs=1, device="cuda", type='test'),
+                            EarlyStopping(monitor="cal_val_loss", #cal_val_loss val_kl
+                                        patience=10, #5
+                                        mode="min", #max
+                                        verbose=True, 
+                                        min_delta=0.0),
+                            ModelCheckpoint(monitor="cal_val_loss", #cal_val_loss val_kl                                                                                               # Metric to track
+                                mode="min",  #max                                                                                                   # Lower is better
+                                save_top_k=1,                                                                                                   # Only keep the best model
+                                filename=f"VQCALIBRATOR_seed-{seed}_ep-{total_epochs}",                                                           # Static filename (no epoch suffix)
+                                dirpath=path,                                                                                                   # Save in your existing checkpoint folder
+                                save_weights_only=True,                                                                                         # Save only weights (not full LightningModule)
+                                auto_insert_metric_name=False,                                                                                  # Prevent metric name in filename
+                                every_n_epochs=1,                                                                                               # Run every epoch                    
+                                enable_version_counter=False,
+                                verbose=True
+                            ) 
+                ]
+        )   
+        start = time.time()
+        trainer.fit(pl_model, dataset.data_train_cal_loader,
+                        dataset.data_val_cal_loader)
+        train_time = time.time() - start
+        print(train_time)
         
-    print(F'BEGIN VQCALIBRATION FOR {total_epochs} EPOCHS WITH SEED {seed}!')        
-    trainer = pl.Trainer(
-            max_epochs=total_epochs,
-            accelerator="cuda",
-            devices=[cuda_device],
-            logger=wandb_logger,
-            check_val_every_n_epoch=1,
-            #gradient_clip_val=5,
-            deterministic=False,
-            callbacks=[ #CalibrationPlotCallback(kwargs, dataset.data_train_cal_loader, every_n_epochs=1, device="cuda", type='train'), 
-                        #CalibrationPlotCallback(kwargs, dataset.data_test_cal_loader, every_n_epochs=1, device="cuda", type='test'),
-                        EarlyStopping(monitor="cal_val_loss", #cal_val_loss val_kl
-                                      patience=10, #5
-                                      mode="min", #max
-                                      verbose=True, 
-                                      min_delta=0.0),
-                        ModelCheckpoint(monitor="cal_val_loss", #cal_val_loss val_kl                                                                                               # Metric to track
-                            mode="min",  #max                                                                                                   # Lower is better
-                            save_top_k=1,                                                                                                   # Only keep the best model
-                            filename=f"classifier_seed-{seed}_ep-{total_epochs}",                                                           # Static filename (no epoch suffix)
-                            dirpath=path,                                                                                                   # Save in your existing checkpoint folder
-                            save_weights_only=True,                                                                                         # Save only weights (not full LightningModule)
-                            auto_insert_metric_name=False,                                                                                  # Prevent metric name in filename
-                            every_n_epochs=1,                                                                                               # Run every epoch                    
-                            enable_version_counter=False,
-                            verbose=True
-                        ) 
-            ]
-    )   
-    start = time.time()
-    trainer.fit(pl_model, dataset.data_train_cal_loader,
-                    dataset.data_val_cal_loader)
-    train_time = time.time() - start
-    print(train_time)
-    
-    # path_model = join(path, f"classifier_seed-{seed}_ep-{total_epochs}")
-    # torch.save(pl_model.model.state_dict(), path_model)
-    best_model_path = trainer.checkpoint_callback.best_model_path
+        # path_model = join(path, f"classifier_seed-{seed}_ep-{total_epochs}")
+        # torch.save(pl_model.model.state_dict(), path_model)
+        best_model_path = trainer.checkpoint_callback.best_model_path
+    else:
+        best_model_path = path + f"VQCALIBRATOR_seed-{seed}_ep-{total_epochs}",
+        
     print(F'LOADING CHECKPOINT FILE {best_model_path}')
     checkpoint = torch.load(best_model_path, weights_only=False, map_location="cpu")
     pl_model.load_state_dict(checkpoint["state_dict"], strict=True)
     # checkpoint = torch.load(best_model_path)
     # pl_model.load_state_dict(checkpoint['state_dict'])
-    path_model = join(path, f"classifier_seed-{seed}_ep-{total_epochs}")
-    torch.save(pl_model.state_dict(), path_model)
-    print("SAVED MODEL TO ", path_model)    
-    
+    # path_model = join(path, f"classifier_seed-{seed}_ep-{total_epochs}")
+    # torch.save(pl_model.state_dict(), path_model)
+    # print("SAVED MODEL TO ", path_model)    
+    print('CALIBRATION OVER')
     #pl_model.print_calibrator_params()
     
     raws = []

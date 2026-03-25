@@ -19,6 +19,7 @@ from tqdm import tqdm
 import optuna
 from optuna.samplers import NSGAIISampler
 from hp_opt.hp_opt import *
+from imagecorruptions import corrupt_batch
 
 def pretrain(kwargs, wandb_logger):
     
@@ -33,6 +34,18 @@ def pretrain(kwargs, wandb_logger):
     total_epochs = kwargs.models.epochs
     temperature = kwargs.models.temperature
     cuda_device = kwargs.cuda_device
+    
+    corruptions = [
+        "gaussian_noise",
+        "shot_noise",
+        "impulse_noise",
+        "defocus_blur",
+        "motion_blur",
+        "fog",
+        "brightness",
+        "contrast"
+    ]
+
     
     if kwargs.data == 'synthetic':
         dataset = SynthData(kwargs.dataset, experiment=kwargs.exp_name)
@@ -116,24 +129,44 @@ def pretrain(kwargs, wandb_logger):
             total_epochs,
             temperature
         )
-    raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_tmp_{}.csv".format(
-            kwargs.exp_name,
-            kwargs.data,
-            kwargs.dataset.num_classes,
-            kwargs.dataset.num_features,
-            seed,
-            total_epochs,
-            temperature            
-        )
-    raw_results_path_eval_cal = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_seed-{}_ep-{}_tmp_{}.csv".format(
-            kwargs.exp_name,
-            kwargs.data,
-            kwargs.dataset.num_classes,
-            kwargs.dataset.num_features,
-            seed,
-            total_epochs,
-            temperature            
-        )
+    if kwargs.data.corrupt:
+        raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_seed-{}_ep-{}_tmp_{}.csv".format(
+                kwargs.exp_name,
+                kwargs.data,
+                kwargs.dataset.num_classes,
+                kwargs.dataset.num_features,
+                seed,
+                total_epochs,
+                temperature            
+            )
+        raw_results_path_eval_cal = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_corrupt_seed-{}_ep-{}_tmp_{}.csv".format(
+                kwargs.exp_name,
+                kwargs.data,
+                kwargs.dataset.num_classes,
+                kwargs.dataset.num_features,
+                seed,
+                total_epochs,
+                temperature            
+            )
+    else:
+        raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_tmp_{}.csv".format(
+                kwargs.exp_name,
+                kwargs.data,
+                kwargs.dataset.num_classes,
+                kwargs.dataset.num_features,
+                seed,
+                total_epochs,
+                temperature            
+            )
+        raw_results_path_eval_cal = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_seed-{}_ep-{}_tmp_{}.csv".format(
+                kwargs.exp_name,
+                kwargs.data,
+                kwargs.dataset.num_classes,
+                kwargs.dataset.num_features,
+                seed,
+                total_epochs,
+                temperature            
+            )
     # if kwargs.data == 'food101':
     #     raw_results_path_val_cal = "results/{}/{}_{}_classes_{}_features/raw_results_val_cal_seed-{}_ep-{}_tmp_{}.csv".format(
     #         kwargs.exp_name,
@@ -147,122 +180,125 @@ def pretrain(kwargs, wandb_logger):
     
     # if kwargs.data != 'food101':
             
+    if not kwargs.data.corrupt:        
+        if kwargs.use_optuna:     
+            csv_path = f"optuna_logs/optuna_best_configs_pretrain_{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features.csv"
             
-    if kwargs.use_optuna:     
-        csv_path = f"optuna_logs/optuna_best_configs_pretrain_{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features.csv"
-        
-        if seed == 42: # only run optuna for one seed to save time
-            print(f'STARTING OPTUNA HYPERPARAMETER SEARCH FOR {kwargs.n_trials} TRIALS OF {kwargs.optuna_epochs} EPOCHS PRE-TRAINING...\n')       
-            
-            # search_space = {
-            # "lin_comb": [0.7, 0.8, 0.85, 0.9, 0.95, 0.97, 0.99],
-            # "ceiling": [0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5],
-            # "feature_dim": [8, 10, 16, 32, 64, 128]
-            # }   
-            # sampler = optuna.samplers.GridSampler(search_space)
-            study = optuna.create_study(direction="maximize",study_name="hyper_params_pretrain", # "minimize"
-                                        pruner=optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=5))
-            calls = [print_callback]
-            study.optimize(
-                lambda trial: pretrain_objective(trial, kwargs, dataset.data_train_loader, 
-                                                dataset.data_val_loader, wandb_logger),
-                n_trials=kwargs.n_trials,
-                show_progress_bar=True,
-                callbacks=calls
-            )
-            
-            # Print best result
-            print("Best trial:")
-            print(f"  Value: {study.best_trial.value}")
-            for key, value in study.best_trial.params.items():
-                print(f"    {key}: {value}")
-                kwargs.models.optimizer[key] = value   
+            if seed == 42: # only run optuna for one seed to save time
+                print(f'STARTING OPTUNA HYPERPARAMETER SEARCH FOR {kwargs.n_trials} TRIALS OF {kwargs.optuna_epochs} EPOCHS PRE-TRAINING...\n')       
                 
-            # ---- SAVE BEST CONFIG TO CSV ----            
-
-            file_exists = os.path.isfile(csv_path)
-
-            with open(csv_path, mode="a", newline="") as f:
-                writer = csv.DictWriter(
-                    f,
-                    fieldnames=[
-                        "study_name",                        
-                        "value",                        
-                        "optuna_epochs",
-                        "train_epochs",
-                        "name",
-                        "lr",
-                        "weight_decay"                      
-                    ]
+                # search_space = {
+                # "lin_comb": [0.7, 0.8, 0.85, 0.9, 0.95, 0.97, 0.99],
+                # "ceiling": [0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5],
+                # "feature_dim": [8, 10, 16, 32, 64, 128]
+                # }   
+                # sampler = optuna.samplers.GridSampler(search_space)
+                study = optuna.create_study(direction="maximize",study_name="hyper_params_pretrain", # "minimize"
+                                            pruner=optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=5))
+                calls = [print_callback]
+                study.optimize(
+                    lambda trial: pretrain_objective(trial, kwargs, dataset.data_train_loader, 
+                                                    dataset.data_val_loader, wandb_logger),
+                    n_trials=kwargs.n_trials,
+                    show_progress_bar=True,
+                    callbacks=calls
                 )
-
-                # write header only once
-                if not file_exists:
-                    writer.writeheader()
-
-                writer.writerow({
-                    "study_name": study.study_name,                                                            
-                    "value": study.best_trial.value,                                                                                
-                    "optuna_epochs": kwargs.optuna_epochs,
-                    "train_epochs": kwargs.models.epochs,
-                    "name": study.best_trial.params["name"], # kwargs.models.optimizer,
-                    "lr": study.best_trial.params["lr"],
-                    "weight_decay": study.best_trial.params["weight_decay"]                
-                })
-
-            print(f"Saved best hyperparameters to {csv_path}")  
+                
+                # Print best result
+                print("Best trial:")
+                print(f"  Value: {study.best_trial.value}")
+                for key, value in study.best_trial.params.items():
+                    print(f"    {key}: {value}")
+                    kwargs.models.optimizer[key] = value   
                     
-        else:
-            print("Loading hyperparameters from CSV...")
-            load_optuna_config(csv_path, kwargs.models.optimizer, pretrain=True)            
-                   
-                   
-    ############## FITTING TIME ##############
-    if kwargs.data == 'cifar10':
-        pl_model = Cifar10Model(kwargs.models)   
-    elif kwargs.data == 'cifar100':
-        pl_model = Cifar100Model(kwargs.models)   
-    elif kwargs.data == 'tissue':
-        pl_model = MedMnistModel(kwargs.models)           
-    print(F'BEGIN PRE-TRAINING FOR {total_epochs} EPOCHS WITH SEED {seed} AND {kwargs.models.temperature} TEMPERATURE!')        
-    trainer = pl.Trainer(
-            max_epochs=total_epochs,
-            accelerator="cuda",
-            devices=[cuda_device],
-            logger=wandb_logger,
-            check_val_every_n_epoch=1,            
-            deterministic=True,
-            callbacks=[ ClearCacheCallback(), 
-                # EarlyStopping(
-                #      monitor="val_loss",
-                #      patience=5,
-                #      mode="min",
-                #      verbose=True,
-                #      min_delta=0.0,
-                # ),
-                ModelCheckpoint(
-                    monitor="val_acc", # "val_loss",                                                                                             # Metric to track
-                    mode="max", # "min"                                                                                                    # Lower is better
-                    save_top_k=1,                                                                                                   # Only keep the best model
-                    filename=f"classifier_seed-{seed}_ep-{total_epochs}_tmp_{kwargs.models.temperature}.pt",                        # Static filename (no epoch suffix)
-                    dirpath=path,                                                                                                   # Save in your existing checkpoint folder
-                    save_weights_only=True,                                                                                         # Save only weights (not full LightningModule)
-                    auto_insert_metric_name=False,                                                                                  # Prevent metric name in filename
-                    every_n_epochs=1,                                                                                               # Run every epoch                    
-                    enable_version_counter=False,
-                    verbose=True
-                ) ,                 
-            ]
-        )
-    start = time.time()
-    trainer.fit(pl_model, dataset.data_train_loader,
-                    dataset.data_val_loader)
-    train_time = time.time() - start
-    # print(train_time)
-    # torch.save(pl_model.model.state_dict(), path_model)
-    best_model_path = trainer.checkpoint_callback.best_model_path
-    #print(F'LOADING CHECKPOINT FILE {best_model_path}')
-    #best_model_path = '/home/barbera/calibration/localibration/checkpoints/pre-train/otto_9_classes_None_features/classifier_seed-42_ep-100_tmp_1.0.pt.ckpt'
+                # ---- SAVE BEST CONFIG TO CSV ----            
+
+                file_exists = os.path.isfile(csv_path)
+
+                with open(csv_path, mode="a", newline="") as f:
+                    writer = csv.DictWriter(
+                        f,
+                        fieldnames=[
+                            "study_name",                        
+                            "value",                        
+                            "optuna_epochs",
+                            "train_epochs",
+                            "name",
+                            "lr",
+                            "weight_decay"                      
+                        ]
+                    )
+
+                    # write header only once
+                    if not file_exists:
+                        writer.writeheader()
+
+                    writer.writerow({
+                        "study_name": study.study_name,                                                            
+                        "value": study.best_trial.value,                                                                                
+                        "optuna_epochs": kwargs.optuna_epochs,
+                        "train_epochs": kwargs.models.epochs,
+                        "name": study.best_trial.params["name"], # kwargs.models.optimizer,
+                        "lr": study.best_trial.params["lr"],
+                        "weight_decay": study.best_trial.params["weight_decay"]                
+                    })
+
+                print(f"Saved best hyperparameters to {csv_path}")  
+                        
+            else:
+                print("Loading hyperparameters from CSV...")
+                load_optuna_config(csv_path, kwargs.models.optimizer, pretrain=True)            
+                    
+                    
+        ############## FITTING TIME ##############
+        if kwargs.data == 'cifar10':
+            pl_model = Cifar10Model(kwargs.models)   
+        elif kwargs.data == 'cifar100':
+            pl_model = Cifar100Model(kwargs.models)   
+        elif kwargs.data == 'tissue':
+            pl_model = MedMnistModel(kwargs.models)           
+        print(F'BEGIN PRE-TRAINING FOR {total_epochs} EPOCHS WITH SEED {seed} AND {kwargs.models.temperature} TEMPERATURE!')        
+        trainer = pl.Trainer(
+                max_epochs=total_epochs,
+                accelerator="cuda",
+                devices=[cuda_device],
+                logger=wandb_logger,
+                check_val_every_n_epoch=1,            
+                deterministic=True,
+                callbacks=[ ClearCacheCallback(), 
+                    # EarlyStopping(
+                    #      monitor="val_loss",
+                    #      patience=5,
+                    #      mode="min",
+                    #      verbose=True,
+                    #      min_delta=0.0,
+                    # ),
+                    ModelCheckpoint(
+                        monitor="val_acc", # "val_loss",                                                                                             # Metric to track
+                        mode="max", # "min"                                                                                                    # Lower is better
+                        save_top_k=1,                                                                                                   # Only keep the best model
+                        filename=f"classifier_seed-{seed}_ep-{total_epochs}_tmp_{kwargs.models.temperature}.pt",                        # Static filename (no epoch suffix)
+                        dirpath=path,                                                                                                   # Save in your existing checkpoint folder
+                        save_weights_only=True,                                                                                         # Save only weights (not full LightningModule)
+                        auto_insert_metric_name=False,                                                                                  # Prevent metric name in filename
+                        every_n_epochs=1,                                                                                               # Run every epoch                    
+                        enable_version_counter=False,
+                        verbose=True
+                    ) ,                 
+                ]
+            )
+        start = time.time()
+        trainer.fit(pl_model, dataset.data_train_loader,
+                        dataset.data_val_loader)
+        train_time = time.time() - start
+        # print(train_time)
+        # torch.save(pl_model.model.state_dict(), path_model)
+        best_model_path = trainer.checkpoint_callback.best_model_path
+        #print(F'LOADING CHECKPOINT FILE {best_model_path}')
+        #best_model_path = '/home/barbera/calibration/localibration/checkpoints/pre-train/otto_9_classes_None_features/classifier_seed-42_ep-100_tmp_1.0.pt.ckpt'
+    else:
+        best_model_path = path + f"classifier_seed-{seed}_ep-{kwargs.checkpoint.epochs}_tmp_{kwargs.models.temperature}.pt",                        # Static filename (no epoch suffix)
+        
     checkpoint = torch.load(best_model_path)
     pl_model.load_state_dict(checkpoint['state_dict'])
     
@@ -309,7 +345,23 @@ def pretrain(kwargs, wandb_logger):
         with torch.no_grad():
             # if kwargs.data != 'food101':  
             for batch in tqdm(dataset.data_eval_cal_loader, desc="Extracting features"):
-                batch = [b.to(device) for b in batch]                                
+                batch = [b.to(device) for b in batch]               
+                    
+                if kwargs.data.corrupt == True:
+                    # ---- APPLY CORRUPTION ----
+                    images_np = (images.permute(0, 2, 3, 1).cpu().numpy() * 255).astype('uint8')
+
+                    images_np = corrupt_batch(
+                        images_np,
+                        corruption_name=random.choice(corruptions), #"gaussian_noise",  # change as needed
+                        severity=random.randint(1, 5)
+                    )
+
+                    images = torch.from_numpy(images_np).permute(0, 3, 1, 2).float() / 255.0
+                    images = images.to(device)
+
+                    batch[0] = images
+                                 
                 raw = pl_model.extract_features(batch)
                 raws.append(raw)
             # else:

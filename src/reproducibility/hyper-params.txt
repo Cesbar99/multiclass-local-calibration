@@ -152,4 +152,4 @@ BUGS
 
 number of bins: range(1, n_bins+1) -> range(n_bins) in test w_lce
 
-values of alpha_sim and alpha_cls. How to find good initialisations?
+values of alpha_sim and alpha_cls. How to find good initialisations? -> OPTUNA

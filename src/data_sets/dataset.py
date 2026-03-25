@@ -144,24 +144,44 @@ def generateCalibrationDatav2(kwargs, dataname=None):
             kwargs.checkpoint.temperature
         )           
     else:        
-        cal_results = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_tmp_{}.csv".format(
-            'pre-train',
-            kwargs.data,
-            kwargs.dataset.num_classes,
-            kwargs.dataset.num_features,
-            kwargs.checkpoint.seed,
-            kwargs.checkpoint.epochs,
-            kwargs.checkpoint.temperature       
-        )
-        test_results = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_seed-{}_ep-{}_tmp_{}.csv".format(
-            'pre-train',
-            kwargs.data,
-            kwargs.dataset.num_classes,
-            kwargs.dataset.num_features,
-            kwargs.checkpoint.seed,
-            kwargs.checkpoint.epochs,
-            kwargs.checkpoint.temperature
-        )    
+        if kwargs.data.corrupt:
+            cal_results = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_seed-{}_ep-{}_tmp_{}.csv".format(
+                'pre-train',
+                kwargs.data,
+                kwargs.dataset.num_classes,
+                kwargs.dataset.num_features,
+                kwargs.checkpoint.seed,
+                kwargs.checkpoint.epochs,
+                kwargs.checkpoint.temperature       
+            )
+            test_results = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_corrupt_seed-{}_ep-{}_tmp_{}.csv".format(
+                'pre-train',
+                kwargs.data,
+                kwargs.dataset.num_classes,
+                kwargs.dataset.num_features,
+                kwargs.checkpoint.seed,
+                kwargs.checkpoint.epochs,
+                kwargs.checkpoint.temperature
+            )  
+        else:
+            cal_results = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_tmp_{}.csv".format(
+                'pre-train',
+                kwargs.data,
+                kwargs.dataset.num_classes,
+                kwargs.dataset.num_features,
+                kwargs.checkpoint.seed,
+                kwargs.checkpoint.epochs,
+                kwargs.checkpoint.temperature       
+            )
+            test_results = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_seed-{}_ep-{}_tmp_{}.csv".format(
+                'pre-train',
+                kwargs.data,
+                kwargs.dataset.num_classes,
+                kwargs.dataset.num_features,
+                kwargs.checkpoint.seed,
+                kwargs.checkpoint.epochs,
+                kwargs.checkpoint.temperature
+            )    
         
         # if kwargs.data == 'food101':
         #     val_results = "results/{}/{}_{}_classes_{}_features/raw_results_val_cal_seed-{}_ep-{}_tmp_{}.csv".format(

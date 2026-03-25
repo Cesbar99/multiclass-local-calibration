@@ -729,7 +729,7 @@ def competition(kwargs, wandb_logger=None):
         test(kwargs)
     
 
-    if 'PC' in kwargs.methods: # ProCal
+    if 'PC' in kwargs.methods: # ProCal        
         kwargs.method = 'PC' # STRUCTURED MATRIX SCALING
         #num_classes}_classes_{kwargs.dataset.num_features}_features/"
         #os.makedirs(path, exist_ok=True) 
@@ -763,7 +763,7 @@ def competition(kwargs, wandb_logger=None):
         # scaler.to(device)
 
         with torch.no_grad():
-            for batch in tqdm(dataset.data_test_cal_loader, desc="Extracting SMS Calibration logits"):
+            for batch in tqdm(dataset.data_test_cal_loader, desc="Extracting PC Calibration logits"):
                 batch = [b.to(device) for b in batch]                
                 raw = scaler.calibrated_predictions(batch)
                 raws.append(raw)
@@ -777,7 +777,7 @@ def competition(kwargs, wandb_logger=None):
         # scaler.to(device)
 
         with torch.no_grad():
-            for batch in tqdm(dataset.data_train_cal_loader, desc="Extracting SMS Calibration logits"):
+            for batch in tqdm(dataset.data_train_cal_loader, desc="Extracting PC Calibration logits"):
                 batch = [b.to(device) for b in batch]                
                 raw = scaler.calibrated_predictions(batch)
                 raws.append(raw)

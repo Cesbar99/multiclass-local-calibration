@@ -53,10 +53,10 @@ def pretrain(kwargs, wandb_logger):
         "zoom_blur",
         "fog",
         "snow",
-        "frost", # try        
-        "brightness", # good
+        "frost", # good severity: 1     
+        "brightness", # good severity: 3 for cifar10, 1 for cifar100
         "contrast",
-        "pixelate",        
+        "pixelate",  # good severity: 1       
     ]
     
     if (kwargs.corruption_type) and (kwargs.corruption_type not in corruptions):

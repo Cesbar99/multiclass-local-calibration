@@ -357,7 +357,8 @@ class DensityRatioCalibration():
             D = D[:, 1:]  # drop self-match
         else:
             D, _ = self.faiss_index.search(zs, K)
-        proximity = np.exp(-D)  # (N, K)
+        proximity = np.exp(-D/K) # (N, K)
+        #import pdb; pdb.set_trace()        
         return np.mean(proximity, axis=1)  # (N,)
 
     def _build_faiss_index(self, val_zs):
@@ -504,7 +505,7 @@ class DensityRatioCalibration():
         probs = probs * ((1 - conf_calibrated) / probs.sum(axis=-1))[:, np.newaxis]
 
         # Insert calibrated confidence for the predicted class
-        probs[range(probs.shape[0]), preds] = conf_calibrated
+        probs[range(probs.shape[0]), preds] = conf_calibrated                
 
         return torch.tensor(probs, device=device, dtype=torch.float32)
 

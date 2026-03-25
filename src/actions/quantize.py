@@ -67,10 +67,15 @@ def quantize(kwargs, wandb_logger):
         "shot_noise",
         "impulse_noise",
         "defocus_blur",
+        "glass_blur",
         "motion_blur",
+        "zoom_blur",
         "fog",
-        "brightness",
-        "contrast"
+        "snow",
+        "frost", # try        
+        "brightness", # good
+        "contrast",
+        "pixelate",        
     ]
     
     if (kwargs.corruption_type) and (kwargs.corruption_type not in corruptions):

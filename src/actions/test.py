@@ -547,33 +547,61 @@ def test(kwargs):
                 appendix = 'kernel_only' + '_' + kwargs.data + '_' + f'{kwargs.dataset.num_classes}_classes_' + f'{kwargs.dataset.num_features}_features'
             test_file_name = 'multicalss_calibration_test_' + f'{kwargs.bin_strategy}' + '.png'        
             save_path = join(kwargs.save_path_calibration_plots, appendix)
-            os.makedirs(save_path, exist_ok=True)                            
-            test_results = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
-                    kwargs.exp_name,
-                    kwargs.data,
-                    kwargs.dataset.num_classes,
-                    kwargs.dataset.num_features,
-                    kwargs.seed, #kwargs.checkpoint.seed,
-                    total_epochs,                
-                )
-            if kwargs.models.lambda_kl == 0:
+            os.makedirs(save_path, exist_ok=True)    
+            if kwargs.data.corrupt:
+                test_results = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_seed-{}_ep-{}.csv".format(
+                        kwargs.exp_name,
+                        kwargs.data,
+                        kwargs.dataset.num_classes,
+                        kwargs.dataset.num_features,
+                        kwargs.seed, #kwargs.checkpoint.seed,
+                        total_epochs,                
+                    )
+                if kwargs.models.lambda_kl == 0:
+                    test_results = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_seed-{}_ep-{}.csv".format(
+                        'reference_kernel',
+                        kwargs.data,
+                        kwargs.dataset.num_classes,
+                        kwargs.dataset.num_features,
+                        kwargs.seed, #kwargs.checkpoint.seed,
+                        total_epochs,                
+                    )
+                if kwargs.models.kernel_only:
+                    test_results = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_seed-{}_ep-{}.csv".format(
+                        'kernel_only',
+                        kwargs.data,
+                        kwargs.dataset.num_classes,
+                        kwargs.dataset.num_features,
+                        kwargs.seed, #kwargs.checkpoint.seed,
+                        total_epochs,                
+                    )
+            else:                        
                 test_results = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
-                    'reference_kernel',
-                    kwargs.data,
-                    kwargs.dataset.num_classes,
-                    kwargs.dataset.num_features,
-                    kwargs.seed, #kwargs.checkpoint.seed,
-                    total_epochs,                
-                )
-            if kwargs.models.kernel_only:
-                test_results = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
-                    'kernel_only',
-                    kwargs.data,
-                    kwargs.dataset.num_classes,
-                    kwargs.dataset.num_features,
-                    kwargs.seed, #kwargs.checkpoint.seed,
-                    total_epochs,                
-                )
+                        kwargs.exp_name,
+                        kwargs.data,
+                        kwargs.dataset.num_classes,
+                        kwargs.dataset.num_features,
+                        kwargs.seed, #kwargs.checkpoint.seed,
+                        total_epochs,                
+                    )
+                if kwargs.models.lambda_kl == 0:
+                    test_results = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
+                        'reference_kernel',
+                        kwargs.data,
+                        kwargs.dataset.num_classes,
+                        kwargs.dataset.num_features,
+                        kwargs.seed, #kwargs.checkpoint.seed,
+                        total_epochs,                
+                    )
+                if kwargs.models.kernel_only:
+                    test_results = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
+                        'kernel_only',
+                        kwargs.data,
+                        kwargs.dataset.num_classes,
+                        kwargs.dataset.num_features,
+                        kwargs.seed, #kwargs.checkpoint.seed,
+                        total_epochs,                
+                    )
                    
         # Load your data
         df_test = pd.read_csv(test_results)        
@@ -776,16 +804,27 @@ def test(kwargs):
         appendix += f'{kwargs.dataset.num_classes}_classes_' + f'{kwargs.dataset.num_features}_features'
         test_file_name = 'multicalss_calibration_test_' + f'{kwargs.bin_strategy}' + '.png'        
         save_path = join(kwargs.save_path_calibration_plots, appendix)
-        os.makedirs(save_path, exist_ok=True)                
-        test_results = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
-                    kwargs.exp_name,
-                    kwargs.method,
-                    kwargs.data,
-                    kwargs.dataset.num_classes,
-                    kwargs.dataset.num_features,
-                    kwargs.seed,
-                    kwargs.models.max_iter,                
-                )
+        os.makedirs(save_path, exist_ok=True)  
+        if kwargs.corrupt:              
+            test_results = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_seed-{}_ep-{}.csv".format(
+                        kwargs.exp_name,
+                        kwargs.method,
+                        kwargs.data,
+                        kwargs.dataset.num_classes,
+                        kwargs.dataset.num_features,
+                        kwargs.seed,
+                        kwargs.models.max_iter,                
+                    )
+        else:
+            test_results = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
+                        kwargs.exp_name,
+                        kwargs.method,
+                        kwargs.data,
+                        kwargs.dataset.num_classes,
+                        kwargs.dataset.num_features,
+                        kwargs.seed,
+                        kwargs.models.max_iter,                
+                    )
         
         # Load your data
         df_test = pd.read_csv(test_results)        

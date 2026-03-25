@@ -28,6 +28,7 @@ epochs: 1000
 similarity_dim: 50
 adabw: False                # If true uses adaptive bandwidth for lce computation else fixed bandwidth
 learn_pi: False             # If true learns the prior probabilities of the VQ codebook vectors
+diag: False                 # If true learns the diagonal latent miscalibration component
 lambda_reg: 0.              # Weight of the regularization term (not used?)
 random: False               # If true uses random quantization indices instead of VQ indices during training
 L1: False                   # If true uses L1 distance instead of L2 distance for the VQ codebook vectors

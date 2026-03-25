@@ -26,13 +26,14 @@ class VQDirCal(nn.Module):
     As in Eqs. (30)-(34). :contentReference[oaicite:2]{index=2}
     """
 
-    def __init__(self, K: int, C: int, S: int, eps: float = 1e-4, quadratic: bool = False, learn_pi: bool = False, learn_bias: bool=False,
+    def __init__(self, K: int, C: int, S: int, eps: float = 1e-4, quadratic: bool = False, learn_pi: bool = False, learn_bias: bool=False, diag: bool = False,
                  random: bool = False, standard_dirichlet: bool = False): #1e-8
         super().__init__()
         self.K = K
         self.C = C
         self.S = S
         self.eps = eps
+        self.diag = diag
         self.random = random
         self.standard_dirichlet = standard_dirichlet
         self.learn_bias = learn_bias
@@ -119,7 +120,10 @@ class VQDirCal(nn.Module):
             
             # A(x) = W^T U -> (B, C, C)   (Eq. 31) :contentReference[oaicite:4]{index=4}
             T = self.T_code.view(1, self.S, 1)      # (1,S,1) for broadcasting
-            U_w = U * T #(T**2)
+            if self.diag:
+                U_w = U * T #(T**2)
+            else:
+                U_w = U
             A = torch.matmul(W.transpose(1, 2), U_w)                        
             
             # Positivity constraint for Dirichlet concentrations (PDF remark) :contentReference[oaicite:5]{index=5}            

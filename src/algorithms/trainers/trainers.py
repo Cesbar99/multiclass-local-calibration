@@ -316,7 +316,11 @@ class MedMnistModel(pl.LightningModule):
     def extract_features(self, batch):
         x, y = batch        
         feats = self.model.repr(x)  # feature representation
-        logits = self.model.resnet50.fc(feats)
+        
+        if 'vit' in self.name:            
+            logits = self.model.vit.get_classifier()(feats)   
+        else:
+            logits = self.model.resnet50.fc(feats)
         preds = torch.argmax(logits, dim=-1).view(-1,1)  # predicted class
         # Create dict in the same format as predict outputs
         out = {
@@ -455,8 +459,13 @@ class Cifar10Model(pl.LightningModule):
         
     def extract_features(self, batch):
         x, y = batch        
-        feats = self.model.repr(x)  # feature representation
-        logits = self.model.resnet50.fc(feats)
+        feats = self.model.repr(x)
+        
+        if 'vit' in self.name:            
+            logits = self.model.vit.get_classifier()(feats)            
+        else:            
+            logits = self.model.resnet50.fc(feats)
+            
         preds = torch.argmax(logits, dim=-1).view(-1,1)  # predicted class
         # Create dict in the same format as predict outputs
         out = {
@@ -715,8 +724,8 @@ class Cifar100Model(pl.LightningModule):
         feats = self.model.repr(x)  # feature representation
         
         if 'vit' in self.name:        
-            feats = feats[:, 0]      
-            logits = self.model.vit.head(feats)        
+            # feats = feats[:, 0]      
+            logits = self.model.vit.get_classifier()(feats)         #logits = self.model.vit.head(feats)        
         elif 'dense' in self.name:
             logits = self.model.densenet121.classifier(feats)    
         else:         

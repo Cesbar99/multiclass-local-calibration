@@ -177,6 +177,16 @@ class TissueMnistVit(nn.Module):
         for param in self.vit.get_classifier().parameters():
             param.requires_grad = True
 
+    def repr(self, x):
+        """
+        Extract feature representations (before classification head).
+        Equivalent to the ResNet repr but for ViT.
+        """
+        # timm ViTs provide forward_features to get embeddings before head        
+        tokens = self.vit.forward_features(x)
+        feats = self.vit.forward_head(tokens, pre_logits=True)
+        return feats   
+    
     def forward(self, x):
         logits = self.vit(x)                
         return self.scaler(logits)          
@@ -352,6 +362,11 @@ class Cifar10Vit(nn.Module):
         # Unfreeze classifier head
         for param in self.vit.get_classifier().parameters():
             param.requires_grad = True
+            
+    def repr(self, x):
+        tokens = self.vit.forward_features(x)
+        feats = self.vit.forward_head(tokens, pre_logits=True)
+        return feats
 
     def forward(self, x):
         logits = self.vit(x)                
@@ -709,9 +724,10 @@ class Cifar100Vit(nn.Module):
         Extract feature representations (before classification head).
         Equivalent to the ResNet repr but for ViT.
         """
-        # timm ViTs provide forward_features to get embeddings before head
-        features = self.vit.forward_features(x)   # (B, hidden_dim)
-        return features 
+        # timm ViTs provide forward_features to get embeddings before head        
+        tokens = self.vit.forward_features(x)
+        feats = self.vit.forward_head(tokens, pre_logits=True)
+        return feats        
     
     def forward(self, x):
         logits = self.vit(x)                

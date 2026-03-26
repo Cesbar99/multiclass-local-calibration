@@ -88,7 +88,7 @@ n_trials: 50
 multi_obj: False
 
 #competitors
-methods: ['SMS', 'TS', 'IR', 'PS', 'DC', 'PC'] #tempearature scaling, isotonic regression, platt scaling, dirichlet calibration
+methods: ['SMS', 'TS', 'IR', 'PS', 'DC']  #tempearature scaling, isotonic regression, platt scaling, dirichlet calibration
 method:
 gammas: [] #[0.1, 1., 5., 7., 10., 100.] #[0.1, 0.3, 1, 3, 5, 7, 10, 100]
 

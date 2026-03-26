@@ -772,7 +772,8 @@ def competition(kwargs, wandb_logger=None):
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
                     seed,
-                    kwargs.models.max_iter           
+                    kwargs.models.max_iter,
+                    model_class            
                 )
         raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_{}.csv".format(
                 kwargs.exp_name,

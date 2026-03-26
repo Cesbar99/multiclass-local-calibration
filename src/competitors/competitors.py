@@ -333,17 +333,24 @@ class DensityRatioCalibration():
         self.distance_measure = distance_measure
         self.faiss_index = None  # built during fit, reused at inference
 
+    def _normalize(self, zs):
+        """L2-normalise embeddings row-wise, matching the original paper's preprocessing."""
+        return zs / np.linalg.norm(zs, axis=1, keepdims=True)
+
     def compute_proximities(self, zs, is_val=False):
         """
         Compute scalar kNN proximity scores for a set of embeddings using the
         FAISS index built during fit().
+
+        Embeddings are L2-normalised before querying, bounding all pairwise
+        L2 distances to [0, 2] so that exp(-D) never collapses to 0.
 
         For validation embeddings (is_val=True) the query is its own index, so
         we search K+1 neighbours and drop the self-match (distance = 0).
         For test embeddings (is_val=False) we search K neighbours directly.
 
         Params:
-            zs:     numpy array of L2-normalised embeddings, shape (N, dim)
+            zs:     numpy array of embeddings, shape (N, dim)
             is_val: True when querying the same set that was indexed (self-query)
 
         Returns:
@@ -351,19 +358,19 @@ class DensityRatioCalibration():
                       mean of exp(-distance) across K neighbours
         """
         assert self.faiss_index is not None, "Call fit() before compute_proximities()."
+        zs = self._normalize(zs)
         K = self.num_neighbors
         if is_val:
             D, _ = self.faiss_index.search(zs, K + 1)
             D = D[:, 1:]  # drop self-match
         else:
             D, _ = self.faiss_index.search(zs, K)
-        proximity = np.exp(-D/K) # (N, K)
-        #import pdb; pdb.set_trace()        
-        return np.mean(proximity, axis=1)  # (N,)
+        return np.exp(-np.mean(D, axis=1))  # (N,) — exp of mean distance, as per the paper
 
     def _build_faiss_index(self, val_zs):
-        """Build and store the FAISS index from validation embeddings."""
+        """Build and store the FAISS index from L2-normalised validation embeddings."""
         import faiss
+        val_zs = self._normalize(val_zs)
         dim = val_zs.shape[1]
         dm = self.distance_measure
 
@@ -505,7 +512,7 @@ class DensityRatioCalibration():
         probs = probs * ((1 - conf_calibrated) / probs.sum(axis=-1))[:, np.newaxis]
 
         # Insert calibrated confidence for the predicted class
-        probs[range(probs.shape[0]), preds] = conf_calibrated                
+        probs[range(probs.shape[0]), preds] = conf_calibrated
 
         return torch.tensor(probs, device=device, dtype=torch.float32)
 

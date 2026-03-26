@@ -58,10 +58,10 @@ def pretrain(kwargs, wandb_logger):
         "contrast",
         "pixelate",  # good severity: 1       
     ]
-    
+
     if (kwargs.corruption_type) and (kwargs.corruption_type not in corruptions):
         raise ValueError(f'Unknown corruption type! {kwargs.corruption_type} was given.')
-    
+    sev = 3 if kwargs.corruption_type == "brightness" else 1 # set severity level (can be tuned)
     if kwargs.data == 'synthetic':
         dataset = SynthData(kwargs.dataset, experiment=kwargs.exp_name)
         pl_model = SynthTab(input_dim=kwargs.dataset.num_features,            
@@ -401,7 +401,7 @@ def pretrain(kwargs, wandb_logger):
         raws = trainer.predict(pl_model, dataset.data_train_cal_loader) #dataset.data_train_cal_loader
         res, pca = get_raw_res(raws)
     res.to_csv(raw_results_path_train_cal, index=False)
-    
+
     if kwargs.return_features:
         raws = []
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -422,7 +422,7 @@ def pretrain(kwargs, wandb_logger):
                     images_np = corrupt_batch(
                         images_np,
                         corruption_name=kwargs.corruption_type, #"gaussian_noise",  # change as needed
-                        severity=1, #pyrandom.randint(1, 5)
+                        severity=sev, #pyrandom.randint(1, 5)
                     )
 
                     images = torch.from_numpy(images_np).permute(0, 3, 1, 2).float() / 255.0

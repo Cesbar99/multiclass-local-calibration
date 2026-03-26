@@ -76,11 +76,19 @@ def quantize(kwargs, wandb_logger):
         "brightness", # good
         "contrast",
         "pixelate",        
-    ]
+    ]        
     
     if (kwargs.corruption_type) and (kwargs.corruption_type not in corruptions):
         raise ValueError(f'Unknown corruption type! {kwargs.corruption_type} was given.')
-        
+    
+    epochs = kwargs.checkpoint.epochs
+    if epochs == 9:
+        model_class = 'resnet'
+    elif kwargs.checkpoint.epochs == 20:
+        model_class = 'vit'
+    else:
+        raise ValueError(f'Checkpoint not corresponding to a trained modl! {kwargs.checkpoint.epochs} was given but only 9 and 20 are supported')
+                    
     name = kwargs.exp_name
     if kwargs.models.S != 64:
         name += f'slot-{kwargs.models.S}'
@@ -159,16 +167,17 @@ def quantize(kwargs, wandb_logger):
         name += '_quadratic'
     
     if kwargs.corruption_type:
-        raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_quant_corrupt_{}_seed-{}_ep-{}.csv".format(
+        raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_quant_corrupt_{}_seed-{}_ep-{}_{}.csv".format(
                 name, #kwargs.exp_name,
                 kwargs.data,
                 kwargs.dataset.num_classes,
                 kwargs.dataset.num_features,
                 kwargs.corruption_type,
                 seed,
-                total_epochs           
+                total_epochs,
+                model_class           
             )
-        raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_quant_corrupt_{}_seed-{}_ep-{}.csv".format(
+        raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_quant_corrupt_{}_seed-{}_ep-{}_{}.csv".format(
             name, #kwargs.exp_name,
             kwargs.data,
             kwargs.dataset.num_classes,
@@ -176,23 +185,26 @@ def quantize(kwargs, wandb_logger):
             kwargs.corruption_type,
             seed,
             total_epochs,                       
+            model_class
         )
     else:    
-        raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_quant_seed-{}_ep-{}.csv".format(
+        raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_quant_seed-{}_ep-{}_{}.csv".format(
                 name, #kwargs.exp_name,
                 kwargs.data,
                 kwargs.dataset.num_classes,
                 kwargs.dataset.num_features,
                 seed,
-                total_epochs           
+                total_epochs,
+                model_class           
             )
-        raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_quant_seed-{}_ep-{}.csv".format(
+        raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_quant_seed-{}_ep-{}_{}.csv".format(
             name, #kwargs.exp_name,
             kwargs.data,
             kwargs.dataset.num_classes,
             kwargs.dataset.num_features,
             seed,
-            total_epochs,                       
+            total_epochs,
+            model_class                       
         )
     
     if (kwargs.corruption_type) or (kwargs.extract_embeddings):
@@ -275,40 +287,44 @@ def quantize(kwargs, wandb_logger):
         name += '_quadratic'
     
     if kwargs.corruption_type:
-        raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_calquant_corrupt_{}_seed-{}_ep-{}.csv".format(
+        raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_calquant_corrupt_{}_seed-{}_ep-{}_{}.csv".format(
                 name, #kwargs.exp_name,
                 kwargs.data,
                 kwargs.dataset.num_classes,
                 kwargs.dataset.num_features,
                 kwargs.corruption_type,
                 seed,
-                total_epochs           
+                total_epochs,
+                model_class           
             )
-        raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_calquant_corrupt_{}_seed-{}_ep-{}.csv".format(
+        raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_calquant_corrupt_{}_seed-{}_ep-{}_{}.csv".format(
             name, #kwargs.exp_name,
             kwargs.data,
             kwargs.dataset.num_classes,
             kwargs.dataset.num_features,
             kwargs.corruption_type,
             seed,
-            total_epochs,                       
+            total_epochs,   
+            model_class                    
         )        
     else: 
-        raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_calquant_seed-{}_ep-{}.csv".format(
+        raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_calquant_seed-{}_ep-{}_{}.csv".format(
                 name, #kwargs.exp_name,
                 kwargs.data,
                 kwargs.dataset.num_classes,
                 kwargs.dataset.num_features,
                 seed,
-                total_epochs           
+                total_epochs,           
+                model_class
             )
-        raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_calquant_seed-{}_ep-{}.csv".format(
+        raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_calquant_seed-{}_ep-{}_{}.csv".format(
             name, #kwargs.exp_name,
             kwargs.data,
             kwargs.dataset.num_classes,
             kwargs.dataset.num_features,
             seed,
-            total_epochs,                       
+            total_epochs,
+            model_class                       
         )
         
     if kwargs.corruption_type:

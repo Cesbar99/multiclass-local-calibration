@@ -77,6 +77,14 @@ def calibrate(kwargs, wandb_logger):
     if (kwargs.corruption_type) and (kwargs.corruption_type not in corruptions):
         raise ValueError(f'Unknown corruption type! {kwargs.corruption_type} was given.')
     
+    epochs = kwargs.checkpoint.epochs
+    if epochs == 9:
+        model_class = 'resnet'
+    elif kwargs.checkpoint.epochs == 20:
+        model_class = 'vit'
+    else:
+        raise ValueError(f'Checkpoint not corresponding to a trained modl! {kwargs.checkpoint.epochs} was given but only 9 and 20 are supported')            
+    
     if kwargs.models.lambda_kl == 0:
         print("PROCEED SAFELY WITH REFERENCE KERNEL CALIBRATION!")
     if kwargs.models.kernel_only:
@@ -155,54 +163,59 @@ def calibrate(kwargs, wandb_logger):
             pl_model = AuxTrainer(kwargs.models, num_classes=kwargs.dataset.num_classes)    
         
         if kwargs.corruption_type:
-            raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
+            raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}_{}.csv".format(
                     kwargs.exp_name,
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
                     kwargs.corruption_type,
                     seed,
-                    total_epochs           
+                    total_epochs,
+                    model_class           
                 )
-            raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
+            raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}_{}.csv".format(
                 kwargs.exp_name,
                 kwargs.data,
                 kwargs.dataset.num_classes,
                 kwargs.dataset.num_features,
                 kwargs.corruption_type,
                 seed,
-                total_epochs,                       
+                total_epochs,
+                model_class                       
             )
             if kwargs.models.lambda_kl == 0:
-                raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
+                raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}_{}.csv".format(
                     'reference_kernel',
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
                     kwargs.corruption_type,
                     seed,
-                    total_epochs           
+                    total_epochs,
+                    model_class           
                 )
-                raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
+                raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}_{}.csv".format(
                     'reference_kernel',
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
                     kwargs.corruption_type,
                     seed,
-                    total_epochs,                       
+                    total_epochs,  
+                    model_class                     
                 )
             if kwargs.models.kernel_only:
-                raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
+                raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}_{}.csv".format(
                     'kernel_only',
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
                     kwargs.corruption_type,
                     seed,
-                    total_epochs           
+                    total_epochs,
+                    model_class           
                 )
-                raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
+                raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}_{}.csv".format(
                     'kernel_only',
                     kwargs.data,
                     kwargs.dataset.num_classes,
@@ -210,57 +223,64 @@ def calibrate(kwargs, wandb_logger):
                     kwargs.corruption_type,
                     seed,
                     total_epochs,                       
+                    model_class
                 )            
         else:
-            raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
+            raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}_{}.csv".format(
                     kwargs.exp_name,
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
                     seed,
-                    total_epochs           
+                    total_epochs,
+                    model_class           
                 )
-            raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}.csv".format(
+            raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_{}.csv".format(
                 kwargs.exp_name,
                 kwargs.data,
                 kwargs.dataset.num_classes,
                 kwargs.dataset.num_features,
                 seed,
-                total_epochs,                       
+                total_epochs,    
+                model_class                   
             )
             if kwargs.models.lambda_kl == 0:
-                raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
+                raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}_{}.csv".format(
                     'reference_kernel',
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
                     seed,
-                    total_epochs           
+                    total_epochs,
+                    model_class           
                 )
-                raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}.csv".format(
+                raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_{}.csv".format(
                     'reference_kernel',
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
                     seed,
                     total_epochs,                       
+                    model_class
                 )
             if kwargs.models.kernel_only:
-                raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
+                raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}_{}.csv".format(
                     'kernel_only',
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
                     seed,
-                    total_epochs           
+                    total_epochs,
+                    model_class           
                 )
-                raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}.csv".format(
+                raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_{}.csv".format(
                     'kernel_only',
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
                     seed,
                     total_epochs,                       
+                    model_class
                 )
     
     if (kwargs.corruption_type) or (kwargs.extract_embeddings):

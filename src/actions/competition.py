@@ -87,28 +87,39 @@ def competition(kwargs, wandb_logger=None):
     if (kwargs.corruption_type) and (kwargs.corruption_type not in corruptions):
         raise ValueError(f'Unknown corruption type! {kwargs.corruption_type} was given.')
     
+    epochs = kwargs.checkpoint.epochs
+    if epochs == 9:
+        model_class = 'resnet'
+    elif kwargs.checkpoint.epochs == 20:
+        model_class = 'vit'
+    else:
+        raise ValueError(f'Checkpoint not corresponding to a trained modl! {kwargs.checkpoint.epochs} was given but only 9 and 20 are supported')
+            
+    
     if 'SMS' in kwargs.methods:
         kwargs.method = 'SMS' # STRUCTURED MATRIX SCALING
         #num_classes}_classes_{kwargs.dataset.num_features}_features/"
         #os.makedirs(path, exist_ok=True) 
         os.makedirs(f"results/{kwargs.exp_name}_{kwargs.method}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
-        raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
+        raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}_{}.csv".format(
                     kwargs.exp_name,
                     kwargs.method,
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
                     seed,
-                    kwargs.models.max_iter           
+                    kwargs.models.max_iter,
+                    model_class           
                 )
-        raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}.csv".format(
+        raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_{}.csv".format(
                 kwargs.exp_name,
                 kwargs.method,
                 kwargs.data,
                 kwargs.dataset.num_classes,
                 kwargs.dataset.num_features,
                 seed,
-                kwargs.models.max_iter                      
+                kwargs.models.max_iter,
+                model_class                      
             )
         # Assume you already trained `model`
         scaler = SMS()
@@ -152,7 +163,7 @@ def competition(kwargs, wandb_logger=None):
             elif kwargs.data == 'cifar100':
                 dataset = Cifar100Data(kwargs, experiment=kwargs.exp_name)                 
                 
-            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
+            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}_{}.csv".format(
                         kwargs.exp_name,
                         kwargs.method,
                         kwargs.data,
@@ -160,9 +171,10 @@ def competition(kwargs, wandb_logger=None):
                         kwargs.dataset.num_features,
                         kwargs.corruption_type,
                         seed,
-                        kwargs.models.max_iter           
+                        kwargs.models.max_iter,
+                        model_class           
                     )
-            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
+            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}_{}.csv".format(
                     kwargs.exp_name,
                     kwargs.method,
                     kwargs.data,
@@ -170,7 +182,8 @@ def competition(kwargs, wandb_logger=None):
                     kwargs.dataset.num_features,
                     kwargs.corruption_type,
                     seed,
-                    kwargs.models.max_iter                      
+                    kwargs.models.max_iter,
+                    model_class                      
                 )
             
             raws = []
@@ -209,23 +222,25 @@ def competition(kwargs, wandb_logger=None):
         #num_classes}_classes_{kwargs.dataset.num_features}_features/"
         #os.makedirs(path, exist_ok=True) 
         os.makedirs(f"results/{kwargs.exp_name}_{kwargs.method}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
-        raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
+        raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}_{}.csv".format(
                     kwargs.exp_name,
                     kwargs.method,
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
                     seed,
-                    kwargs.models.max_iter           
+                    kwargs.models.max_iter,
+                    model_class           
                 )
-        raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}.csv".format(
+        raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_{}.csv".format(
                 kwargs.exp_name,
                 kwargs.method,
                 kwargs.data,
                 kwargs.dataset.num_classes,
                 kwargs.dataset.num_features,
                 seed,
-                kwargs.models.max_iter                      
+                kwargs.models.max_iter,
+                model_class                      
             )
         # Assume you already trained `model`
         scaler = DirichletCalibrator(n_classes=kwargs.dataset.num_classes, max_iter=kwargs.models.max_iter, lr=kwargs.models.temp_lr)
@@ -269,7 +284,7 @@ def competition(kwargs, wandb_logger=None):
             elif kwargs.data == 'cifar100':
                 dataset = Cifar100Data(kwargs, experiment=kwargs.exp_name)                 
                 
-            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
+            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}_{}.csv".format(
                         kwargs.exp_name,
                         kwargs.method,
                         kwargs.data,
@@ -277,9 +292,10 @@ def competition(kwargs, wandb_logger=None):
                         kwargs.dataset.num_features,
                         kwargs.corruption_type,
                         seed,
-                        kwargs.models.max_iter           
+                        kwargs.models.max_iter,
+                        model_class           
                     )
-            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
+            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}_{}.csv".format(
                     kwargs.exp_name,
                     kwargs.method,
                     kwargs.data,
@@ -287,7 +303,8 @@ def competition(kwargs, wandb_logger=None):
                     kwargs.dataset.num_features,
                     kwargs.corruption_type,
                     seed,
-                    kwargs.models.max_iter                      
+                    kwargs.models.max_iter,
+                    model_class                      
                 )
             
             raws = []
@@ -326,23 +343,25 @@ def competition(kwargs, wandb_logger=None):
         #num_classes}_classes_{kwargs.dataset.num_features}_features/"
         #os.makedirs(path, exist_ok=True) 
         os.makedirs(f"results/{kwargs.exp_name}_{kwargs.method}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
-        raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
+        raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}_{}.csv".format(
                     kwargs.exp_name,
                     kwargs.method,
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
                     seed,
-                    kwargs.models.max_iter           
+                    kwargs.models.max_iter,
+                    model_class           
                 )
-        raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}.csv".format(
+        raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_{}.csv".format(
                 kwargs.exp_name,
                 kwargs.method,
                 kwargs.data,
                 kwargs.dataset.num_classes,
                 kwargs.dataset.num_features,
                 seed,
-                kwargs.models.max_iter                      
+                kwargs.models.max_iter,
+                model_class                      
             )
         # Assume you already trained `model`
         scaler = TemperatureScaler(kwargs.models.max_iter, kwargs.models.temp_lr)
@@ -387,7 +406,7 @@ def competition(kwargs, wandb_logger=None):
             elif kwargs.data == 'cifar100':
                 dataset = Cifar100Data(kwargs, experiment=kwargs.exp_name)                 
                 
-            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
+            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}_{}.csv".format(
                         kwargs.exp_name,
                         kwargs.method,
                         kwargs.data,
@@ -395,9 +414,10 @@ def competition(kwargs, wandb_logger=None):
                         kwargs.dataset.num_features,
                         kwargs.corruption_type,
                         seed,
-                        kwargs.models.max_iter           
+                        kwargs.models.max_iter,
+                        model_class           
                     )
-            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
+            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}_{}.csv".format(
                     kwargs.exp_name,
                     kwargs.method,
                     kwargs.data,
@@ -405,7 +425,8 @@ def competition(kwargs, wandb_logger=None):
                     kwargs.dataset.num_features,
                     kwargs.corruption_type,
                     seed,
-                    kwargs.models.max_iter                      
+                    kwargs.models.max_iter,
+                    model_class                      
                 )
             
             raws = []
@@ -446,7 +467,7 @@ def competition(kwargs, wandb_logger=None):
             elif kwargs.data == 'cifar100':
                 dataset = Cifar100Data(kwargs, experiment=kwargs.exp_name)                 
                 
-            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
+            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}_{}.csv".format(
                         kwargs.exp_name,
                         kwargs.method,
                         kwargs.data,
@@ -454,9 +475,10 @@ def competition(kwargs, wandb_logger=None):
                         kwargs.dataset.num_features,
                         kwargs.corruption_type,
                         seed,
-                        kwargs.models.max_iter           
+                        kwargs.models.max_iter,
+                        model_class           
                     )
-            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
+            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}_{}.csv".format(
                     kwargs.exp_name,
                     kwargs.method,
                     kwargs.data,
@@ -464,7 +486,8 @@ def competition(kwargs, wandb_logger=None):
                     kwargs.dataset.num_features,
                     kwargs.corruption_type,
                     seed,
-                    kwargs.models.max_iter                      
+                    kwargs.models.max_iter,
+                    model_class                      
                 )
             
             raws = []
@@ -503,23 +526,25 @@ def competition(kwargs, wandb_logger=None):
         #num_classes}_classes_{kwargs.dataset.num_features}_features/"
         #os.makedirs(path, exist_ok=True) 
         os.makedirs(f"results/{kwargs.exp_name}_{kwargs.method}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
-        raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
+        raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}_{}.csv".format(
                     kwargs.exp_name,
                     kwargs.method,
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
                     seed,
-                    kwargs.models.max_iter           
+                    kwargs.models.max_iter,
+                    model_class           
                 )
-        raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}.csv".format(
+        raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_{}.csv".format(
                 kwargs.exp_name,
                 kwargs.method,
                 kwargs.data,
                 kwargs.dataset.num_classes,
                 kwargs.dataset.num_features,
                 seed,
-                kwargs.models.max_iter                      
+                kwargs.models.max_iter,
+                model_class                      
             )
         # Assume you already trained `model`
         scaler = IsotonicCalibrator(out_dim=kwargs.dataset.num_classes)
@@ -560,7 +585,7 @@ def competition(kwargs, wandb_logger=None):
             elif kwargs.data == 'cifar100':
                 dataset = Cifar100Data(kwargs, experiment=kwargs.exp_name)                 
                 
-            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
+            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}_{}.csv".format(
                         kwargs.exp_name,
                         kwargs.method,
                         kwargs.data,
@@ -568,9 +593,10 @@ def competition(kwargs, wandb_logger=None):
                         kwargs.dataset.num_features,
                         kwargs.corruption_type,
                         seed,
-                        kwargs.models.max_iter           
+                        kwargs.models.max_iter,
+                        model_class           
                     )
-            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
+            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}_{}.csv".format(
                     kwargs.exp_name,
                     kwargs.method,
                     kwargs.data,
@@ -578,7 +604,8 @@ def competition(kwargs, wandb_logger=None):
                     kwargs.dataset.num_features,
                     kwargs.corruption_type,
                     seed,
-                    kwargs.models.max_iter                      
+                    kwargs.models.max_iter,
+                    model_class                      
                 )
             
             raws = []
@@ -618,23 +645,25 @@ def competition(kwargs, wandb_logger=None):
         #num_classes}_classes_{kwargs.dataset.num_features}_features/"
         #os.makedirs(path, exist_ok=True) 
         os.makedirs(f"results/{kwargs.exp_name}_{kwargs.method}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
-        raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
+        raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}_{}.csv".format(
                     kwargs.exp_name,
                     kwargs.method,
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
                     seed,
-                    kwargs.models.max_iter           
+                    kwargs.models.max_iter,
+                    model_class           
                 )
-        raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}.csv".format(
+        raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_{}.csv".format(
                 kwargs.exp_name,
                 kwargs.method,
                 kwargs.data,
                 kwargs.dataset.num_classes,
                 kwargs.dataset.num_features,
                 seed,
-                kwargs.models.max_iter                      
+                kwargs.models.max_iter,
+                model_class                      
             )
         # Assume you already trained `model`
         scaler = PlattScaler(out_dim=kwargs.dataset.num_classes)
@@ -675,7 +704,7 @@ def competition(kwargs, wandb_logger=None):
             elif kwargs.data == 'cifar100':
                 dataset = Cifar100Data(kwargs, experiment=kwargs.exp_name)                 
                 
-            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
+            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}_{}.csv".format(
                         kwargs.exp_name,
                         kwargs.method,
                         kwargs.data,
@@ -683,9 +712,10 @@ def competition(kwargs, wandb_logger=None):
                         kwargs.dataset.num_features,
                         kwargs.corruption_type,
                         seed,
-                        kwargs.models.max_iter           
+                        kwargs.models.max_iter,
+                        model_class           
                     )
-            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
+            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}_{}.csv".format(
                     kwargs.exp_name,
                     kwargs.method,
                     kwargs.data,
@@ -693,7 +723,8 @@ def competition(kwargs, wandb_logger=None):
                     kwargs.dataset.num_features,
                     kwargs.corruption_type,
                     seed,
-                    kwargs.models.max_iter                      
+                    kwargs.models.max_iter,
+                    model_class                      
                 )
             
             raws = []
@@ -734,7 +765,7 @@ def competition(kwargs, wandb_logger=None):
         #num_classes}_classes_{kwargs.dataset.num_features}_features/"
         #os.makedirs(path, exist_ok=True) 
         os.makedirs(f"results/{kwargs.exp_name}_{kwargs.method}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features", exist_ok=True)    
-        raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}.csv".format(
+        raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}_{}.csv".format(
                     kwargs.exp_name,
                     kwargs.method,
                     kwargs.data,
@@ -743,14 +774,15 @@ def competition(kwargs, wandb_logger=None):
                     seed,
                     kwargs.models.max_iter           
                 )
-        raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}.csv".format(
+        raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_{}.csv".format(
                 kwargs.exp_name,
                 kwargs.method,
                 kwargs.data,
                 kwargs.dataset.num_classes,
                 kwargs.dataset.num_features,
                 seed,
-                kwargs.models.max_iter                      
+                kwargs.models.max_iter,
+                model_class                      
             )
         # Assume you already trained `model`
         scaler = DensityRatioCalibration(num_neighbors=kwargs.models.num_neighbors)
@@ -794,7 +826,7 @@ def competition(kwargs, wandb_logger=None):
             elif kwargs.data == 'cifar100':
                 dataset = Cifar100Data(kwargs, experiment=kwargs.exp_name)                 
                 
-            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
+            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}_{}.csv".format(
                         kwargs.exp_name,
                         kwargs.method,
                         kwargs.data,
@@ -804,7 +836,7 @@ def competition(kwargs, wandb_logger=None):
                         seed,
                         kwargs.models.max_iter           
                     )
-            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
+            raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}_{}.csv".format(
                     kwargs.exp_name,
                     kwargs.method,
                     kwargs.data,
@@ -812,7 +844,8 @@ def competition(kwargs, wandb_logger=None):
                     kwargs.dataset.num_features,
                     kwargs.corruption_type,
                     seed,
-                    kwargs.models.max_iter                      
+                    kwargs.models.max_iter,
+                    model_class                      
                 )
             
             raws = []

@@ -263,7 +263,7 @@ def calibrate(kwargs, wandb_logger):
                     total_epochs,                       
                 )
     
-    if kwargs.corruption_type:
+    if (kwargs.corruption_type) or (kwargs.extract_embeddings):
         print(F'LOADING CHECKPOINT FILE {best_model_path}')
         best_model_path = path + f"classifier_seed-{seed}_ep-{total_epochs}"   
         checkpoint = torch.load(best_model_path, map_location='cpu')

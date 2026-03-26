@@ -42,6 +42,7 @@ data: 'synthetic'
 calibration_method: "local_calibration"
 only_test: False
 corruption_type: 
+extract_embeddings: False
 
 # synthetic data model
 #init_logits_scaling: 1.

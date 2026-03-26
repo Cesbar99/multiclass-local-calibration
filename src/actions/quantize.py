@@ -195,7 +195,7 @@ def quantize(kwargs, wandb_logger):
             total_epochs,                       
         )
     
-    if kwargs.corruption_type:
+    if (kwargs.corruption_type) or (kwargs.extract_embeddings):
         best_model_path = path + f"VQHEAD_seed-{seed}_ep-{total_epochs}.ckpt"
         print(F'LOADING CHECKPOINT FILE {best_model_path}')
         checkpoint = torch.load(best_model_path, map_location=device, weights_only=False)

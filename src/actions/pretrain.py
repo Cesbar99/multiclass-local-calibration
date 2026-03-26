@@ -196,7 +196,7 @@ def pretrain(kwargs, wandb_logger):
     #     )
     
     # if kwargs.data != 'food101':
-    if kwargs.corruption_type:
+    if (kwargs.corruption_type) or (kwargs.extract_embeddings):
         best_model_path = path + f"classifier_seed-{seed}_ep-{kwargs.checkpoint.epochs}_tmp_{kwargs.models.temperature}.pt"                        # Static filename (no epoch suffix)                
         checkpoint = torch.load(best_model_path, map_location=device)
         pl_model.model.load_state_dict(checkpoint)

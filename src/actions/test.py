@@ -833,12 +833,13 @@ def test(kwargs):
         save_path = join(kwargs.save_path_calibration_plots, appendix)
         os.makedirs(save_path, exist_ok=True)  
         if kwargs.corruption_type:              
-            test_results = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{kwargs.corruption_type}_seed-{}_ep-{}.csv".format(
+            test_results = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_corrupt_{}_seed-{}_ep-{}.csv".format(
                         kwargs.exp_name,
                         kwargs.method,
                         kwargs.data,
                         kwargs.dataset.num_classes,
                         kwargs.dataset.num_features,
+                        kwargs.corruption_type,
                         kwargs.seed,
                         kwargs.models.max_iter,                
                     )

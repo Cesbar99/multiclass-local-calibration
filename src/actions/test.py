@@ -31,10 +31,17 @@ def test(kwargs):
     
     if (kwargs.corruption_type) and (kwargs.corruption_type not in corruptions):
         raise ValueError(f'Unknown corruption type! {kwargs.corruption_type} was given.')
+    
+    epochs = kwargs.checkpoint.epochs
+    if epochs == 9:
+        model_class = 'resnet'
+    elif kwargs.checkpoint.epochs == 20:
+        model_class = 'vit'
+    else:
+        raise ValueError(f'Checkpoint not corresponding to a trained modl! {kwargs.checkpoint.epochs} was given but only 9 and 20 are supported')
             
     if kwargs.exp_name == 'pre-train':   
-        # if kwargs.data != 'food101':
-        epochs = kwargs.checkpoint.epochs
+        # if kwargs.data != 'food101':        
         temperature = kwargs.checkpoint.temperature
         # else:
         #     epochs = 'None'
@@ -184,7 +191,7 @@ def test(kwargs):
         # Specify your directory and filename
         output_dir = join(kwargs.save_path_calibration_metrics, appendix)
         os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, f"accs_eval_cal_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}.csv")
+        output_file = os.path.join(output_dir, f"accs_eval_cal_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv")
         df_accs.to_csv(output_file, index=False) 
         
         if not kwargs.only_test: # COMPUTE METRIC IN ADDITION TO ACCURACY
@@ -235,7 +242,7 @@ def test(kwargs):
             # Specify your directory and filename
             output_dir = join(kwargs.save_path_calibration_metrics, appendix)
             os.makedirs(output_dir, exist_ok=True)
-            output_file = os.path.join(output_dir, f"metric_eval_cal_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}.csv")
+            output_file = os.path.join(output_dir, f"metric_eval_cal_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv")
 
             # Save to CSV
             df.to_csv(output_file, index=False)  
@@ -345,7 +352,7 @@ def test(kwargs):
         # Specify your directory and filename
         output_dir = join(kwargs.save_path_calibration_metrics, appendix)
         os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, f'accs_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}.csv') #'metric_' + appendix +  
+        output_file = os.path.join(output_dir, f'accs_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix +  
         # Save to CSV
         df_accs.to_csv(output_file, index=False) 
                 
@@ -373,9 +380,9 @@ def test(kwargs):
         }).sort_values("codeword")
         print(usage_df)
         if kwargs.corruption_type:
-            output_file = os.path.join(output_dir, f'usage_stats_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}.csv') #'metric_' + appendix +  
+            output_file = os.path.join(output_dir, f'usage_stats_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix +  
         else:
-            output_file = os.path.join(output_dir, f'usage_stats_seed_{kwargs.seed}.csv') #'metric_' + appendix +  
+            output_file = os.path.join(output_dir, f'usage_stats_seed_{kwargs.seed}_{model_class}.csv') #'metric_' + appendix +  
         usage_df.to_csv(output_file, index=False)  
         # ================================
         
@@ -431,7 +438,7 @@ def test(kwargs):
                     # Specify your directory and filename
                     output_dir = join(kwargs.save_path_calibration_metrics, appendix)
                     os.makedirs(output_dir, exist_ok=True)
-                    output_file = os.path.join(output_dir, f'metrics_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}.csv') #'metric_' + appendix + 
+                    output_file = os.path.join(output_dir, f'metrics_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix + 
 
                     # Save to CSV
                     df.to_csv(output_file, index=False)  
@@ -485,7 +492,7 @@ def test(kwargs):
                         # Specify your directory and filename
                         output_dir = join(kwargs.save_path_calibration_metrics, appendix)
                         os.makedirs(output_dir, exist_ok=True)
-                        output_file = os.path.join(output_dir, f'gamma_plot_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}.csv') #'metric_' + appendix + 
+                        output_file = os.path.join(output_dir, f'gamma_plot_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix + 
 
                         # Save to CSV
                         df.to_csv(output_file, index=False)                                                             
@@ -642,7 +649,7 @@ def test(kwargs):
         # Specify your directory and filename
         output_dir = join(kwargs.save_path_calibration_metrics, appendix)
         os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, f'accs_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}.csv') #'metric_' + appendix +  
+        output_file = os.path.join(output_dir, f'accs_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix +  
         # Save to CSV
         df_accs.to_csv(output_file, index=False)      
         
@@ -686,7 +693,7 @@ def test(kwargs):
                     # Specify your directory and filename
                     output_dir = join(kwargs.save_path_calibration_metrics, appendix)
                     os.makedirs(output_dir, exist_ok=True)
-                    output_file = os.path.join(output_dir, f'metrics_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}.csv') #'metric_' + appendix + 
+                    output_file = os.path.join(output_dir, f'metrics_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix + 
 
                     # Save to CSV
                     df.to_csv(output_file, index=False)  
@@ -718,7 +725,7 @@ def test(kwargs):
                             # Specify your directory and filename
                             output_dir = join(kwargs.save_path_calibration_metrics, appendix)
                             os.makedirs(output_dir, exist_ok=True)
-                            output_file = os.path.join(output_dir, f'metrics_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}.csv') #'metric_' + appendix + 
+                            output_file = os.path.join(output_dir, f'metrics_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix + 
 
                             # Save to CSV
                             df.to_csv(output_file, index=False)  
@@ -738,7 +745,7 @@ def test(kwargs):
                     # Specify your directory and filename
                     output_dir = join(kwargs.save_path_calibration_metrics, appendix)
                     os.makedirs(output_dir, exist_ok=True)
-                    output_file = os.path.join(output_dir, f'gamma_plot_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}.csv') #'metric_' + appendix + 
+                    output_file = os.path.join(output_dir, f'gamma_plot_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix + 
 
                     # Save to CSV
                     df.to_csv(output_file, index=False)                                                             
@@ -866,7 +873,7 @@ def test(kwargs):
         # Specify your directory and filename
         output_dir = join(kwargs.save_path_calibration_metrics, appendix)
         os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, f'accs_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}.csv') #'metric_' + appendix +  
+        output_file = os.path.join(output_dir, f'accs_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix +  
         # Save to CSV
         df_accs.to_csv(output_file, index=False)    
                
@@ -920,7 +927,7 @@ def test(kwargs):
                 # Specify your directory and filename
                 output_dir = join(kwargs.save_path_calibration_metrics, appendix)
                 os.makedirs(output_dir, exist_ok=True)
-                output_file = os.path.join(output_dir, f'metrics_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}.csv') #'metric_' + appendix + 
+                output_file = os.path.join(output_dir, f'metrics_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix + 
 
                 # Save to CSV
                 df.to_csv(output_file, index=False)   
@@ -950,7 +957,7 @@ def test(kwargs):
                         # Specify your directory and filename
                         output_dir = join(kwargs.save_path_calibration_metrics, appendix)
                         os.makedirs(output_dir, exist_ok=True)
-                        output_file = os.path.join(output_dir, f'gamma_plot_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_corrupt_{kwargs.corruption_type}_seed_{kwargs.seed}.csv') #'metric_' + appendix + 
+                        output_file = os.path.join(output_dir, f'gamma_plot_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_corrupt_{kwargs.corruption_type}_seed_{kwargs.seed}_{model_class}.csv') #'metric_' + appendix + 
 
                         # Save to CSV
                         df.to_csv(output_file, index=False)                                   
@@ -1008,7 +1015,7 @@ def test(kwargs):
         # Specify your directory and filename
         output_dir = join(kwargs.save_path_calibration_metrics, appendix)
         os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, f'accs_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}.csv') #'metric_' + appendix +  
+        output_file = os.path.join(output_dir, f'accs_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix +  
         # Save to CSV
         df_accs.to_csv(output_file, index=False) 
                 
@@ -1059,7 +1066,7 @@ def test(kwargs):
                     # Specify your directory and filename
                     output_dir = join(kwargs.save_path_calibration_metrics, appendix)
                     os.makedirs(output_dir, exist_ok=True)
-                    output_file = os.path.join(output_dir, f'metrics_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}.csv') #'metric_' + appendix + 
+                    output_file = os.path.join(output_dir, f'metrics_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix + 
 
                     # Save to CSV
                     df.to_csv(output_file, index=False)  
@@ -1093,7 +1100,7 @@ def test(kwargs):
                             # Specify your directory and filename
                             output_dir = join(kwargs.save_path_calibration_metrics, appendix)
                             os.makedirs(output_dir, exist_ok=True)
-                            output_file = os.path.join(output_dir, f'gamma_plot_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}.csv') #'metric_' + appendix + 
+                            output_file = os.path.join(output_dir, f'gamma_plot_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix + 
 
                             # Save to CSV
                             df.to_csv(output_file, index=False)                                                             

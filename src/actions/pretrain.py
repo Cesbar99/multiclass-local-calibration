@@ -197,9 +197,16 @@ def pretrain(kwargs, wandb_logger):
     
     # if kwargs.data != 'food101':
     if (kwargs.corruption_type) or (kwargs.extract_embeddings):
-        best_model_path = path + f"classifier_seed-{seed}_ep-{kwargs.checkpoint.epochs}_tmp_{kwargs.models.temperature}.pt"                        # Static filename (no epoch suffix)                
-        checkpoint = torch.load(best_model_path, map_location=device)
-        pl_model.model.load_state_dict(checkpoint)
+        if kwargs.checkpoint.epochs == 20:
+            best_model_path = path + f"classifier_seed-{seed}_ep-{kwargs.checkpoint.epochs}_tmp_{kwargs.models.temperature}.pt.ckpt"                        # Static filename (no epoch suffix)                
+            checkpoint = torch.load(best_model_path, map_location=device)
+            #pl_model.model.load_state_dict(checkpoint)
+            state_dict = checkpoint["state_dict"]            
+            pl_model.load_state_dict(state_dict)
+        elif kwargs.checkpoint.epochs == 9:
+            best_model_path = path + f"classifier_seed-{seed}_ep-{kwargs.checkpoint.epochs}_tmp_{kwargs.models.temperature}.pt"                        # Static filename (no epoch suffix)                
+            checkpoint = torch.load(best_model_path, map_location=device)
+            pl_model.model.load_state_dict(checkpoint)
     else:      
         if kwargs.use_optuna:     
             csv_path = f"optuna_logs/optuna_best_configs_pretrain_{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features.csv"

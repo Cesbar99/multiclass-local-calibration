@@ -183,6 +183,7 @@ class MedMnistModel(pl.LightningModule):
         self.temperature = kwargs.temperature
         self.optimizer_cfg = kwargs.optimizer
         self.use_acc = kwargs.use_acc
+        self.name = kwargs.model
         
         if kwargs.model == 'tissue_vit':
             self.model = TissueMnistVit(self.temperature)

@@ -161,7 +161,7 @@ class TissueMnistVit(nn.Module):
     def __init__(self, temperature=1.0, num_labels=8):
         super(TissueMnistVit, self).__init__()      
         self.scaler = ScaledLogits(temperature)
-        self.vit = timm.create_model('vit_base_patch16_224', pretrained=True, num_classes=num_labels, in_chans=1)
+        self.vit = timm.create_model('vit_base_patch16_224', pretrained=True, num_classes=num_labels, in_chans=3)
         print(self.vit)
         
         # Freeze all parameters

@@ -35,7 +35,7 @@ def test(kwargs):
     epochs = kwargs.checkpoint.epochs
     if epochs == 9:
         model_class = 'resnet'
-    elif kwargs.checkpoint.epochs == 20:
+    elif kwargs.checkpoint.epochs == 5:
         model_class = 'vit'
     else:
         raise ValueError(f'Checkpoint not corresponding to a trained modl! {kwargs.checkpoint.epochs} was given but only 9 and 20 are supported')

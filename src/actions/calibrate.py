@@ -290,8 +290,8 @@ def calibrate(kwargs, wandb_logger):
                     model_class
                 )
     
-    if (kwargs.corruption_type) or (kwargs.extract_embeddings):        
-        best_model_path = path + f"localnet_old_seed-{seed}_ep-{total_epochs}.ckpt" # f"classifier_seed-{seed}_ep-{total_epochs}"    
+    if (kwargs.corruption_type) or (kwargs.extract_embeddings):             
+        best_model_path = path + filename + '.ckpt' #f"localnet_old_seed-{seed}_ep-{total_epochs}.ckpt" # f"classifier_seed-{seed}_ep-{total_epochs}"    
         checkpoint = torch.load(best_model_path, map_location='cpu')
         print(checkpoint['state_dict'].keys())      
         pl_model.model.load_state_dict(checkpoint['state_dict'])   #         

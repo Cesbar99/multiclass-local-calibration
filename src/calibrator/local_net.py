@@ -75,7 +75,7 @@ class AuxiliaryMLP(pl.LightningModule):
         out = self.dense8(x) + z_aug
         return out
     
-    
+
 class AuxiliaryMLPV2(pl.LightningModule):
     def __init__(self, hidden_dim=64, feature_dim=2048, output_dim=2, similarity_dim=50, init_alpha_sim=1, init_alpha_cls=1,
                  log_var_initializer=0.01, dropout_rate=0.1, fixed_var=False, linearly_combine_pca=False):
@@ -111,16 +111,17 @@ class AuxiliaryMLPV2(pl.LightningModule):
         # Define layers
         self.dense1 = nn.Linear(feature_dim, hidden_dim)
         self.dropout1 = nn.Dropout(p=self.dropout_rate)  # Dropout layer         
-        self.dense2 = nn.Linear(hidden_dim, hidden_dim)
-        self.dropout2 = nn.Dropout(p=self.dropout_rate)  # Dropout layer  
-        self.dense3 = nn.Linear(hidden_dim, hidden_dim)
-        self.dropout3 = nn.Dropout(p=self.dropout_rate)  # Dropout layer   
-        self.dense4 = nn.Linear(hidden_dim, hidden_dim)
-        self.dropout4 = nn.Dropout(p=self.dropout_rate)  # Dropout layer 
-        self.dense5 = nn.Linear(hidden_dim, hidden_dim)
-        self.dropout5 = nn.Dropout(p=self.dropout_rate)  # Dropout layer 
-        self.dense6 = nn.Linear(hidden_dim, hidden_dim)
-        self.dropout6 = nn.Dropout(p=self.dropout_rate)  # Dropout layer                           
+        # self.dense2 = nn.Linear(hidden_dim, hidden_dim)
+        # self.dropout2 = nn.Dropout(p=self.dropout_rate)  # Dropout layer  
+        # self.dense3 = nn.Linear(hidden_dim, hidden_dim)
+        # self.dropout3 = nn.Dropout(p=self.dropout_rate)  # Dropout layer   
+        
+        # self.dense4 = nn.Linear(hidden_dim, hidden_dim)
+        # self.dropout4 = nn.Dropout(p=self.dropout_rate)  # Dropout layer 
+        # self.dense5 = nn.Linear(hidden_dim, hidden_dim)
+        # self.dropout5 = nn.Dropout(p=self.dropout_rate)  # Dropout layer 
+        # self.dense6 = nn.Linear(hidden_dim, hidden_dim)
+        # self.dropout6 = nn.Dropout(p=self.dropout_rate)  # Dropout layer                           
         
         if self.fixed_var:
             self.similarity_head = nn.Linear(hidden_dim, similarity_dim) #hidden_dim            
@@ -148,10 +149,10 @@ class AuxiliaryMLPV2(pl.LightningModule):
             
         if self.linearly_combine_pca:   
             # FOR TISSUE AND CIFAR10 ALSO A SINGLE PARAMETER WORKS FINE. FOR CIFAR100 FULL VECTOR REQUIRED.
-            self.alpha_sim = nn.Parameter(torch.randn(self.similarity_dim) * 0.01 + self.init_alpha_sim) #nn.Parameter(torch.tensor(1., dtype=torch.float32)) # # 
-            self.beta_sim = nn.Parameter(torch.randn(self.similarity_dim) * 0.01) #nn.Parameter(torch.empty(1).normal_(mean=0.0, std=0.01)) # #
-            self.alpha_cls = nn.Parameter(torch.randn(self.output_dim) * 0.01 + self.init_alpha_cls) #nn.Parameter(torch.tensor(1., dtype=torch.float32)) # #  
-            self.beta_cls = nn.Parameter(torch.randn(self.output_dim) * 0.01) #nn.Parameter(torch.empty(1).normal_(mean=0.0, std=0.01)) #   # (8,) #nn.Parameter(torch.empty(1).normal_(mean=0.0, std=0.01))                         
+            self.alpha_sim = nn.Parameter(torch.tensor(self.init_alpha_sim, dtype=torch.float32))  #nn.Parameter(torch.randn(self.similarity_dim) * 0.01 + self.init_alpha_sim) ##  # # # 
+            self.beta_sim = nn.Parameter(torch.empty(1).normal_(mean=0.0, std=0.01))  #nn.Parameter(torch.randn(self.similarity_dim) * 0.01) ## # # #
+            self.alpha_cls = nn.Parameter(torch.tensor(self.init_alpha_cls, dtype=torch.float32)) #nn.Parameter(torch.randn(self.output_dim) * 0.01 + self.init_alpha_cls)  ### # #  
+            self.beta_cls = nn.Parameter(torch.empty(1).normal_(mean=0.0, std=0.01)) #nn.Parameter(torch.randn(self.output_dim) * 0.01)  # #
             
     def forward(self, feats, logits, pca):
         # z: (batch_size, latent_dim)
@@ -163,10 +164,11 @@ class AuxiliaryMLPV2(pl.LightningModule):
         
         x = F.relu(self.dense1(feats))
         x = self.dropout1(x)
-        x = F.relu(self.dense2(x))
-        x = self.dropout2(x)
-        x = F.relu(self.dense3(x))
-        x = self.dropout3(x)  
+        # x = F.relu(self.dense2(x))
+        # x = self.dropout2(x)
+        # x = F.relu(self.dense3(x))
+        # x = self.dropout3(x)  
+        
         # x = F.relu(self.dense4(x))
         # x = self.dropout4(x)  
         # x = F.relu(self.dense5(x))
@@ -190,6 +192,62 @@ class AuxiliaryMLPV2(pl.LightningModule):
         #classification_out = self.classifcation_head(x) + logits # self.dense8(x) + z_aug
         
         return classification_out, similarity_out
+"""    
     
+class AuxiliaryMLPV2(pl.LightningModule):
+    def __init__(self, hidden_dim=64, feature_dim=2048, output_dim=2, similarity_dim=50, init_alpha_sim=1, init_alpha_cls=1,
+                 log_var_initializer=0.01, dropout_rate=0.1, fixed_var=False, linearly_combine_pca=False):
+    # def __init__(self, hidden_dim=64, feature_dim=2048, output_dim=2, similarity_dim=50, 
+    #              log_var_initializer=0.01, dropout_rate=0.1, linearly_combine_pca=False):
+        super().__init__()
+        self.feature_dim = feature_dim
+        self.output_dim = output_dim
+        self.similarity_dim = similarity_dim
+        self.dropout_rate = dropout_rate        
+        self.linearly_combine_pca = linearly_combine_pca
+        
+        if isinstance(log_var_initializer, (float, int, torch.Tensor)) and not hasattr(log_var_initializer, '__len__'):
+            # Scalar case: fill with the same value            
+            var_tensor = torch.full((1,), log_var_initializer)
+        else:
+            raise TypeError("var_init must be a float, int, or tensor")        
+        
+        # Inverse Softplus
+        var_tensor = torch.log(torch.exp(var_tensor) - 1)        
+        
+        # Small weight initialization
+        small_init = nn.init.normal_
+
+        # Define layers
+        self.dense1 = nn.Linear(feature_dim, hidden_dim)
+        self.dropout1 = nn.Dropout(p=self.dropout_rate)  # Dropout layer                                    
+        
+        self.similarity_head = nn.Linear(hidden_dim, similarity_dim)            
+        self.classifcation_head = nn.Linear(hidden_dim, output_dim) 
+
+        # Initialize weights manually
+        small_init(self.dense1.weight, mean=0.0, std=0.01)
+        small_init(self.similarity_head.weight, mean=0.0, std=0.01)
+        small_init(self.classifcation_head.weight, mean=0.0, std=0.01)
+            
+        if self.linearly_combine_pca:   
+            self.alpha_sim = nn.Parameter(torch.tensor(1., dtype=torch.float32)) 
+            self.beta_sim = nn.Parameter(torch.empty(1).normal_(mean=0.0, std=0.01)) 
+            self.alpha_cls = nn.Parameter(torch.tensor(1., dtype=torch.float32)) 
+            self.beta_cls = nn.Parameter(torch.empty(1).normal_(mean=0.0, std=0.01)) 
+            
+    def forward(self, feats, logits, pca):        
+        x = F.relu(self.dense1(feats))
+        x = self.dropout1(x)
+
+        if self.linearly_combine_pca:
+            similarity_out =  self.similarity_head(x) + self.alpha_sim*pca + self.beta_sim 
+            classification_out = self.classifcation_head(x) + self.alpha_cls*logits + self.beta_cls.unsqueeze(0)
+        else:
+            similarity_out = self.similarity_head(x) + pca 
+            classification_out = self.classifcation_head(x) + logits 
+        
+        return classification_out, similarity_out    
+"""    
     
     

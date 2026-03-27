@@ -107,11 +107,17 @@ def calibrate(kwargs, wandb_logger):
             )        
     else:        
         path = f"checkpoints/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features/"
-        if kwargs.models.lambda_kl == 0:
-            f"checkpoints/reference_kernel/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features/"  
-        if kwargs.models.kernel_only:
-            path = f"checkpoints/kernel_only/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features/"          
+        if not kwargs.extract_embeddings:
+            if kwargs.models.lambda_kl == 0:
+                f"checkpoints/reference_kernel/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features/"  
+            if kwargs.models.kernel_only:
+                path = f"checkpoints/kernel_only/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features/"          
         os.makedirs(path, exist_ok=True) 
+        filename = f"localnet_old_seed-{seed}_ep-{total_epochs}"
+        if kwargs.models.lambda_kl == 0:
+            filename = f"refkernel_seed-{seed}_ep-{total_epochs}"
+        if kwargs.models.kernel_only:
+            filename = f"kernelonly_seed-{seed}_ep-{total_epochs}"
         
         result_path = f"results/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features"
         if kwargs.models.lambda_kl == 0:
@@ -137,6 +143,7 @@ def calibrate(kwargs, wandb_logger):
                 show_progress_bar=True,
                 callbacks=calls
             )
+            
             if kwargs.multi_obj:
                 fig = optuna.visualization.plot_pareto_front(study)    
                 appendix = kwargs.exp_name + '_' + kwargs.data + '_' + f'{kwargs.dataset.num_classes}_classes_' + f'{kwargs.dataset.num_features}_features'        
@@ -283,11 +290,12 @@ def calibrate(kwargs, wandb_logger):
                     model_class
                 )
     
-    if (kwargs.corruption_type) or (kwargs.extract_embeddings):
-        print(F'LOADING CHECKPOINT FILE {best_model_path}')
-        best_model_path = path + f"classifier_seed-{seed}_ep-{total_epochs}"   
+    if (kwargs.corruption_type) or (kwargs.extract_embeddings):        
+        best_model_path = path + f"localnet_old_seed-{seed}_ep-{total_epochs}.ckpt" # f"classifier_seed-{seed}_ep-{total_epochs}"    
         checkpoint = torch.load(best_model_path, map_location='cpu')
-        pl_model.model.load_state_dict(checkpoint)         
+        print(checkpoint['state_dict'].keys())      
+        pl_model.model.load_state_dict(checkpoint['state_dict'])   #         
+        print(F'LOADING CHECKPOINT FILE {best_model_path}')
     else:
         print(F'BEGIN CALIBRATION FOR {total_epochs} EPOCHS WITH SEED {seed}!')        
         trainer = pl.Trainer(
@@ -308,7 +316,7 @@ def calibrate(kwargs, wandb_logger):
                             ModelCheckpoint(monitor="val_total", #val_kl                                                                                               # Metric to track
                                 mode="min",                                                                                                     # Lower is better
                                 save_top_k=1,                                                                                                   # Only keep the best model
-                                filename=f"classifier_seed-{seed}_ep-{total_epochs}",                                                           # Static filename (no epoch suffix)
+                                filename=filename, #f"classifier_seed-{seed}_ep-{total_epochs}",                                                           # Static filename (no epoch suffix)
                                 dirpath=path,                                                                                                   # Save in your existing checkpoint folder
                                 save_weights_only=True,                                                                                         # Save only weights (not full LightningModule)
                                 auto_insert_metric_name=False,                                                                                  # Prevent metric name in filename
@@ -324,13 +332,14 @@ def calibrate(kwargs, wandb_logger):
         train_time = time.time() - start
         print(train_time)
         
-        # path_model = join(path, f"classifier_seed-{seed}_ep-{total_epochs}")
-        # torch.save(pl_model.model.state_dict(), path_model)
+        path_model = join(path, f"localnet_old_seed-{seed}_ep-{total_epochs}.ckpt") #f"classifier_seed-{seed}_ep-{total_epochs}")
+        torch.save(pl_model.model.state_dict(), path_model)
         best_model_path = trainer.checkpoint_callback.best_model_path    
         
         print(F'LOADING CHECKPOINT FILE {best_model_path}')
-        checkpoint = torch.load(best_model_path)
-        pl_model.load_state_dict(checkpoint['state_dict'])
+        # checkpoint = torch.load(best_model_path)
+        # pl_model.load_state_dict(checkpoint['state_dict'])
+        
     # path_model = join(path, f"classifier_seed-{seed}_ep-{total_epochs}")
     # torch.save(pl_model.model.state_dict(), path_model)
 

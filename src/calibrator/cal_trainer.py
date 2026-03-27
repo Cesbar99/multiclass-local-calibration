@@ -47,7 +47,32 @@ def compute_multiclass_kl_divergence(p2, p1, num_classes, eps=1e-4):
         to_ret = torch.mean(torch.mean(js_dist * weights, dim=0, keepdim=True), dim=1)[0]
 
     return to_ret
+"""
+def compute_multiclass_js_dist(p2, p1, num_classes, eps=1e-4):
+    # Clip values to avoid log(0)
+    p2 = torch.clamp(p2, eps, 1 - eps)
+    p1 = torch.clamp(p1, eps, 1 - eps)
+    m = 0.5 * (p1 + p2)
+    m = torch.clamp(m, eps, 1 - eps)
 
+    # KL divergence terms
+    kl_p1_m = p1 * torch.log(p1 / m) + (1 - p1) * torch.log((1 - p1) / (1 - m))
+    kl_p2_m = p2 * torch.log(p2 / m) + (1 - p2) * torch.log((1 - p2) / (1 - m))
+
+    # Jensen-Shannon divergence
+    js_divergence = 0.5 * (kl_p1_m + kl_p2_m)
+    js_divergence = torch.maximum(js_divergence, torch.tensor(eps, device=js_divergence.device))
+
+    # JS distance
+    js_dist = torch.sqrt(js_divergence)
+
+    if num_classes == 2:
+        to_ret = torch.sum(js_dist, dim=0, keepdim=True)[0]
+    else:
+        to_ret = torch.mean(torch.mean(js_dist, dim=0, keepdim=True), dim=1)[0]
+
+    return to_ret
+"""    
 # def multiclass_neighborhood_class0_prob(means, z_hat, sigma, y, eps=1e-6, ret_weights=False, test=False):
 #     """
 #     means: (B, C)
@@ -431,7 +456,7 @@ class AuxTrainerV2(pl.LightningModule):
     def forward(self, init_feats, init_logits, init_pca):
         return self.model(init_feats, init_logits, init_pca)
 
-
+    
     def training_step(self, batch):                
         init_feats, init_logits, init_pca, y_one_hot, init_preds, init_preds_one_hot = batch        
 
@@ -609,7 +634,88 @@ class AuxTrainerV2(pl.LightningModule):
         #self.log("alpha1", self.alpha1, on_epoch=True, on_step=False, prog_bar=False)       
         #self.log("log_var", self.log_var_initializer, on_epoch=True, on_step=False, prog_bar=False)    
                               
+    """
+    def training_step(self, batch):                
+        init_feats, init_logits, init_pca, y_one_hot, init_preds, init_preds_one_hot = batch        
 
+        # Optional label smoothing        
+        noisy_y_one_hot = label_smoothing(y_one_hot, self.smoothing) if self.smoothing else y_one_hot 
+
+        # Forward pass
+        latents_class, latents_sim = self(init_feats, init_logits, init_pca)
+        means = latents_sim[:, :self.similarity_dim]               
+        var_tensor = torch.full((1,), self.log_var_initializer)
+        var_tensor = torch.log(torch.exp(var_tensor) - 1)       
+        stddev = F.softplus(var_tensor).to(self.device_name)        
+            
+        sigma = stddev ** 2        
+        z_hat = means
+
+        # Probabilities
+        probs_hat = F.softmax(latents_class, dim=1)
+        p2 = probs_hat
+
+        # Neighborhood-based probabilities
+        p1, weights = multiclass_neighborhood_class0_prob(means, z_hat, sigma=sigma, y=noisy_y_one_hot, ret_weights=True) 
+
+        # JS distance
+        js_loss = compute_multiclass_js_dist(p2, p1, self.num_classes)
+        
+        target = y_one_hot        
+        scores = p1
+            
+        constraint_loss = categorical_cross_entropy(scores, target)
+            
+        total_loss = (self.lambda_kl * js_loss +
+                      self.alpha1 * constraint_loss)
+
+        self.log("train_total", total_loss, on_epoch=True, on_step=False, prog_bar=True)
+        self.log("train_js", js_loss, on_epoch=True, on_step=False, prog_bar=False)
+        self.log("train_con_loss", constraint_loss, on_epoch=True, on_step=False, prog_bar=True)
+
+        return total_loss
+    
+    def validation_step(self, batch):
+        init_feats, init_logits, init_pca, y_one_hot, init_preds, init_preds_one_hot = batch                
+
+        # Optional label smoothing        
+        noisy_y_one_hot = label_smoothing(y_one_hot, self.smoothing) if self.smoothing else y_one_hot
+
+        # Forward pass
+        latents_class, latents_sim = self(init_feats, init_logits, init_pca)
+        means = latents_sim[:, :self.similarity_dim]        
+        var_tensor = torch.full((1,), self.log_var_initializer)
+        var_tensor = torch.log(torch.exp(var_tensor) - 1)       
+        stddev = F.softplus(var_tensor).to(self.device_name)       
+        sigma = stddev ** 2
+
+        z_hat = means
+
+        # Probabilities
+        probs_hat = F.softmax(latents_class, dim=1)
+        p2 = probs_hat
+
+        # Neighborhood-based probabilities
+        p1, weights = multiclass_neighborhood_class0_prob(means, z_hat, sigma=sigma, y=noisy_y_one_hot, ret_weights=True) 
+
+        # JS distance
+        js_loss = compute_multiclass_js_dist(p2, p1, self.num_classes)
+
+        target = y_one_hot 
+        scores = p1    
+            
+        constraint_loss = categorical_cross_entropy(scores, target) 
+        
+        total_loss = (self.lambda_kl * js_loss +
+                      self.alpha1 * constraint_loss) 
+        optuna_loss = js_loss + constraint_loss 
+            
+        self.log("val_total", total_loss, on_epoch=True, on_step=False, prog_bar=True)
+        self.log("optuna_loss", optuna_loss, on_epoch=True, on_step=False, prog_bar=True)
+        self.log("val_js", js_loss, on_epoch=True, on_step=False, prog_bar=True)
+        self.log("val_con_loss", constraint_loss, on_epoch=True, on_step=False, prog_bar=False)
+        
+"""        
     def configure_optimizers(self):
         opt_name = self.optimizer_cfg.name #.lower()
         opt_name = opt_name[0].upper() + opt_name[1:]

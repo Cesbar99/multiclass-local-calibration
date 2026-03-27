@@ -105,7 +105,7 @@ CUDA_VISIBLE_DEVICES=1 python -u run.py exp_name=calibrate pretrain=False calibr
 #######################################################################################################################################################
 
 CUDA_VISIBLE_DEVICES=1 python -u run.py exp_name=calibrate pretrain=False calibrate=True data=cifar10 checkpoint.epochs=9 models.log_var_initializer=10 models.alpha1=1 models.alpha2=0. models.lambda_kl=1 models.sampling=False models.smoothing=0. models.dropout=0.3 models.hidden_dim=64 models.epochs=100 use_optuna=False n_trials=100 models.optimizer.weight_decay=0. dataset.batch_size=64 dataset.feature_dim=2048 similarity_dim=50 calibrator_version=v2 gamma=10 models.adabw=False models.fixed_var=True models.linearly_combine_pca=True models.kernel_only=False
-
+CUDA_VISIBLE_DEVICES=1 python -u run.py exp_name=calibrate pretrain=False calibrate=True data=cifar10 checkpoint.epochs=9 models.log_var_initializer=10 models.alpha1=1 models.alpha2=0. models.lambda_kl=1 models.sampling=False models.smoothing=0. models.dropout=0.3 models.hidden_dim=64 models.epochs=100 use_optuna=False n_trials=100 models.optimizer.weight_decay=0. dataset.batch_size=64 dataset.feature_dim=2048 similarity_dim=50 calibrator_version=v2 gamma=10 models.adabw=False models.fixed_var=True models.linearly_combine_pca=True models.kernel_only=False models.alpha_sim=1 models.alpha_cls=1
 #######################################################################################################################################################
 
 CUDA_VISIBLE_DEVICES=1 python -u run.py exp_name=calibrate pretrain=False calibrate=True data=cifar100 checkpoint.epochs=9 models.log_var_initializer=10 models.alpha1=1 models.alpha2=0. models.lambda_kl=1 models.sampling=False models.smoothing=0. models.dropout=0.25 models.hidden_dim=128 models.epochs=100 use_optuna=False n_trials=100 models.optimizer.weight_decay=0 dataset.batch_size=1024 dataset.feature_dim=2048 similarity_dim=50 calibrator_version=v2 gamma=10 models.adabw=False models.fixed_var=True bin_strategy=default models.linearly_combine_pca=True models.augment=False models.kernel_only=False models.alpha_sim=0.2 models.alpha_cls=0.7
@@ -150,11 +150,14 @@ ECCE,ECE,MCE,Brier,NLL,LCE,MLCE
 #######################################################################################################################################################
 BUGS
 
-number of bins: range(1, n_bins+1) -> range(n_bins) in test w_lce
-
 values of alpha_sim and alpha_cls. How to find good initialisations? -> OPTUNA
 
 
+#######################################################################################################################################################
+NEW SOTA?
+CUDA_VISIBLE_DEVICES=1 python -u run.py exp_name=calibrate pretrain=False calibrate=True data=cifar10 checkpoint.epochs=9 models.log_var_initializer=1 models.alpha1=1 models.alpha2=0. models.lambda_kl=1 models.sampling=False models.smoothing=0. models.dropout=0.3 models.hidden_dim=64 models.epochs=100 use_optuna=False n_trials=100 models.optimizer.weight_decay=0. dataset.batch_size=2048 dataset.feature_dim=2048 similarity_dim=50 calibrator_version=v2 gamma=10 models.adabw=False models.fixed_var=True models.linearly_combine_pca=True models.kernel_only=False extract_embeddings=False models.alpha_sim=0.1 models.alpha_cls=0.1
 
-lr': 0.0013074313226366392
-, 'name': 'adam', 'weight_decay': 0.0008606176141084062
+#######################################################################################################################################################
+USED 4 EXPERIMENTS:
+CUDA_VISIBLE_DEVICES=1 python -u run.py exp_name=calibrate pretrain=False calibrate=True data=cifar10 checkpoint.epochs=9 models.log_var_initializer=10 models.alpha1=1 models.alpha2=0. models.lambda_kl=1 models.sampling=False models.smoothing=0. models.dropout=0.3 models.hidden_dim=64 models.epochs=100 use_optuna=False n_trials=100 models.optimizer.weight_decay=0. dataset.batch_size=128 dataset.feature_dim=2048 similarity_dim=50 calibrator_version=v2 gamma=10 models.adabw=False models.fixed_var=True models.linearly_combine_pca=True models.kernel_only=False extract_embeddings=False models.alpha_sim=1 models.alpha_cls=1
+

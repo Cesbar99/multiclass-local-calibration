@@ -355,6 +355,7 @@ def test(kwargs):
         os.makedirs(output_dir, exist_ok=True)
         output_file = os.path.join(output_dir, f'accs_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix +  
         # Save to CSV
+        print(f"saved accuracy to {output_file}")
         df_accs.to_csv(output_file, index=False) 
                 
         # === codeword usage statistics ===
@@ -379,7 +380,7 @@ def test(kwargs):
             "count": counts,
             "frequency": freq
         }).sort_values("codeword")
-        print(usage_df)
+        # print(usage_df)
         if kwargs.corruption_type:
             output_file = os.path.join(output_dir, f'usage_stats_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix +  
         else:
@@ -394,12 +395,12 @@ def test(kwargs):
         alpha_std = torch.std(alpha_test_, dim=0)
         alpha_mean = torch.mean(alpha_test_, dim=0)        
         
-        print("\n=== Standard deviation of learned region-dependent calibration parameters ===")
-        #print(f"{alpha_std.item():.6f}")
-        #print('\n')
-        for i in range(alpha_std.shape[0]):
-            print(f"Class {i}:  mean = {alpha_mean[i].item():.4f},  std = {alpha_std[i].item():.4f}, cv = {alpha_std[i].item() / (alpha_mean[i].item() + 1e-12):.4f}")                        
-        print('\n')
+        # print("\n=== Standard deviation of learned region-dependent calibration parameters ===")
+        # #print(f"{alpha_std.item():.6f}")
+        # #print('\n')
+        # for i in range(alpha_std.shape[0]):
+        #     print(f"Class {i}:  mean = {alpha_mean[i].item():.4f},  std = {alpha_std[i].item():.4f}, cv = {alpha_std[i].item() / (alpha_mean[i].item() + 1e-12):.4f}")                        
+        # print('\n')
         # ================================
         
         if not kwargs.only_test:             

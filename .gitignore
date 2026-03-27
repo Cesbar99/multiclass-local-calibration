@@ -4,3 +4,4 @@ checkpoints/*
 data/*
 optuna_logs/*
 hyperparams/*
+src/configs/config_local.yaml

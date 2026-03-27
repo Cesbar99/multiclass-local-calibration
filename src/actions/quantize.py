@@ -208,7 +208,7 @@ def quantize(kwargs, wandb_logger):
         )
     
     if (kwargs.corruption_type) or (kwargs.extract_embeddings):
-        best_model_path = path + f"VQHEAD_seed-{seed}_ep-{total_epochs}.ckpt"
+        best_model_path = path + f"VQHEAD_seed-{seed}_ep-{total_epochs}_{model_class}.ckpt"
         print(F'LOADING CHECKPOINT FILE {best_model_path}')
         checkpoint = torch.load(best_model_path, map_location=device, weights_only=False)
         # import pdb; pdb.set_trace()
@@ -235,7 +235,7 @@ def quantize(kwargs, wandb_logger):
                             ModelCheckpoint(monitor="val_loss", #val_kl                                                                                               # Metric to track
                                 mode="min",                                                                                                     # Lower is better
                                 save_top_k=1,                                                                                                   # Only keep the best model
-                                filename=f"VQHEAD_seed-{seed}_ep-{total_epochs}",                                                           # Static filename (no epoch suffix)
+                                filename=f"VQHEAD_seed-{seed}_ep-{total_epochs}_{model_class}",                                                           # Static filename (no epoch suffix)
                                 dirpath=path,                                                                                                   # Save in your existing checkpoint folder
                                 save_weights_only=True,                                                                                         # Save only weights (not full LightningModule)
                                 auto_insert_metric_name=False,                                                                                  # Prevent metric name in filename
@@ -329,7 +329,7 @@ def quantize(kwargs, wandb_logger):
         
     if kwargs.corruption_type:
         print(F'LOADING CHECKPOINT FILE {best_model_path}')
-        best_model_path = path + f"VQCALIBRATOR_seed-{seed}_ep-{total_epochs}.ckpt"
+        best_model_path = path + f"VQCALIBRATOR_seed-{seed}_ep-{total_epochs}_{model_class}.ckpt"
         checkpoint = torch.load(best_model_path, map_location=device, weights_only=False)        
         # import pdb; pdb.set_trace()
         state_dict = checkpoint["state_dict"]
@@ -355,7 +355,7 @@ def quantize(kwargs, wandb_logger):
                             ModelCheckpoint(monitor="cal_val_loss", #cal_val_loss val_kl                                                                                               # Metric to track
                                 mode="min",  #max                                                                                                   # Lower is better
                                 save_top_k=1,                                                                                                   # Only keep the best model
-                                filename=f"VQCALIBRATOR_seed-{seed}_ep-{total_epochs}",                                                           # Static filename (no epoch suffix)
+                                filename=f"VQCALIBRATOR_seed-{seed}_ep-{total_epochs}_{model_class}",                                                           # Static filename (no epoch suffix)
                                 dirpath=path,                                                                                                   # Save in your existing checkpoint folder
                                 save_weights_only=True,                                                                                         # Save only weights (not full LightningModule)
                                 auto_insert_metric_name=False,                                                                                  # Prevent metric name in filename

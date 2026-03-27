@@ -113,11 +113,11 @@ def calibrate(kwargs, wandb_logger):
             if kwargs.models.kernel_only:
                 path = f"checkpoints/kernel_only/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features/"          
         os.makedirs(path, exist_ok=True) 
-        filename = f"localnet_old_seed-{seed}_ep-{total_epochs}"
+        filename = f"localnet_old_seed-{seed}_ep-{total_epochs}_{model_class}"
         if kwargs.models.lambda_kl == 0:
-            filename = f"refkernel_seed-{seed}_ep-{total_epochs}"
+            filename = f"refkernel_seed-{seed}_ep-{total_epochs}_{model_class}"
         if kwargs.models.kernel_only:
-            filename = f"kernelonly_seed-{seed}_ep-{total_epochs}"
+            filename = f"kernelonly_seed-{seed}_ep-{total_epochs}_{model_class}"
         
         result_path = f"results/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features"
         if kwargs.models.lambda_kl == 0:

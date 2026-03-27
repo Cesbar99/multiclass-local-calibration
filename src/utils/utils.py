@@ -546,7 +546,8 @@ def compute_multiclass_calibration_metrics_w_lce(
     gamma: float = 0.1,
     full_ece: bool = False,
     bin_strategy: str = 'default', # quantile
-    data: str = 'cifar10'
+    data: str = 'cifar10',
+    model_type: str = 'resnet'
 ):
     """
     Computes:
@@ -587,7 +588,7 @@ def compute_multiclass_calibration_metrics_w_lce(
     if data == 'food101':
         filter = 10 # less samples for classes so reduce
     else:
-        filter = 20 # filter for too little ESS when computing local metrics
+        filter = 10 if model_type == "vit" else 20# filter for too little ESS when computing local metrics
 
     # Negative log-likelihood
     log_probs = torch.log(probs + 1e-12)  # numerical stability

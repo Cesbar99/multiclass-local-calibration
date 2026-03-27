@@ -104,7 +104,7 @@ def quantize(kwargs, wandb_logger):
         name += '_stdcal'    
     if kwargs.models.quadratic:
         name += '_quadratic'
-        
+    print(f"\n\n\n\n\n\n\n\n\n FORZA NAPOLI, W {name}! \n\n\n\n\n\n\n\n\n")
     path = f"checkpoints/{name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features/"    
     os.makedirs(path, exist_ok=True) 
     

@@ -48,7 +48,7 @@ extract_embeddings: False
 #init_logits_scaling: 1.
 
 # weight and bias
-wandb_entity: cesare-barbera-university-of-trento
+wandb_entity: andrepugni-university-of-pisa
 wandb_project: calibration-experiments
 wandb_id:
 use_wandb: True
@@ -57,9 +57,9 @@ use_wandb: True
 n_bins_calibration_metrics: 15
 bin_strategy: # 'quantile' for same size bins or 'default' which uses probabilities theresholds (equivalent to uniform)
 gamma: 0.1 # bandwidth for LCE
-save_path_calibration_plots: /home/barbera/calibration/localibration/results/plots/
-save_path_calibration_metrics: /home/barbera/calibration/localibration/results/metrics/
-save_path_boxplots: /home/barbera/calibration/localibration/results/boxplots/
+save_path_calibration_plots: /home/andrea.pugnana/projects/Voronoi/results/calibration_plots/
+save_path_calibration_metrics: /home/andrea.pugnana/projects/Voronoi/results/metrics/
+save_path_boxplots: /home/andrea.pugnana/projects/Voronoi/results/boxplots/
 
 # default behaviour for batch size
 batch_size_map:
@@ -88,7 +88,7 @@ n_trials: 50
 multi_obj: False
 
 #competitors
-methods: ['SMS', 'TS', 'IR', 'PS', 'DC']  #tempearature scaling, isotonic regression, platt scaling, dirichlet calibration
+methods: ['SMS', 'TS', 'IR', 'PS', 'DC', 'PC']  #tempearature scaling, isotonic regression, platt scaling, dirichlet calibration
 method:
 gammas: [] #[0.1, 1., 5., 7., 10., 100.] #[0.1, 0.3, 1, 3, 5, 7, 10, 100]
 

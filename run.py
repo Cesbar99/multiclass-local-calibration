@@ -19,7 +19,6 @@ import sys
 import wandb
     
 def main(cfg: DictConfig):
-    
     kwargs = cfg #OmegaConf.create(cfg)  
     
     now = datetime.now()
@@ -27,7 +26,15 @@ def main(cfg: DictConfig):
         
     dataset_name = kwargs.data
     model_name = kwargs.models_map[dataset_name]
-    
+    epochs = kwargs.checkpoint.epochs
+    if epochs == 9:
+        model_class = 'resnet'
+    elif kwargs.checkpoint.epochs == 5:
+        model_class = 'vit'
+    else:
+        raise ValueError(
+            f'Checkpoint not corresponding to a trained modl! {kwargs.checkpoint.epochs} was given but only 9 and 20 are supported')
+
     base_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
     base_dir = os.path.join(os.path.dirname(os.path.dirname(base_dir)), 'result')
     
@@ -82,12 +89,13 @@ def main(cfg: DictConfig):
             kwargs.exp_name = 'quantize'
             for slot in kwargs.models.slots:
                 kwargs.models.S = slot
-                kwargs.models.d = int(2048/slot)
+                repr_dim = 2048 if model_class == 'resnet' else 768
+                kwargs.models.d = int(repr_dim/slot)
+                print(f'Testing model with {kwargs.models.d} dimensions per slot...')
                 print(f'Testing model with {kwargs.models.S} slots...')
                 for kappa in kwargs.models.kappas:
                     kwargs.models.K = kappa               
                     print(f'Testing model with {kwargs.models.K} codewords...')
-                    
                     pl.seed_everything(seed)       
                     kwargs.seed = seed
                     kwargs.checkpoint.seed = seed
@@ -147,7 +155,10 @@ def main(cfg: DictConfig):
                        
         for slot in kwargs.models.slots:
             kwargs.models.S = slot
-            kwargs.models.d = int(2048/slot)
+            repr_dim = 2048 if model_class == 'resnet' else 768
+            kwargs.models.d = int(repr_dim / slot)
+            print(f'Testing model with {kwargs.models.d} dimensions per slot...')
+            print(f'Testing model with {kwargs.models.S} slots...')
             print(f'Quantizing model with {kwargs.models.S} slots...')
             
             for kappa in kwargs.models.kappas:

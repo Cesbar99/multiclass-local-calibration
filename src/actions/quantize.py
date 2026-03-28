@@ -406,7 +406,7 @@ def quantize(kwargs, wandb_logger):
             else:    
                 batch = [b.to(device) for b in batch]                
                 raw = pl_model.extract(batch)
-            raws.append(raw)
+                raws.append(raw)
 
     #all_raws = torch.cat(all_raws)
     #print('pca shape: ', raws[1]['features'].shape)
@@ -434,7 +434,7 @@ def quantize(kwargs, wandb_logger):
             else:    
                 batch = [b.to(device) for b in batch]                
                 raw = pl_model.extract(batch)
-            raws.append(raw)
+                raws.append(raw)
 
     #all_raws = torch.cat(all_raws)
     #print('pca shape: ', raws[1]['features'].shape)

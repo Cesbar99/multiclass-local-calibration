@@ -15,6 +15,8 @@ from collections import Counter
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 import seaborn as sns
+import re
+import glob
 
 import pytorch_lightning as pl
 import torch
@@ -1500,17 +1502,7 @@ def print_class_distribution(name, labels_tensor):
     print(f"\n📊 Class distribution in {name}:")
     for cls in sorted(label_counts):
         print(f"  Class {cls}: {label_counts[cls]} samples")
-
-
-
-
-import os
-import re
-import glob
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-
+        
 
 def extract_method_label(folder_name: str) -> str:
     """
@@ -1602,7 +1594,7 @@ def aggregate_method_runs(method_to_runs):
     agg_dict = {}
     method_map = {'competition_DC': 'DC', 'competition_PC': 'PC', 'competition_IR': 'IR', 
                   'competition_TS': 'TS', 'competition_SMS': 'SM', 'competition_PS': 'PS', 
-                  'calibrate': LC, 'pre-train': 'NC', 'reference': 'KC', 'quantize': 'VQ'}
+                  'calibrate': 'LC', 'pre-train': 'NC', 'reference': 'KC', 'quantize': 'VQ'}
 
     for method, run_dfs in method_to_runs.items():
         aligned = []

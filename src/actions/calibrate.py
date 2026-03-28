@@ -113,11 +113,15 @@ def calibrate(kwargs, wandb_logger):
             if kwargs.models.kernel_only:
                 path = f"checkpoints/kernel_only/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features/"          
         os.makedirs(path, exist_ok=True) 
-        filename = f"localnet_old_seed-{seed}_ep-{total_epochs}_{model_class}"
-        if kwargs.models.lambda_kl == 0:
-            filename = f"refkernel_seed-{seed}_ep-{total_epochs}_{model_class}"
-        if kwargs.models.kernel_only:
-            filename = f"kernelonly_seed-{seed}_ep-{total_epochs}_{model_class}"
+        
+        if kwargs.data == 'tissue':
+            filename = f"classifier_seed-{seed}_ep-{total_epochs}"    
+        else:
+            filename = f"localnet_old_seed-{seed}_ep-{total_epochs}_{model_class}"
+            if kwargs.models.lambda_kl == 0:
+                filename = f"refkernel_seed-{seed}_ep-{total_epochs}_{model_class}"
+            if kwargs.models.kernel_only:
+                filename = f"kernelonly_seed-{seed}_ep-{total_epochs}_{model_class}"
         
         result_path = f"results/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features"
         if kwargs.models.lambda_kl == 0:
@@ -297,7 +301,10 @@ def calibrate(kwargs, wandb_logger):
         if kwargs.models.lambda_kl == 0:
             pl_model.load_state_dict(checkpoint['state_dict'])
         else:   #strict=False to allow loading only the local net weights into the reference kernel model
-            pl_model.model.load_state_dict(checkpoint)   #        
+            if kwargs.data == 'tissue':
+                pl_model.load_state_dict(checkpoint['state_dict'])
+            else:
+                pl_model.model.load_state_dict(checkpoint)   #        
         print(F'LOADING CHECKPOINT FILE {best_model_path}')
     else:
         print(F'BEGIN CALIBRATION FOR {total_epochs} EPOCHS WITH SEED {seed}!')        
@@ -369,7 +376,7 @@ def calibrate(kwargs, wandb_logger):
             else:    
                 batch = [b.to(device) for b in batch]                
                 raw = pl_model.extract_pca(batch)
-            raws.append(raw)
+                raws.append(raw)
 
     #all_raws = torch.cat(all_raws)
     print('pca shape: ', raws[1]['features'].shape)
@@ -398,7 +405,7 @@ def calibrate(kwargs, wandb_logger):
             else:    
                 batch = [b.to(device) for b in batch]                
                 raw = pl_model.extract_pca(batch)
-            raws.append(raw)
+                raws.append(raw)
 
     #all_raws = torch.cat(all_raws)
     print('pca shape: ', raws[1]['features'].shape)
@@ -407,6 +414,9 @@ def calibrate(kwargs, wandb_logger):
     #raws = trainer.predict(pl_model, dataset.data_test_cal_loader)
     #res = get_raw_res(raws)
     res.to_csv(raw_results_path_test_cal, index=False)
+    print(raw_results_path_test_cal)
+    df = pd.read_csv(raw_results_path_test_cal)
+    print(df.shape)
 
     print("CALIBRATION OVER!")
     

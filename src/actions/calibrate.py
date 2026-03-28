@@ -86,9 +86,9 @@ def calibrate(kwargs, wandb_logger):
         raise ValueError(f'Checkpoint not corresponding to a trained modl! {kwargs.checkpoint.epochs} was given but only 9 and 20 are supported')            
     
     if kwargs.models.lambda_kl == 0:
-        print("PROCEED SAFELY WITH REFERENCE KERNEL CALIBRATION!")
+        print("PROCEED SAFELY WITH REFERENCE KERNEL CALIBRATION!") # k-cal
     if kwargs.models.kernel_only:
-        print("PROCEED SAFELY WITH REFERENCE KERNEL CALIBRATION!")
+        print("PROCEED SAFELY WITH KERNEL ONLY CALIBRATION!")
         
     if kwargs.data == 'synthetic':
         path = f"checkpoints/{kwargs.exp_name}/{kwargs.data}_{kwargs.checkpoint.num_classes}_classes_{kwargs.checkpoint.num_features}_features"
@@ -296,8 +296,8 @@ def calibrate(kwargs, wandb_logger):
         # print(checkpoint['state_dict'].keys())
         if kwargs.models.lambda_kl == 0:
             pl_model.load_state_dict(checkpoint['state_dict'])
-        else:#strict=False to allow loading only the local net weights into the reference kernel model
-            pl_model.model.load_state_dict(checkpoint)   #
+        else:   #strict=False to allow loading only the local net weights into the reference kernel model
+            pl_model.model.load_state_dict(checkpoint)   #        
         print(F'LOADING CHECKPOINT FILE {best_model_path}')
     else:
         print(F'BEGIN CALIBRATION FOR {total_epochs} EPOCHS WITH SEED {seed}!')        

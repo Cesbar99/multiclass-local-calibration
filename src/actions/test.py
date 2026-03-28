@@ -48,7 +48,8 @@ def test(kwargs):
         #     temperature = 1.0    
                    
         gamma = kwargs.gamma            
-        n_bins = kwargs.n_bins_calibration_metrics        
+        n_bins = kwargs.n_bins_calibration_metrics  
+        n_bins_esse = kwargs.n_bins_esse
         appendix =  kwargs.exp_name + '_' + kwargs.data + '_' + f'{kwargs.checkpoint.num_classes}_classes_' + f'{kwargs.checkpoint.num_features}_features'
         test_file_name = 'multicalss_calibration_train_cal'+'.png'                
         cal_file_name = 'multicalss_calibration_eval_cal'+'.png'        
@@ -223,7 +224,7 @@ def test(kwargs):
             probs_cal = F.softmax(logits_cal_, dim=1)
 
             # Compute calibration metrics
-            ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
+            ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test, ess_profile = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, n_bins_esse, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
             results = {
                 "ECCE": [ecce_test],       
                 "ECE": [ece_test],
@@ -244,6 +245,23 @@ def test(kwargs):
 
             # Save to CSV
             df.to_csv(output_file, index=False)  
+            
+            # ---- Save aggregated ESS profile ----
+            ess_results = {
+                "ess_bin": list(range(len(ess_profile["avg_abs_lce_per_ess_bin"]))),
+                "avg_abs_lce": ess_profile["avg_abs_lce_per_ess_bin"],
+                "avg_ess": ess_profile["avg_ess_per_bin"],
+                "count": ess_profile["count_per_bin"]
+            }
+
+            df_ess = pd.DataFrame(ess_results)
+
+            ess_output_file = os.path.join(
+                output_dir,
+                f"ess_profile_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv"
+            )
+
+            df_ess.to_csv(ess_output_file, index=False)
             
             #ecce_cal, ece_cal, mce_cal, brier_cal, nll_cal = compute_multiclass_calibration_metrics(probs_cal, y_true_cal_, n_bins)
             # ecce_cal, ece_cal, mce_cal, brier_cal, nll_cal, lce_cal, mlce_cal = compute_multiclass_calibration_metrics_w_lce(probs_cal, y_true_cal_, pca_cal_, class_freqs, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy)         
@@ -283,6 +301,7 @@ def test(kwargs):
         # else:
         #     total_epochs =  kwargs.checkpoint.epochs
         n_bins = kwargs.n_bins_calibration_metrics  
+        n_bins_esse = kwargs.n_bins_esse
         gamma = kwargs.gamma             
         name = kwargs.exp_name
         if kwargs.models.S != 64:
@@ -423,7 +442,7 @@ def test(kwargs):
                 ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce_adabw(probs_test, y_true_test_, pca_test_, bw_test, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy) 
             else:
                 if kwargs.quantize or kwargs.test:
-                    ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
+                    ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test, ess_profile = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, n_bins_esse, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
                     results = {
                         "ECCE": [ecce_test],       
                         "ECE": [ece_test],
@@ -443,7 +462,24 @@ def test(kwargs):
                     output_file = os.path.join(output_dir, f'metrics_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix + 
 
                     # Save to CSV
-                    df.to_csv(output_file, index=False)  
+                    df.to_csv(output_file, index=False)                                      
+                    
+                    # ---- Save aggregated ESS profile ----
+                    ess_results = {
+                        "ess_bin": list(range(len(ess_profile["avg_abs_lce_per_ess_bin"]))),
+                        "avg_abs_lce": ess_profile["avg_abs_lce_per_ess_bin"],
+                        "avg_ess": ess_profile["avg_ess_per_bin"],
+                        "count": ess_profile["count_per_bin"]
+                    }
+
+                    df_ess = pd.DataFrame(ess_results)
+
+                    ess_output_file = os.path.join(
+                        output_dir,
+                        f"ess_profile_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv"
+                    )
+                    
+                    df_ess.to_csv(ess_output_file, index=False)
                     
                     # Print results
                     print(f"Test Quantisation — ECCE: {ecce_test:.4f}, ECE: {ece_test:.4f}, MCE: {mce_test:.4f}, Brier: {brier_test:.4f}, NLL: {nll_test:.4f}, LCE: {lce_test:.4f}") #, MLCE: {mlce_test:.4f}")        
@@ -452,7 +488,7 @@ def test(kwargs):
                     all_mlce = []                
                     for gamma in kwargs.gammas:
                         print(f'Computing metrics with gamma {gamma}')
-                        ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
+                        ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test, ess_profile = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, n_bins_esse, gamma=gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
                         all_lce.append(lce_test)
                         all_mlce.append(mlce_test)
                         # if gamma == kwargs.gamma:
@@ -561,6 +597,7 @@ def test(kwargs):
         else:
             total_epochs =  kwargs.checkpoint.epochs
         n_bins = kwargs.n_bins_calibration_metrics  
+        n_bins_esse = kwargs.n_bins_esse
         gamma = kwargs.gamma              
         if kwargs.data == 'synthetic':
             appendix = kwargs.exp_name + '_' + kwargs.data + '_' + f'{kwargs.checkpoint.num_classes}_classes_' + f'{kwargs.checkpoint.num_features}_features'
@@ -687,7 +724,7 @@ def test(kwargs):
                 ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce_adabw(probs_test, y_true_test_, pca_test_, bw_test, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy) 
             else:
                 if kwargs.calibrate:
-                    ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
+                    ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test, ess_profile = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, n_bins_esse, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
                     results = {
                         "ECCE": [ecce_test],       
                         "ECE": [ece_test],
@@ -709,6 +746,23 @@ def test(kwargs):
                     # Save to CSV
                     df.to_csv(output_file, index=False)  
                     
+                    # ---- Save aggregated ESS profile ----
+                    ess_results = {
+                        "ess_bin": list(range(len(ess_profile["avg_abs_lce_per_ess_bin"]))),
+                        "avg_abs_lce": ess_profile["avg_abs_lce_per_ess_bin"],
+                        "avg_ess": ess_profile["avg_ess_per_bin"],
+                        "count": ess_profile["count_per_bin"]
+                    }
+
+                    df_ess = pd.DataFrame(ess_results)
+
+                    ess_output_file = os.path.join(
+                        output_dir,
+                        f"ess_profile_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv"
+                    )
+                    
+                    df_ess.to_csv(ess_output_file, index=False)
+                    
                     # Print results
                     print(f"Test Calibration — ECCE: {ecce_test:.4f}, ECE: {ece_test:.4f}, MCE: {mce_test:.4f}, Brier: {brier_test:.4f}, NLL: {nll_test:.4f}, LCE: {lce_test:.4f}") #, MLCE: {mlce_test:.4f}")        
                 else:    
@@ -716,7 +770,7 @@ def test(kwargs):
                     all_mlce = []                
                     for gamma in kwargs.gammas:
                         print(f'Computing metrics with gamma {gamma}')
-                        ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
+                        ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test, ess_profile = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, n_bins_esse, gamma=gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
                         all_lce.append(lce_test)
                         all_mlce.append(mlce_test)
                         if gamma == kwargs.gamma:
@@ -740,6 +794,23 @@ def test(kwargs):
 
                             # Save to CSV
                             df.to_csv(output_file, index=False)  
+                            
+                            # ---- Save aggregated ESS profile ----
+                            ess_results = {
+                                "ess_bin": list(range(len(ess_profile["avg_abs_lce_per_ess_bin"]))),
+                                "avg_abs_lce": ess_profile["avg_abs_lce_per_ess_bin"],
+                                "avg_ess": ess_profile["avg_ess_per_bin"],
+                                "count": ess_profile["count_per_bin"]
+                            }
+
+                            df_ess = pd.DataFrame(ess_results)
+
+                            ess_output_file = os.path.join(
+                                output_dir,
+                                f"ess_profile_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv"
+                            )
+                            
+                            df_ess.to_csv(ess_output_file, index=False)
                             
                             # Print results
                             print(f"Test Calibration — ECCE: {ecce_test:.4f}, ECE: {ece_test:.4f}, MCE: {mce_test:.4f}, Brier: {brier_test:.4f}, NLL: {nll_test:.4f}, LCE: {lce_test:.4f}") #, MLCE: {mlce_test:.4f}")        
@@ -841,6 +912,7 @@ def test(kwargs):
                 
     elif kwargs.exp_name == 'competition':                     
         n_bins = kwargs.n_bins_calibration_metrics 
+        n_bins_esse = kwargs.n_bins_esse
         gamma = kwargs.gamma 
                                 
         appendix = kwargs.exp_name + '_' 
@@ -922,7 +994,7 @@ def test(kwargs):
                 bw_test = torch.tensor(bw_test.values, dtype=torch.float32).squeeze() 
                 ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce_adabw(probs_test, y_true_test_, pca_test_, bw_test, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy) 
             else:                               
-                ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
+                ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test, ess_profile = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, n_bins_esse, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
             
                 results = {
                     "ECCE": [ecce_test],       
@@ -945,6 +1017,23 @@ def test(kwargs):
                 # Save to CSV
                 df.to_csv(output_file, index=False)   
                 
+                # ---- Save aggregated ESS profile ----
+                ess_results = {
+                    "ess_bin": list(range(len(ess_profile["avg_abs_lce_per_ess_bin"]))),
+                    "avg_abs_lce": ess_profile["avg_abs_lce_per_ess_bin"],
+                    "avg_ess": ess_profile["avg_ess_per_bin"],
+                    "count": ess_profile["count_per_bin"]
+                }
+
+                df_ess = pd.DataFrame(ess_results)
+
+                ess_output_file = os.path.join(
+                    output_dir,
+                    f"ess_profile_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv"
+                )
+                
+                df_ess.to_csv(ess_output_file, index=False)
+                
                 # Print results
                 print(f"Test Calibration — ECCE: {ecce_test:.4f}, ECE: {ece_test:.4f}, MCE: {mce_test:.4f}, Brier: {brier_test:.4f}, NLL: {nll_test:.4f}, LCE: {lce_test:.4f}") #, MLCE: {mlce_test:.4f}")        
                     
@@ -952,7 +1041,7 @@ def test(kwargs):
                 all_mlce = []
                 for gamma in kwargs.gammas:
                     print(f'Computing metrics with gamma {gamma}')     
-                    ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
+                    ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test, ess_profile = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, n_bins_esse, gamma=gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
                     all_lce.append(lce_test)
                     all_mlce.append(mlce_test)
 
@@ -981,6 +1070,7 @@ def test(kwargs):
     elif kwargs.exp_name == 'replicate':
         total_epochs = kwargs.models.max_iter   
         n_bins = kwargs.n_bins_calibration_metrics  
+        n_bins_esse = kwargs.n_bins_esse
         gamma = kwargs.gamma             
         name = kwargs.exp_name
         name += f'{kwargs.models.n_steps}'
@@ -1063,7 +1153,7 @@ def test(kwargs):
                             "NLL": [nll_test]                            
                         }
                     else:
-                        ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
+                        ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test, ess_profile = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, n_bins_esse, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
                         results = {
                             "ECCE": [ecce_test],       
                             "ECE": [ece_test],
@@ -1085,6 +1175,23 @@ def test(kwargs):
                     # Save to CSV
                     df.to_csv(output_file, index=False)  
                     
+                    # ---- Save aggregated ESS profile ----
+                    ess_results = {
+                        "ess_bin": list(range(len(ess_profile["avg_abs_lce_per_ess_bin"]))),
+                        "avg_abs_lce": ess_profile["avg_abs_lce_per_ess_bin"],
+                        "avg_ess": ess_profile["avg_ess_per_bin"],
+                        "count": ess_profile["count_per_bin"]
+                    }
+
+                    df_ess = pd.DataFrame(ess_results)
+
+                    ess_output_file = os.path.join(
+                        output_dir,
+                        f"ess_profile_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv"
+                    )
+                    
+                    df_ess.to_csv(ess_output_file, index=False)
+                    
                     # Print results
                     if kwargs.data == 'cubic':
                         print(f"Test Replicator — ECCE: {ecce_test:.4f}, ECE: {ece_test:.4f}, MCE: {mce_test:.4f}, Brier: {brier_test:.4f}, NLL: {nll_test:.4f}") #, LCE: {lce_test:.4f}, MLCE: {mlce_test:.4f}")        
@@ -1096,7 +1203,7 @@ def test(kwargs):
                     if kwargs.data != 'cubic':         
                         for gamma in kwargs.gammas:
                             print(f'Computing metrics with gamma {gamma}')
-                            ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
+                            ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test, ess_profile = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, n_bins_esse, gamma=gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
                             all_lce.append(lce_test)
                             all_mlce.append(mlce_test)
 
@@ -1122,3 +1229,23 @@ def test(kwargs):
             print("probs_test min/max:", probs_test.min().item(), probs_test.max().item())
             # Calibration plot        
             multiclass_calibration_plot(y_true_test_, probs_test, n_bins=n_bins, save_path=save_path, filename=test_file_name, bin_strategy=kwargs.bin_strategy) 
+    
+    elif kwargs.exp_name == 'ess_plot': 
+        print('here')       
+        metrics_root = "results/metrics"  # change if needed
+
+        method_to_runs = collect_ess_profiles(metrics_root)
+        agg_dict = aggregate_method_runs(method_to_runs)
+
+        print("Methods found:")
+        for method, runs in method_to_runs.items():
+            print(f"  {method}: {len(runs)} runs")
+
+        plot_ess_profiles(
+            agg_dict,
+            save_path=os.path.join(metrics_root, "ess_profile_comparison.png"),
+            title="Average absolute LCE across density bins",
+            interval="std"   # use "sem95" for 95% confidence band
+    )
+        
+        

@@ -111,7 +111,13 @@ def main(cfg: DictConfig):
             pl.seed_everything(seed)       
             kwargs.seed = seed
             kwargs.checkpoint.seed = seed
-            test(kwargs)                  
+            test(kwargs)   
+        elif 'ess_plot' in exp_name:
+            kwargs.exp_name = 'ess_plot'                            
+            # pl.seed_everything(seed)       
+            # kwargs.seed = seed
+            # kwargs.checkpoint.seed = seed
+            test(kwargs)                
 
     elif kwargs.calibrate:                
         kwargs.exp_name = 'calibrate'
@@ -232,7 +238,7 @@ def main_entry():
             cfg = compose(config_name="config_local", overrides=full_overrides)
             
         elif cfg.test:
-            if cfg.exp_name not in ['pre-train', 'calibrate', 'competition', 'quantize', 'replicate']:
+            if cfg.exp_name not in ['pre-train', 'calibrate', 'competition', 'quantize', 'replicate', 'ess_plot']:
                 raise ValueError(f"Explicitly provide 'exp_name' argument from CLI when testing! Allowed values are 'pre-train', 'calibrate', 'competition', 'quantize', 'replicate'. Instead '{cfg.exp_name}' was given!")                 
             
             elif cfg.exp_name == 'pre-train':
@@ -260,6 +266,12 @@ def main_entry():
                 cfg = compose(config_name="config_local", overrides=full_overrides)            
                 
             elif cfg.exp_name == 'competition':
+                model_name = 'competition'
+                full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides
+                model_name = 'competition'
+                cfg = compose(config_name="config_local", overrides=full_overrides)
+                
+            elif cfg.exp_name == 'ess_plot':
                 model_name = 'competition'
                 full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides
                 model_name = 'competition'

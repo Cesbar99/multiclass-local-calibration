@@ -15,7 +15,8 @@ class VQClassifier(pl.LightningModule):
         kwargs,
         num_classes,
         feature_dim,
-        feature_loader):
+        feature_loader,
+        backbone):
        
         super().__init__()
         self.save_hyperparameters(ignore=["kwargs"])
@@ -30,28 +31,43 @@ class VQClassifier(pl.LightningModule):
         self.hidden = kwargs.models.hidden
         self.dropout = kwargs.models.dropout     
         self.L1 = kwargs.models.L1           
+        self.backbone = backbone
 
         self.optimizer_cfg = kwargs.models.optimizer
 
         # Modules
+        if self.backbone == 'vit':
+            print("\n\n\nQUANTIZING A ViT ARCHITECTURE \n\n\n")
+            self.bn = nn.BatchNorm1d(self.feature_dim)
         self.vq = VQHeadEMA(K=self.K, d=self.d, L1=self.L1, decay=self.vq_decay, eps=self.vq_eps)
         self.init_codebook(feature_loader)
         self.cls = QuantizedClassifierHead(S=self.S, d=self.d, num_classes=self.num_classes, hidden=self.hidden, dropout=self.dropout)        
 
-    def forward(self, feats: torch.Tensor):
+    def forward(self, feats: torch.Tensor, return_entropy: bool = False):        
         # feats: (B, 2048) or already (B,S,d)
         if feats.dim() == 2:
             B, D = feats.shape
             assert D == self.feature_dim, f"Expected feature_dim={self.feature_dim}, got {D}"
+            if self.backbone == 'vit':
+                feats = self.bn(feats)     
             z = feats.view(B, self.S, self.d)
         elif feats.dim() == 3:
-            z = feats
+            # z = feats
+            B, S, d = feats.shape
+            feats = feats.view(B, S * d)
+            if self.backbone == 'vit':
+                feats = self.bn(feats)
+            z = feats.view(B, S, d)
         else:
             raise ValueError(f"Unexpected feature shape: {tuple(feats.shape)}")
 
-        z_q, indices = self.vq(z)          # (B,S,d), (B,S)
-        logits = self.cls(z_q)             # (B,C)
-        return logits, indices
+        if return_entropy:
+            z_q, indices, entropy = self.vq(z, return_entropy=True)          # (B,S,d), (B,S)                    # (B,C)
+            return z_q, indices, entropy
+        else:
+            z_q, indices = self.vq(z)                               # (B,S,d), (B,S)
+            logits = self.cls(z_q)             # (B,C)            
+            return logits, indices
 
     def training_step(self, batch, batch_idx=None):
         feats, _, _, y_one_hot, _, _ = batch     
@@ -59,7 +75,7 @@ class VQClassifier(pl.LightningModule):
         
         logits, indices = self(feats)
 
-        loss = F.cross_entropy(logits, y)
+        loss = F.cross_entropy(logits, y)        
 
         preds = logits.argmax(dim=1)
         acc = (preds == y).float().mean()
@@ -136,7 +152,10 @@ class VQClassifier(pl.LightningModule):
                 break
 
         samples = torch.cat(samples, dim=0).to(self.device)  # (Nslots, d)
-        self.vq.init_codebook_from_samples(samples)
+        if self.backbone == 'vit':
+            self.vq.init_codebook_from_samples_std(samples)
+        else:
+            self.vq.init_codebook_from_samples(samples)
 
     @torch.no_grad()
     def extract(self, batch):

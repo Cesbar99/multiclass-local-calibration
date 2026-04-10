@@ -92,7 +92,7 @@ class AuxiliaryMLPV2(pl.LightningModule):
         
         if isinstance(log_var_initializer, (float, int, torch.Tensor)) and not hasattr(log_var_initializer, '__len__'):
             # Scalar case: fill with the same value
-            #var_tensor = torch.full((similarity_dim,), log_var_initializer)
+            # var_tensor = torch.full((similarity_dim,), log_var_initializer)
             var_tensor = torch.full((1,), log_var_initializer)
         elif isinstance(log_var_initializer, (ListConfig, list, tuple, np.ndarray, torch.Tensor)):
             # Vector case: convert to tensor and validate shape
@@ -148,11 +148,25 @@ class AuxiliaryMLPV2(pl.LightningModule):
                 #self.classifcation_head.bias.copy_(bias_init)
             
         if self.linearly_combine_pca:   
-            # FOR TISSUE AND CIFAR10 ALSO A SINGLE PARAMETER WORKS FINE. FOR CIFAR100 FULL VECTOR REQUIRED.
+            # FOR TISSUE AND CIFAR10 ALSO A SINGLE PARAMETER WORKS FINE 
             self.alpha_sim = nn.Parameter(torch.tensor(self.init_alpha_sim, dtype=torch.float32))  #nn.Parameter(torch.randn(self.similarity_dim) * 0.01 + self.init_alpha_sim) ##  # # # 
             self.beta_sim = nn.Parameter(torch.empty(1).normal_(mean=0.0, std=0.01))  #nn.Parameter(torch.randn(self.similarity_dim) * 0.01) ## # # #
             self.alpha_cls = nn.Parameter(torch.tensor(self.init_alpha_cls, dtype=torch.float32)) #nn.Parameter(torch.randn(self.output_dim) * 0.01 + self.init_alpha_cls)  ### # #  
             self.beta_cls = nn.Parameter(torch.empty(1).normal_(mean=0.0, std=0.01)) #nn.Parameter(torch.randn(self.output_dim) * 0.01)  # #
+            # FOR CIFAR100 FULL VECTOR REQUIRED.
+            # self.alpha_sim = nn.Parameter(
+            #     torch.full((self.similarity_dim,), float(self.init_alpha_sim), dtype=torch.float32)
+            # )
+            # self.beta_sim = nn.Parameter(
+            #     torch.empty(self.similarity_dim, dtype=torch.float32).normal_(mean=0.0, std=0.01)
+            # )
+
+            # self.alpha_cls = nn.Parameter(
+            #     torch.full((self.output_dim,), float(self.init_alpha_cls), dtype=torch.float32)
+            # )
+            # self.beta_cls = nn.Parameter(
+            #     torch.empty(self.output_dim, dtype=torch.float32).normal_(mean=0.0, std=0.01)
+            # )
             
     def forward(self, feats, logits, pca):
         # z: (batch_size, latent_dim)
@@ -192,8 +206,8 @@ class AuxiliaryMLPV2(pl.LightningModule):
         #classification_out = self.classifcation_head(x) + logits # self.dense8(x) + z_aug
         
         return classification_out, similarity_out
-"""    
-    
+
+"""       
 class AuxiliaryMLPV2(pl.LightningModule):
     def __init__(self, hidden_dim=64, feature_dim=2048, output_dim=2, similarity_dim=50, init_alpha_sim=1, init_alpha_cls=1,
                  log_var_initializer=0.01, dropout_rate=0.1, fixed_var=False, linearly_combine_pca=False):

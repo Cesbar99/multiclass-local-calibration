@@ -54,7 +54,7 @@ class VQCalibrator(pl.LightningModule):
             p_hat = F.softmax(logits, dim=1)
 
         calibrated_probs, log_scores, alpha = self.cal(p_hat, indices)                
-        loss = F.cross_entropy(log_scores, y)         
+        loss = F.cross_entropy(log_scores, y)                 
 
         self.log("cal_train_loss", loss, on_epoch=True, prog_bar=True)        
         self.log("cal_train_acc", (calibrated_probs.argmax(1) == y).float().mean(), on_epoch=True, prog_bar=True)
@@ -100,7 +100,6 @@ class VQCalibrator(pl.LightningModule):
                 
         return optimizer
                 
-    
     @torch.no_grad()
     def extract(self, batch):        
         feats, logits, init_pca, y_one_hot, _, _ = batch       
@@ -115,7 +114,12 @@ class VQCalibrator(pl.LightningModule):
         else:
             raise ValueError(f"Unexpected feature shape: {tuple(feats.shape)}")
 
-        z_q, indices = self.vqclassifier.vq(z)          # (B,S,d), (B,S)
+        z_q, indices, entropy = self.vqclassifier(z, return_entropy=True) # self.vqclassifier.vq(z, return_entropy=True)          # (B,S,d), (B,S)
+        # z_flat = z.view(z.shape[0], -1)
+        # z_q_flat = z_q.view(z_q.shape[0], -1)
+        # diff = z_flat - z_q_flat
+        # var = z_flat.var(dim=0, unbiased=False) + 1e-12
+        l2 = entropy.mean(dim=1) #torch.norm(z_flat - z_q_flat, dim=1) #torch.sum((z_flat - z_q_flat) ** 2, dim=1) # Distance from centroids, (B,S)        
         logits = self.vqclassifier.cls(z_q)             # (B,C)        
         p_hat = F.softmax(logits, dim=1)
         
@@ -147,7 +151,8 @@ class VQCalibrator(pl.LightningModule):
                     "preds": preds,     
                     "true": torch.argmax(y_one_hot, dim=-1).view(-1,1),
                     "indices": indices,
-                    "alpha": alpha.view(B, -1)
+                    "alpha": alpha.view(B, -1),
+                    "l2": l2
                     }
         return out
     

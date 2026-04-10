@@ -32,8 +32,9 @@ def main(cfg: DictConfig):
     elif kwargs.checkpoint.epochs == 5:
         model_class = 'vit'
     else:
-        raise ValueError(
-            f'Checkpoint not corresponding to a trained modl! {kwargs.checkpoint.epochs} was given but only 9 and 20 are supported')
+        if not kwargs.data == 'weather':
+            raise ValueError(
+                f'Checkpoint not corresponding to a trained modl! {kwargs.checkpoint.epochs} was given but only 9 and 20 are supported')
 
     base_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
     base_dir = os.path.join(os.path.dirname(os.path.dirname(base_dir)), 'result')

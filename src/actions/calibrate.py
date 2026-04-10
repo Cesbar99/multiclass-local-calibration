@@ -83,7 +83,9 @@ def calibrate(kwargs, wandb_logger):
     elif kwargs.checkpoint.epochs == 5:
         model_class = 'vit'
     else:
-        raise ValueError(f'Checkpoint not corresponding to a trained modl! {kwargs.checkpoint.epochs} was given but only 9 and 20 are supported')            
+        if not kwargs.data == 'weather':
+            raise ValueError(
+                f'Checkpoint not corresponding to a trained modl! {kwargs.checkpoint.epochs} was given but only 9 and 20 are supported')
     
     if kwargs.models.lambda_kl == 0:
         print("PROCEED SAFELY WITH REFERENCE KERNEL CALIBRATION!") # k-cal
@@ -113,15 +115,17 @@ def calibrate(kwargs, wandb_logger):
             if kwargs.models.kernel_only:
                 path = f"checkpoints/kernel_only/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features/"          
         os.makedirs(path, exist_ok=True) 
-        
-        if kwargs.data == 'tissue':
-            filename = f"classifier_seed-{seed}_ep-{total_epochs}"    
-        else:
-            filename = f"localnet_old_seed-{seed}_ep-{total_epochs}_{model_class}"
-            if kwargs.models.lambda_kl == 0:
-                filename = f"refkernel_seed-{seed}_ep-{total_epochs}_{model_class}"
-            if kwargs.models.kernel_only:
-                filename = f"kernelonly_seed-{seed}_ep-{total_epochs}_{model_class}"
+                
+        filename = f"localnet_old_seed-{seed}_ep-{total_epochs}_{model_class}"
+        if kwargs.data == 'cifar100':
+            filename = f"classifier_seed-{seed}_ep-{total_epochs}"
+        if kwargs.models.lambda_kl == 0:
+            filename = f"refkernel_seed-{seed}_ep-{total_epochs}_{model_class}"
+        if kwargs.models.kernel_only:
+            if kwargs.data == 'cifar100':
+                filename = f"classifier_seed-{seed}_ep-{total_epochs}"
+            else:
+                filename = f"localnet_old_seed-{seed}_ep-{total_epochs}_{model_class}" #f"kernelonly_seed-{seed}_ep-{total_epochs}_{model_class}"
         
         result_path = f"results/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features"
         if kwargs.models.lambda_kl == 0:
@@ -301,7 +305,7 @@ def calibrate(kwargs, wandb_logger):
         if kwargs.models.lambda_kl == 0:
             pl_model.load_state_dict(checkpoint['state_dict'])
         else:   #strict=False to allow loading only the local net weights into the reference kernel model
-            if kwargs.data == 'tissue':
+            if (kwargs.data in ['tissue', 'cifar100']) or (seed == 43):
                 pl_model.load_state_dict(checkpoint['state_dict'])
             else:
                 pl_model.model.load_state_dict(checkpoint)   #        
@@ -318,12 +322,12 @@ def calibrate(kwargs, wandb_logger):
                 deterministic=False,
                 callbacks=[ #CalibrationPlotCallback(kwargs, dataset.data_train_cal_loader, every_n_epochs=5, device="cuda", type='train'), 
                             #CalibrationPlotCallback(kwargs, dataset.data_test_cal_loader, every_n_epochs=5, device="cuda", type='test'),
-                            EarlyStopping(monitor="val_total", #val_kl
+                            EarlyStopping(monitor="val_kl", #val_total
                                         patience=10, #5
                                         mode="min", 
                                         verbose=True, 
                                         min_delta=0.0),
-                            ModelCheckpoint(monitor="val_total", #val_kl                                                                                               # Metric to track
+                            ModelCheckpoint(monitor="val_kl", #val_total                                                                                               # Metric to track
                                 mode="min",                                                                                                     # Lower is better
                                 save_top_k=1,                                                                                                   # Only keep the best model
                                 filename=filename, #f"classifier_seed-{seed}_ep-{total_epochs}",                                                           # Static filename (no epoch suffix)

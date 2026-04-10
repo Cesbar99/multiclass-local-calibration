@@ -2,6 +2,8 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from xgboost import XGBClassifier
+from sklearn.metrics import accuracy_score, classification_report
 import random as pyrandom
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -21,6 +23,16 @@ import optuna
 from optuna.samplers import NSGAIISampler
 from hp_opt.hp_opt import *
 from imagecorruptions import corrupt #corrupt_batch
+
+def move_to_device(x, device):
+    if torch.is_tensor(x):
+        return x.to(device)
+    elif isinstance(x, (list, tuple)):
+        return type(x)(move_to_device(v, device) for v in x)
+    elif isinstance(x, dict):
+        return {k: move_to_device(v, device) for k, v in x.items()}
+    else:
+        return x
 
 def corrupt_batch(batch, corruption_name, severity):
     return np.stack([
@@ -61,7 +73,12 @@ def pretrain(kwargs, wandb_logger):
 
     if (kwargs.corruption_type) and (kwargs.corruption_type not in corruptions):
         raise ValueError(f'Unknown corruption type! {kwargs.corruption_type} was given.')
-    sev = 3 if kwargs.corruption_type == "brightness" else 1 # set severity level (can be tuned)
+    if kwargs.severity:
+        sev = kwargs.severity    
+    else:
+        sev = 3 if kwargs.corruption_type == "brightness" else 1 # set severity level (can be tuned)
+    if kwargs.corruption_type:
+        kwargs.corruption_type = kwargs.corruption_type + f"_severity_{sev}"
     if kwargs.data == 'synthetic':
         dataset = SynthData(kwargs.dataset, experiment=kwargs.exp_name)
         pl_model = SynthTab(input_dim=kwargs.dataset.num_features,            
@@ -74,6 +91,48 @@ def pretrain(kwargs, wandb_logger):
     elif kwargs.data == 'covtype':
         dataset = CovTypeData(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data)
         pl_model = CovTypeModel(kwargs.models, dataset.numerical_features, dataset.category_counts)
+        
+    elif kwargs.data == 'weather':
+        dataset = WeatherData(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data, seed=seed)
+        splits = WeatherData(kwargs.dataset, experiment='xg_debug', name='weather', seed=42)
+
+        # number of classes
+        num_classes = len(set(splits.y_train))
+
+        model = XGBClassifier(
+            objective='multi:softprob',
+            num_class=num_classes,
+            eval_metric='mlogloss',
+
+            # good starting defaults
+            n_estimators=500,
+            learning_rate=0.05,
+            max_depth=6,
+            subsample=0.8,
+            colsample_bytree=0.8,
+
+            tree_method='hist',  # fast
+            random_state=42,
+        )
+
+        # train with validation monitoring
+        model.fit(
+            splits.X_train, splits.y_train,
+            eval_set=[(splits.X_val, splits.y_val)],
+            verbose=True
+        )
+
+        # predictions
+        y_pred = model.predict(splits.X_eval_cal)
+
+        # evaluation
+        acc = accuracy_score(splits.y_eval_cal, y_pred)
+        print(f"\nEval accuracy: {acc:.4f}")
+
+        print("\nClassification report:")
+        print(classification_report(splits.y_eval_cal, y_pred))
+        
+        pl_model = WeatherModel(kwargs.models, dataset.numerical_features, dataset.category_counts, dataset.class_counts)
     
     elif kwargs.data == 'otto':
         dataset = OttoData(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data)
@@ -197,16 +256,39 @@ def pretrain(kwargs, wandb_logger):
     
     # if kwargs.data != 'food101':
     if (kwargs.corruption_type) or (kwargs.extract_embeddings):
-        if kwargs.checkpoint.epochs == 5:
+        if kwargs.data == 'weather':
             best_model_path = path + f"classifier_seed-{seed}_ep-{kwargs.checkpoint.epochs}_tmp_{kwargs.models.temperature}.pt.ckpt"                        # Static filename (no epoch suffix)                
-            checkpoint = torch.load(best_model_path, map_location=device)
-            #pl_model.model.load_state_dict(checkpoint)
+            checkpoint = torch.load(best_model_path, map_location=device)     
             state_dict = checkpoint["state_dict"]            
             pl_model.load_state_dict(state_dict)
-        elif kwargs.checkpoint.epochs == 9:
-            best_model_path = path + f"classifier_seed-{seed}_ep-{kwargs.checkpoint.epochs}_tmp_{kwargs.models.temperature}.pt"                        # Static filename (no epoch suffix)                
-            checkpoint = torch.load(best_model_path, map_location=device)
-            pl_model.model.load_state_dict(checkpoint)
+        else:
+            if kwargs.checkpoint.epochs == 5:
+                best_model_path = path + f"classifier_seed-{seed}_ep-{kwargs.checkpoint.epochs}_tmp_{kwargs.models.temperature}.pt.ckpt"                        # Static filename (no epoch suffix)                
+                checkpoint = torch.load(best_model_path, map_location=device)
+                #pl_model.model.load_state_dict(checkpoint)
+                state_dict = checkpoint["state_dict"]     
+                new_state_dict = {}
+                # for k, v in state_dict.items():
+                #     if k.startswith("model."):
+                #         new_state_dict[k[len("model."):]] = v
+                #     else:
+                #         new_state_dict[k] = v
+                # pl_model.load_state_dict(new_state_dict)       
+                pl_model.load_state_dict(state_dict)
+            elif kwargs.checkpoint.epochs == 9:            
+                best_model_path = path + f"classifier_seed-{seed}_ep-{kwargs.checkpoint.epochs}_tmp_{kwargs.models.temperature}.pt"                        # Static filename (no epoch suffix)                
+                checkpoint = torch.load(best_model_path, map_location=device)            
+                if kwargs.data == 'tissue':
+                    fixed_checkpoint = {}
+                    for k, v in checkpoint.items():
+                        if k.startswith("resnet50.fc.1."):
+                            fixed_checkpoint[k.replace("resnet50.fc.1.", "resnet50.fc.0.")] = v
+                        else:
+                            fixed_checkpoint[k] = v
+                else:
+                    fixed_checkpoint = checkpoint
+                pl_model.model.load_state_dict(fixed_checkpoint)
+                # pl_model.model.load_state_dict(checkpoint)
     else:      
         if kwargs.use_optuna:     
             csv_path = f"optuna_logs/optuna_best_configs_pretrain_vit_{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features.csv"
@@ -293,16 +375,16 @@ def pretrain(kwargs, wandb_logger):
                 check_val_every_n_epoch=1,            
                 deterministic=True,
                 callbacks=[ ClearCacheCallback(), 
-                    # EarlyStopping(
-                    #      monitor="val_loss",
-                    #      patience=5,
-                    #      mode="min",
-                    #      verbose=True,
-                    #      min_delta=0.0,
-                    # ),
+                    EarlyStopping(
+                         monitor="val_loss", #val_loss
+                         patience=10,
+                         mode="min", #"max"
+                         verbose=True,
+                         min_delta=0.0,
+                    ),
                     ModelCheckpoint(
-                        monitor="val_acc", # "val_loss",                                                                                             # Metric to track
-                        mode="max", # "min"                                                                                                    # Lower is better
+                        monitor="val_loss", # "val_loss",                                                                                             # Metric to track
+                        mode="min", # "min"                                                                                                    # Lower is better
                         save_top_k=1,                                                                                                   # Only keep the best model
                         filename=f"classifier_seed-{seed}_ep-{total_epochs}_tmp_{kwargs.models.temperature}.pt",                        # Static filename (no epoch suffix)
                         dirpath=path,                                                                                                   # Save in your existing checkpoint folder
@@ -337,7 +419,8 @@ def pretrain(kwargs, wandb_logger):
 
         with torch.no_grad():
             for batch in tqdm(dataset.data_train_cal_loader, desc="Extracting features"):
-                batch = [b.to(device) for b in batch] 
+                #batch = [b.to(device) for b in batch] 
+                batch = move_to_device(batch, device)
                 
                 if kwargs.corruption_type:
                     images = batch[0]
@@ -381,7 +464,8 @@ def pretrain(kwargs, wandb_logger):
                        
                 # if kwargs.data != 'food101':            
                 raw = pl_model.extract_features(batch)
-                raws.append(raw)
+                raw_cpu = {k: v.cpu() if torch.is_tensor(v) else v for k, v in raw.items()}
+                raws.append(raw_cpu)
                 # else:
                 #     feats, logits, y_onehot, p, p_onehot = batch                    
                 #     preds = torch.argmax(logits, dim=1)
@@ -412,7 +496,8 @@ def pretrain(kwargs, wandb_logger):
         with torch.no_grad():
             # if kwargs.data != 'food101':  
             for batch in tqdm(dataset.data_eval_cal_loader, desc="Extracting features"):
-                batch = [b.to(device) for b in batch]               
+                #batch = [b.to(device) for b in batch]               
+                batch = move_to_device(batch, device)
                     
                 if kwargs.corruption_type:
                     images = batch[0]
@@ -431,7 +516,9 @@ def pretrain(kwargs, wandb_logger):
                     batch[0] = images
                                  
                 raw = pl_model.extract_features(batch)
-                raws.append(raw)
+                raw_cpu = {k: v.cpu() if torch.is_tensor(v) else v for k, v in raw.items()}
+                raws.append(raw_cpu)
+                # raws.append(raw)
             # else:
             #     for batch in tqdm(dataset.data_test_cal_loader, desc="Extracting features"):
             #         batch = [b.to(device) for b in batch]    
@@ -500,7 +587,60 @@ def pretrain(kwargs, wandb_logger):
     #     res.to_csv(raw_results_path_val_cal, index=False)
         # else:
         #     res.to_csv(raw_results_path_eval_cal, index=False)
-        
+    
+    if kwargs.data == 'weather':
+        raw_results_path_eval_cal_shift = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_shift_seed-{}_ep-{}_tmp_{}.csv".format(
+                kwargs.exp_name,
+                kwargs.data,
+                kwargs.dataset.num_classes,
+                kwargs.dataset.num_features,
+                seed,
+                total_epochs,
+                temperature            
+            )
+        if kwargs.return_features:
+            raws = []
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            # if kwargs.data != 'food101':
+            pl_model.eval()
+            pl_model.to(device)
+
+            with torch.no_grad():
+                # if kwargs.data != 'food101':  
+                for batch in tqdm(dataset.data_eval_cal_shift_loader, desc="Extracting features"):
+                    #batch = [b.to(device) for b in batch]               
+                    batch = move_to_device(batch, device)
+                        
+                    if kwargs.corruption_type:
+                        images = batch[0]
+                        # ---- APPLY CORRUPTION ----
+                        images_np = (images.permute(0, 2, 3, 1).cpu().numpy() * 255).astype('uint8')                                        
+
+                        images_np = corrupt_batch(
+                            images_np,
+                            corruption_name=kwargs.corruption_type, #"gaussian_noise",  # change as needed
+                            severity=sev, #pyrandom.randint(1, 5)
+                        )
+
+                        images = torch.from_numpy(images_np).permute(0, 3, 1, 2).float() / 255.0
+                        images = images.to(device)
+                        
+                        batch[0] = images
+                                    
+                    raw = pl_model.extract_features(batch)
+                    raw_cpu = {k: v.cpu() if torch.is_tensor(v) else v for k, v in raw.items()}
+                    raws.append(raw_cpu)
+                    # raws.append(raw)                
+                        
+            #all_raws = torch.cat(all_raws)
+            print('features shape: ', raws[1]['features'].shape)
+            res, pca = get_raw_res(raws, features=True, reduced_dim=kwargs.similarity_dim, fit_pca=pca) #fit_pca=pca
+        else:
+            raws = trainer.predict(pl_model, dataset.data_eval_cal_shift_loader) #dataset.data_eval_cal_loader
+            res, pca = get_raw_res(raws)
+        res.to_csv(raw_results_path_eval_cal_shift, index=False)
+
+
     print("PRE-TRAINING OVER!")
     print("START TESTING!")
     test(kwargs)

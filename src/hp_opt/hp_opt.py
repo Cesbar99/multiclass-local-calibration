@@ -66,7 +66,7 @@ def objective(trial, kwargs, train_loader, val_loader, wandb_logger):
     if kwargs.multi_obj:
         return val_kl, val_con_loss
     else:    
-        return optuna_loss
+        return val_kl #optuna_loss
     
     
 def replicator_objective(trial, kwargs, train_loader, val_loader, test_loader, wandb_logger):

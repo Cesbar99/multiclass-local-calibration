@@ -192,6 +192,7 @@ def get_raw_res(raws, features=False, adabw=False, reduced_dim=None, fit_pca=Non
     if quantize:
         indices = torch.cat([raws[j]["indices"].cpu() for j in range(len(raws))])
         alpha = torch.cat([raws[j]["alpha"].cpu() for j in range(len(raws))])
+        l2 = torch.cat([raws[j]["l2"].cpu() for j in range(len(raws))])
     if adabw:
         sigma = torch.cat([raws[j]["bandwidth"].cpu() for j in range(len(raws))])
     
@@ -221,6 +222,11 @@ def get_raw_res(raws, features=False, adabw=False, reduced_dim=None, fit_pca=Non
         alpha_tmp = pd.DataFrame(
             alpha_np, columns=[f"alpha_{i}" for i in range(alpha_np.shape[1])]
         ) 
+        raw_res["l2"] = l2.numpy().reshape(-1)
+        # l2_np = l2.cpu().numpy()
+        # l2_tmp = pd.DataFrame(
+        #     l2_np, columns=[f"l2_{i}" for i in range(l2_np.shape[1])]
+        # )
     if features:        
         #for i in range(feats.shape[1]):
         #    feats_tmp["features_{}".format(i)] = feats[:, i].cpu().numpy()
@@ -229,23 +235,37 @@ def get_raw_res(raws, features=False, adabw=False, reduced_dim=None, fit_pca=Non
             feats_np, columns=[f"features_{i}" for i in range(feats_np.shape[1])]
         )        
         if reduced_dim is not None and reduced_dim > 0:
-            print('RUNNING PCA ON FEATURES TO REDUCE DIM TO: ', reduced_dim)
-            # Standardization            
-            scaler = StandardScaler()
-            feats_scaled = scaler.fit_transform(feats_tmp.values)
-            if fit_pca is not None:
-                pca = fit_pca
-            else:                                
-                # PCA
-                print('FITTING PCA...')
-                pca = PCA(n_components=reduced_dim)
-                pca = pca.fit(feats_scaled)
-                
-            feats_pca = pca.transform(feats_scaled)
-            feats_pca_tmp = pd.DataFrame(
-                feats_pca, columns=[f"pca_{i}" for i in range(feats_pca.shape[1])]
-            )
-            feats_tmp = pd.concat([feats_tmp, feats_pca_tmp], axis=1)
+            n_samples, n_features = feats_tmp.shape
+            max_valid_dim = min(n_samples, n_features)
+            if reduced_dim >= max_valid_dim:
+                print(
+                    f"Skipping PCA: reduced_dim={reduced_dim} is larger than "
+                    f"min(n_samples, n_features)={max_valid_dim}. Returning original features only."
+                )
+                pca = None
+                feats_pca = feats_tmp.values
+                feats_pca_tmp = pd.DataFrame(
+                    feats_pca, columns=[f"pca_{i}" for i in range(feats_pca.shape[1])]
+                )
+                feats_tmp = pd.concat([feats_tmp, feats_pca_tmp], axis=1)
+            else:
+                print('RUNNING PCA ON FEATURES TO REDUCE DIM TO: ', reduced_dim)
+                # Standardization            
+                scaler = StandardScaler()
+                feats_scaled = scaler.fit_transform(feats_tmp.values)
+                if fit_pca is not None:
+                    pca = fit_pca
+                else:                                
+                    # PCA
+                    print('FITTING PCA...')
+                    pca = PCA(n_components=reduced_dim)
+                    pca = pca.fit(feats_scaled)
+                    
+                feats_pca = pca.transform(feats_scaled)
+                feats_pca_tmp = pd.DataFrame(
+                    feats_pca, columns=[f"pca_{i}" for i in range(feats_pca.shape[1])]
+                )
+                feats_tmp = pd.concat([feats_tmp, feats_pca_tmp], axis=1)
         else:
             pca = None
     else:
@@ -785,22 +805,22 @@ def compute_multiclass_calibration_metrics_w_lce(
         return avg_ecce, avg_ece, avg_mce, avg_brier, nll, lce_list, mlce_list
     else:
         return avg_ecce, avg_ece, avg_mce, avg_brier, nll, avg_lce, avg_mlce
-"""
 
+"""
 def compute_multiclass_calibration_metrics_w_lce(
     probs: torch.Tensor,
     y_true: torch.Tensor,
-    pca: torch.Tensor,
+    pca: torch.Tensor,    
     class_freqs: list,
     n_bins: int = 15,
     n_bins_esse: int = 15,
-    gamma: float = 0.1,
+    gamma: float = 0.1,    
     full_ece: bool = False,
     bin_strategy: str = 'default',  # 'quantile' or default
     data: str = 'cifar10',
     model_type: str = 'resnet'
 ):
-    """
+    '''
     Computes:
       - ECCE (per-class then averaged)
       - ECE (per-class then averaged or list if full_ece)
@@ -834,7 +854,7 @@ def compute_multiclass_calibration_metrics_w_lce(
         - 'avg_ess_per_bin': weighted average ESS in each ESS bin
         - 'count_per_bin': total number of valid samples in each ESS bin
         - 'per_class': list with the same information for each class
-    """
+    '''
     device = probs.device
     N, n_classes = probs.shape
     eps = 1e-12
@@ -848,7 +868,401 @@ def compute_multiclass_calibration_metrics_w_lce(
     per_class_mlce = []
 
     # NEW: store per-class ESS-binned profiles
+    per_class_ess_profiles = []    
+
+    if data == 'food101':
+        filter_thr = 10
+    else:
+        filter_thr = 10 if model_type == "vit" else 20
+
+    # Negative log-likelihood
+    log_probs = torch.log(probs + 1e-12)
+    loss = F.nll_loss(log_probs, y_true, reduction='mean')
+    nll = loss.item()
+
+    # Multiclass Brier
+    y_onehot = F.one_hot(y_true, num_classes=n_classes).float().to(device)
+    avg_brier = torch.mean(torch.sum((probs - y_onehot) ** 2, dim=1)).item()
+
+    # PCA checks
+    pca = pca.to(device).float()
+    if pca.dim() == 1:
+        pca = pca.view(N, 1)
+    if pca.shape[0] != N:
+        raise ValueError("pca must have same first dimension as probs (N samples).")
+
+    if gamma <= 0:
+        raise ValueError("gamma must be > 0")
+
+    for class_idx in range(n_classes):
+        print('Class ', class_idx)
+
+        labels_binary = (y_true == class_idx).float().to(device)   # (N,)
+        probs_class = probs[:, class_idx].to(device)               # (N,)
+
+        # Confidence bins
+        if bin_strategy == 'quantile':
+            arr = probs_class.detach().cpu().numpy()
+            bin_edges_np = np.quantile(arr, np.linspace(0.0, 1.0, n_bins + 1))
+            bin_edges_np[0] = 0.0
+            bin_edges_np[-1] = 1.0
+            bin_edges = torch.tensor(bin_edges_np, dtype=torch.float32, device=device)
+
+            # indices in [0, n_bins-1]
+            bin_indices = torch.bucketize(probs_class, bin_edges, right=False) - 1
+            bin_indices = bin_indices.clamp(0, n_bins - 1)
+            bin_loop = range(n_bins)
+        else:
+            bin_edges = torch.linspace(0.0, 1.0, n_bins + 1, device=device)
+            # indices in [1, n_bins]
+            bin_indices = torch.bucketize(probs_class, bin_edges, right=True)
+            bin_indices = bin_indices.clamp(1, n_bins)
+            bin_loop = range(1, n_bins + 1)
+
+        total_count = probs_class.numel()
+        ece = 0.0
+        mce = 0.0
+
+        # For ECCE
+        bin_accs = []
+        bin_confs = []
+        bin_weights = []
+
+        # Per-sample LCE and ESS
+        lce_vals = torch.zeros(N, device=device)
+        ess_vals = torch.zeros(N, device=device)        
+
+        valid_idx = []
+
+        for b in bin_loop:
+            idx_in_bin = (bin_indices == b).nonzero(as_tuple=True)[0]
+            if idx_in_bin.numel() == 0:
+                continue
+
+            # ECE / MCE
+            bin_probs = probs_class[idx_in_bin]
+            bin_labels = labels_binary[idx_in_bin]
+            bin_accuracy = torch.mean(bin_labels).item()
+            bin_confidence = torch.mean(bin_probs).item()
+            bin_error = abs(bin_accuracy - bin_confidence)
+
+            bin_accs.append(bin_accuracy)
+            bin_confs.append(bin_confidence)
+            bin_weights.append(idx_in_bin.numel() / total_count)
+
+            ece += bin_error * idx_in_bin.numel() / total_count
+            mce = max(mce, bin_error)
+
+            print(idx_in_bin.numel())
+
+            # ---------- LCE + ESS computation in this confidence bin ----------
+            if idx_in_bin.numel() > filter_thr:
+                pca_bin = pca[idx_in_bin]   # (s, d)
+                e_sub = (probs_class[idx_in_bin] - labels_binary[idx_in_bin]).to(device)  # (s,)
+
+                s = pca_bin.size(0)
+                chunk_size = 1024  # tune this
+
+                lce_sub = torch.zeros(s, device=device)
+                ess_sub = torch.zeros(s, device=device)
+
+                sq_norms_all = (pca_bin ** 2).sum(dim=1)  # (s,)
+
+                for start in range(0, s, chunk_size):
+                    end = min(start + chunk_size, s)
+
+                    X = pca_bin[start:end]                         # (b, d)
+                    sq_norms_X = (X ** 2).sum(dim=1, keepdim=True)  # (b, 1)
+
+                    D_chunk = sq_norms_X + sq_norms_all.unsqueeze(0) - 2 * X @ pca_bin.t()
+                    D_chunk = torch.clamp(D_chunk, min=0)
+
+                    K_chunk = torch.exp(-D_chunk / (2.0 * gamma ** 2))  # (b, s)
+
+                    # LCE
+                    numer_chunk = K_chunk @ e_sub
+                    denom_chunk = K_chunk.sum(dim=1)
+
+                    denom_safe = denom_chunk.clone()
+                    zero_mask_lce = denom_safe <= eps
+                    denom_safe[zero_mask_lce] = 1.0
+
+                    lce_chunk = numer_chunk / (denom_safe + eps)
+                    lce_chunk[zero_mask_lce] = 0.0
+                    lce_sub[start:end] = lce_chunk
+
+                    # ESS excluding self
+                    Ksupport_chunk = K_chunk.clone()
+
+                    row_ids = torch.arange(start, end, device=device)
+                    Ksupport_chunk[torch.arange(end - start, device=device), row_ids] = 0.0
+
+                    row_sum = Ksupport_chunk.sum(dim=1)
+                    zero_mask_ess = row_sum <= eps
+
+                    row_sum_safe = row_sum.clone()
+                    row_sum_safe[zero_mask_ess] = 1.0
+
+                    w_norm = Ksupport_chunk / row_sum_safe.unsqueeze(1)
+                    ess_chunk = 1.0 / (w_norm.pow(2).sum(dim=1) + eps)
+                    ess_chunk[zero_mask_ess] = 0.0
+
+                    ess_sub[start:end] = ess_chunk
+
+                lce_vals[idx_in_bin] = lce_sub
+                ess_vals[idx_in_bin] = ess_sub
+                valid_idx.append(idx_in_bin)
+                # pca_bin = pca[idx_in_bin]  # (s, d)
+
+                # sq_norms = (pca_bin ** 2).sum(dim=1, keepdim=True)
+                # D_bin = sq_norms + sq_norms.t() - 2 * pca_bin @ pca_bin.t()
+                # D_bin = torch.clamp(D_bin, min=0)
+
+                # # Gaussian kernel
+                # Ksub = torch.exp(-D_bin / (2.0 * gamma ** 2))  # (s, s)
+
+                # # ---------- LCE ----------
+                # e_sub = (probs_class[idx_in_bin] - labels_binary[idx_in_bin]).to(device)
+                # numer = Ksub.matmul(e_sub)
+                # denom = Ksub.sum(dim=1)
+
+                # denom_safe = denom.clone()
+                # zero_mask_lce = denom_safe <= eps
+                # denom_safe[zero_mask_lce] = 1.0
+
+                # lce_sub = numer / (denom_safe + eps)
+                # if zero_mask_lce.any():
+                #     lce_sub[zero_mask_lce] = 0.0
+
+                # # ---------- ESS (exclude self-contribution) ----------
+                # Ksupport = Ksub.clone()
+                # Ksupport.fill_diagonal_(0.0)
+
+                # row_sum = Ksupport.sum(dim=1, keepdim=True)  # (s, 1)
+                # row_sum_safe = row_sum.clone()
+                # zero_mask_ess = row_sum_safe.squeeze(1) <= eps
+                # row_sum_safe[row_sum_safe <= eps] = 1.0
+
+                # w_norm = Ksupport / (row_sum_safe + eps)
+                # ess_sub = 1.0 / (w_norm.pow(2).sum(dim=1) + eps)
+
+                # # no neighbor support after removing diagonal
+                # ess_sub[zero_mask_ess] = 0.0
+
+                # # write back
+                # lce_vals[idx_in_bin] = lce_sub
+                # ess_vals[idx_in_bin] = ess_sub
+                # valid_idx.append(idx_in_bin)
+
+        # ECCE
+        if len(bin_accs) > 0:
+            bin_accs_t = torch.tensor(bin_accs, device=device, dtype=torch.float32)
+            bin_confs_t = torch.tensor(bin_confs, device=device, dtype=torch.float32)
+            bin_weights_t = torch.tensor(bin_weights, device=device, dtype=torch.float32)
+
+            cum_pred = torch.cumsum(bin_weights_t * bin_confs_t, dim=0)
+            cum_true = torch.cumsum(bin_weights_t * bin_accs_t, dim=0)
+            ecce_val = torch.sum(torch.abs(cum_pred - cum_true)).item()
+            ecce_val /= len(bin_accs)
+        else:
+            ecce_val = 0.0
+
+        ecces.append(ecce_val)
+        eces.append(ece)
+        mces.append(mce)
+
+        # ---------- Per-class LCE aggregation ----------
+        if len(valid_idx) > 0:
+            valid_idx = torch.cat(valid_idx)
+            lce_abs = torch.abs(lce_vals[valid_idx])
+            ess_valid = ess_vals[valid_idx]            
+
+            per_class_lce_avg.append(float(lce_abs.mean().item()))
+            per_class_mlce.append(float(lce_abs.max().item()))
+
+            # ---------- NEW: ESS-binned LCE profile ----------
+            # Keep only samples with positive ESS
+            positive_mask = ess_valid > 0
+            ess_valid_pos = ess_valid[positive_mask]
+            lce_abs_pos = lce_abs[positive_mask]
+                                 
+            # lce_abs_valid = lce_abs[finite_mask]
+            
+            if ess_valid_pos.numel() > 0:                
+                ess_np = ess_valid_pos.detach().cpu().numpy()                           
+
+                # Quantile ESS bins
+                ess_edges_np = np.quantile(ess_np, np.linspace(0.0, 1.0, n_bins_ess + 1))
+                ess_edges_np[0] = ess_np.min() - 1e-12
+                ess_edges_np[-1] = ess_np.max() + 1e-12                                
+
+                # Handle degenerate case where many ESS values are identical
+                ess_edges_np = np.maximum.accumulate(ess_edges_np)                
+
+                ess_edges = torch.tensor(ess_edges_np, dtype=torch.float32, device=device)                
+
+                ess_bin_idx = torch.bucketize(ess_valid_pos, ess_edges, right=False) - 1
+                ess_bin_idx = ess_bin_idx.clamp(0, n_bins_ess - 1)                
+
+                class_bin_lce = []
+                class_bin_ess = []                
+                class_bin_count = []
+
+                for eb in range(n_bins_ess):
+                    idx_ess_bin = (ess_bin_idx == eb).nonzero(as_tuple=True)[0]                    
+                    if idx_ess_bin.numel() == 0:
+                        class_bin_lce.append(np.nan)
+                        class_bin_ess.append(np.nan)                        
+                        class_bin_count.append(0)
+                    else:
+                        class_bin_lce.append(float(lce_abs_pos[idx_ess_bin].mean().item()))
+                        class_bin_ess.append(float(ess_valid_pos[idx_ess_bin].mean().item()))                        
+                        class_bin_count.append(int(idx_ess_bin.numel()))
+            else:
+                class_bin_lce = [np.nan] * n_bins_ess
+                class_bin_ess = [np.nan] * n_bins_ess                
+                class_bin_count = [0] * n_bins_ess
+
+        else:
+            per_class_lce_avg.append(0.0)
+            per_class_mlce.append(0.0)
+
+            class_bin_lce = [np.nan] * n_bins_ess
+            class_bin_ess = [np.nan] * n_bins_ess            
+            class_bin_count = [0] * n_bins_ess
+
+        per_class_ess_profiles.append({
+            "avg_abs_lce_per_ess_bin": class_bin_lce,
+            "avg_ess_per_bin": class_bin_ess,
+            "count_per_bin": class_bin_count
+        })                
+
+    # ---------- Final aggregation ----------
+    if full_ece:
+        avg_ece = [round(x, 4) for x in eces]
+        avg_ecce = [round(x, 4) for x in ecces]
+        lce_list = [round(x, 4) for x in per_class_lce_avg]
+        mlce_list = [round(x, 4) for x in per_class_mlce]
+    else:
+        avg_ece = np.dot(np.array(eces).T, np.array(class_freqs))
+        avg_ecce = np.dot(np.array(ecces).T, np.array(class_freqs))
+        lce_list = None
+
+    avg_mce = np.dot(np.array(mces).T, np.array(class_freqs))
+    avg_lce = np.dot(np.array(per_class_lce_avg).T, np.array(class_freqs))
+    avg_mlce = np.dot(np.array(per_class_mlce).T, np.array(class_freqs))
+
+    # ---------- NEW: aggregate ESS-binned profile across classes ----------
+    agg_bin_lce = []
+    agg_bin_ess = []    
+    agg_bin_count = []
+
+    for eb in range(n_bins_ess):
+        vals_lce = []
+        vals_ess = []        
+        vals_counts = []
+
+        for c in range(n_classes):
+            count_c = per_class_ess_profiles[c]["count_per_bin"][eb]
+            lce_c = per_class_ess_profiles[c]["avg_abs_lce_per_ess_bin"][eb]
+            ess_c = per_class_ess_profiles[c]["avg_ess_per_bin"][eb]            
+
+            if count_c > 0 and not np.isnan(lce_c):
+                vals_lce.append(lce_c * count_c)
+                vals_counts.append(count_c)
+
+            if count_c > 0 and not np.isnan(ess_c):
+                vals_ess.append(ess_c * count_c)            
+
+        total_bin_count = int(np.sum(vals_counts)) if len(vals_counts) > 0 else 0
+
+        if total_bin_count > 0:
+            agg_bin_lce.append(float(np.sum(vals_lce) / total_bin_count))
+            agg_bin_ess.append(float(np.sum(vals_ess) / total_bin_count))            
+            agg_bin_count.append(total_bin_count)
+        else:
+            agg_bin_lce.append(np.nan)
+            agg_bin_ess.append(np.nan)            
+            agg_bin_count.append(0)
+
+    ess_lce_profile = {
+        "avg_abs_lce_per_ess_bin": agg_bin_lce,
+        "avg_ess_per_bin": agg_bin_ess,
+        "count_per_bin": agg_bin_count,
+        "per_class": per_class_ess_profiles
+    }
+
+    if full_ece:
+        return avg_ecce, avg_ece, avg_mce, avg_brier, nll, lce_list, mlce_list, ess_lce_profile
+    else:
+        return avg_ecce, avg_ece, avg_mce, avg_brier, nll, avg_lce, avg_mlce, ess_lce_profile
+
+def compute_multiclass_calibration_metrics_w_lce_quant(
+    probs: torch.Tensor,
+    y_true: torch.Tensor,
+    pca: torch.Tensor,
+    l2: torch.Tensor,
+    class_freqs: list,
+    n_bins: int = 15,
+    n_bins_esse: int = 15,
+    gamma: float = 0.1,
+    full_ece: bool = False,
+    bin_strategy: str = 'default',  # 'quantile' or default
+    data: str = 'cifar10',
+    model_type: str = 'resnet'
+):
+    """
+    Computes:
+      - ECCE (per-class then averaged)
+      - ECE (per-class then averaged or list if full_ece)
+      - MCE (averaged across classes)
+      - Brier score
+      - NLL
+      - LCE metrics (average absolute LCE and average MLCE across classes)
+      - ESS-binned LCE profile
+      - L2-binned LCE profile, where L2 is provided externally per sample
+
+    Parameters:
+      probs: (N, C) predicted probabilities
+      y_true: (N,) true labels (long)
+      pca: (N, d) feature vectors
+      l2: (N,) scalar L2 distance for each sample
+      class_freqs: class frequencies for weighted aggregation
+      n_bins: number of confidence bins
+      n_bins_esse: number of bins for ESS and L2 profiles
+      gamma: Gaussian kernel bandwidth
+      full_ece: if True, return per-class ECE/ECCE/LCE metrics and profiles
+      bin_strategy: 'quantile' or default uniform confidence bins
+
+    Returns:
+      If full_ece=False:
+        avg_ecce, avg_ece, avg_mce, avg_brier, nll, avg_lce, avg_mlce,
+        ess_lce_profile, l2_lce_profile
+
+      If full_ece=True:
+        avg_ecce, avg_ece, avg_mce, avg_brier, nll, lce_list, mlce_list,
+        ess_lce_profile, l2_lce_profile
+    """
+    device = probs.device
+    N, n_classes = probs.shape
+    eps = 1e-12
+    n_bins_ess = n_bins_esse
+    n_bins_l2 = n_bins_esse
+
+    l2 = l2.to(device).float().view(-1)
+    if l2.shape[0] != N:
+        raise ValueError("l2 must have shape (N,), same first dimension as probs.")
+
+    # Metrics containers
+    ecces = []
+    eces = []
+    mces = []
+    per_class_lce_avg = []
+    per_class_mlce = []
+
+    # Store per-class profiles
     per_class_ess_profiles = []
+    per_class_l2_profiles = []
 
     if data == 'food101':
         filter_thr = 10
@@ -937,44 +1351,57 @@ def compute_multiclass_calibration_metrics_w_lce(
 
             # ---------- LCE + ESS computation in this confidence bin ----------
             if idx_in_bin.numel() > filter_thr:
-                pca_bin = pca[idx_in_bin]  # (s, d)
+                pca_bin = pca[idx_in_bin]   # (s, d)
+                e_sub = (probs_class[idx_in_bin] - labels_binary[idx_in_bin]).to(device)  # (s,)
 
-                sq_norms = (pca_bin ** 2).sum(dim=1, keepdim=True)
-                D_bin = sq_norms + sq_norms.t() - 2 * pca_bin @ pca_bin.t()
-                D_bin = torch.clamp(D_bin, min=0)
+                s = pca_bin.size(0)
+                chunk_size = 1024
 
-                # Gaussian kernel
-                Ksub = torch.exp(-D_bin / (2.0 * gamma ** 2))  # (s, s)
+                lce_sub = torch.zeros(s, device=device)
+                ess_sub = torch.zeros(s, device=device)
 
-                # ---------- LCE ----------
-                e_sub = (probs_class[idx_in_bin] - labels_binary[idx_in_bin]).to(device)
-                numer = Ksub.matmul(e_sub)
-                denom = Ksub.sum(dim=1)
+                sq_norms_all = (pca_bin ** 2).sum(dim=1)  # (s,)
 
-                denom_safe = denom.clone()
-                zero_mask_lce = denom_safe <= eps
-                denom_safe[zero_mask_lce] = 1.0
+                for start in range(0, s, chunk_size):
+                    end = min(start + chunk_size, s)
 
-                lce_sub = numer / (denom_safe + eps)
-                if zero_mask_lce.any():
-                    lce_sub[zero_mask_lce] = 0.0
+                    X = pca_bin[start:end]                           # (b, d)
+                    sq_norms_X = (X ** 2).sum(dim=1, keepdim=True)   # (b, 1)
 
-                # ---------- ESS (exclude self-contribution) ----------
-                Ksupport = Ksub.clone()
-                Ksupport.fill_diagonal_(0.0)
+                    D_chunk = sq_norms_X + sq_norms_all.unsqueeze(0) - 2 * X @ pca_bin.t()
+                    D_chunk = torch.clamp(D_chunk, min=0)
 
-                row_sum = Ksupport.sum(dim=1, keepdim=True)  # (s, 1)
-                row_sum_safe = row_sum.clone()
-                zero_mask_ess = row_sum_safe.squeeze(1) <= eps
-                row_sum_safe[row_sum_safe <= eps] = 1.0
+                    K_chunk = torch.exp(-D_chunk / (2.0 * gamma ** 2))  # (b, s)
 
-                w_norm = Ksupport / (row_sum_safe + eps)
-                ess_sub = 1.0 / (w_norm.pow(2).sum(dim=1) + eps)
+                    # LCE
+                    numer_chunk = K_chunk @ e_sub
+                    denom_chunk = K_chunk.sum(dim=1)
 
-                # no neighbor support after removing diagonal
-                ess_sub[zero_mask_ess] = 0.0
+                    denom_safe = denom_chunk.clone()
+                    zero_mask_lce = denom_safe <= eps
+                    denom_safe[zero_mask_lce] = 1.0
 
-                # write back
+                    lce_chunk = numer_chunk / (denom_safe + eps)
+                    lce_chunk[zero_mask_lce] = 0.0
+                    lce_sub[start:end] = lce_chunk
+
+                    # ESS excluding self
+                    Ksupport_chunk = K_chunk.clone()
+                    row_ids = torch.arange(start, end, device=device)
+                    Ksupport_chunk[torch.arange(end - start, device=device), row_ids] = 0.0
+
+                    row_sum = Ksupport_chunk.sum(dim=1)
+                    zero_mask_ess = row_sum <= eps
+
+                    row_sum_safe = row_sum.clone()
+                    row_sum_safe[zero_mask_ess] = 1.0
+
+                    w_norm = Ksupport_chunk / row_sum_safe.unsqueeze(1)
+                    ess_chunk = 1.0 / (w_norm.pow(2).sum(dim=1) + eps)
+                    ess_chunk[zero_mask_ess] = 0.0
+
+                    ess_sub[start:end] = ess_chunk
+
                 lce_vals[idx_in_bin] = lce_sub
                 ess_vals[idx_in_bin] = ess_sub
                 valid_idx.append(idx_in_bin)
@@ -999,65 +1426,110 @@ def compute_multiclass_calibration_metrics_w_lce(
         # ---------- Per-class LCE aggregation ----------
         if len(valid_idx) > 0:
             valid_idx = torch.cat(valid_idx)
+
             lce_abs = torch.abs(lce_vals[valid_idx])
             ess_valid = ess_vals[valid_idx]
+            l2_valid = l2[valid_idx]
 
             per_class_lce_avg.append(float(lce_abs.mean().item()))
             per_class_mlce.append(float(lce_abs.max().item()))
 
-            # ---------- NEW: ESS-binned LCE profile ----------
-            # Keep only samples with positive ESS
+            # ===== ESS PROFILE =====
             positive_mask = ess_valid > 0
             ess_valid_pos = ess_valid[positive_mask]
             lce_abs_pos = lce_abs[positive_mask]
-            
-            if ess_valid_pos.numel() > 0:
-                ess_np = ess_valid_pos.detach().cpu().numpy()                
 
-                # Quantile ESS bins
+            if ess_valid_pos.numel() > 0:
+                ess_np = ess_valid_pos.detach().cpu().numpy()
+
                 ess_edges_np = np.quantile(ess_np, np.linspace(0.0, 1.0, n_bins_ess + 1))
                 ess_edges_np[0] = ess_np.min() - 1e-12
                 ess_edges_np[-1] = ess_np.max() + 1e-12
-
-                # Handle degenerate case where many ESS values are identical
                 ess_edges_np = np.maximum.accumulate(ess_edges_np)
 
                 ess_edges = torch.tensor(ess_edges_np, dtype=torch.float32, device=device)
-
                 ess_bin_idx = torch.bucketize(ess_valid_pos, ess_edges, right=False) - 1
                 ess_bin_idx = ess_bin_idx.clamp(0, n_bins_ess - 1)
 
-                class_bin_lce = []
+                class_bin_lce_ess = []
                 class_bin_ess = []
-                class_bin_count = []
+                class_bin_count_ess = []
 
                 for eb in range(n_bins_ess):
                     idx_ess_bin = (ess_bin_idx == eb).nonzero(as_tuple=True)[0]
+
                     if idx_ess_bin.numel() == 0:
-                        class_bin_lce.append(np.nan)
+                        class_bin_lce_ess.append(np.nan)
                         class_bin_ess.append(np.nan)
-                        class_bin_count.append(0)
+                        class_bin_count_ess.append(0)
                     else:
-                        class_bin_lce.append(float(lce_abs_pos[idx_ess_bin].mean().item()))
+                        class_bin_lce_ess.append(float(lce_abs_pos[idx_ess_bin].mean().item()))
                         class_bin_ess.append(float(ess_valid_pos[idx_ess_bin].mean().item()))
-                        class_bin_count.append(int(idx_ess_bin.numel()))
+                        class_bin_count_ess.append(int(idx_ess_bin.numel()))
             else:
-                class_bin_lce = [np.nan] * n_bins_ess
+                class_bin_lce_ess = [np.nan] * n_bins_ess
                 class_bin_ess = [np.nan] * n_bins_ess
-                class_bin_count = [0] * n_bins_ess
+                class_bin_count_ess = [0] * n_bins_ess
+
+            # ===== L2 PROFILE =====
+            finite_mask = torch.isfinite(l2_valid)
+            l2_valid_pos = l2_valid[finite_mask]
+            lce_abs_l2 = lce_abs[finite_mask]
+
+            if l2_valid_pos.numel() > 0:
+                l2_np = l2_valid_pos.detach().cpu().numpy()
+
+                l2_edges_np = np.quantile(l2_np, np.linspace(0.0, 1.0, n_bins_l2 + 1))
+                l2_edges_np[0] = l2_np.min() - 1e-12
+                l2_edges_np[-1] = l2_np.max() + 1e-12
+                l2_edges_np = np.maximum.accumulate(l2_edges_np)
+
+                l2_edges = torch.tensor(l2_edges_np, dtype=torch.float32, device=device)
+                l2_bin_idx = torch.bucketize(l2_valid_pos, l2_edges, right=False) - 1
+                l2_bin_idx = l2_bin_idx.clamp(0, n_bins_l2 - 1)
+
+                class_bin_lce_l2 = []
+                class_bin_l2 = []
+                class_bin_count_l2 = []
+
+                for lb in range(n_bins_l2):
+                    idx_l2_bin = (l2_bin_idx == lb).nonzero(as_tuple=True)[0]
+
+                    if idx_l2_bin.numel() == 0:
+                        class_bin_lce_l2.append(np.nan)
+                        class_bin_l2.append(np.nan)
+                        class_bin_count_l2.append(0)
+                    else:
+                        class_bin_lce_l2.append(float(lce_abs_l2[idx_l2_bin].mean().item()))
+                        class_bin_l2.append(float(l2_valid_pos[idx_l2_bin].mean().item()))
+                        class_bin_count_l2.append(int(idx_l2_bin.numel()))
+            else:
+                class_bin_lce_l2 = [np.nan] * n_bins_l2
+                class_bin_l2 = [np.nan] * n_bins_l2
+                class_bin_count_l2 = [0] * n_bins_l2
 
         else:
             per_class_lce_avg.append(0.0)
             per_class_mlce.append(0.0)
 
-            class_bin_lce = [np.nan] * n_bins_ess
+            class_bin_lce_ess = [np.nan] * n_bins_ess
             class_bin_ess = [np.nan] * n_bins_ess
-            class_bin_count = [0] * n_bins_ess
+            class_bin_count_ess = [0] * n_bins_ess
+
+            class_bin_lce_l2 = [np.nan] * n_bins_l2
+            class_bin_l2 = [np.nan] * n_bins_l2
+            class_bin_count_l2 = [0] * n_bins_l2
 
         per_class_ess_profiles.append({
-            "avg_abs_lce_per_ess_bin": class_bin_lce,
+            "avg_abs_lce_per_ess_bin": class_bin_lce_ess,
             "avg_ess_per_bin": class_bin_ess,
-            "count_per_bin": class_bin_count
+            "count_per_bin": class_bin_count_ess
+        })
+
+        per_class_l2_profiles.append({
+            "avg_abs_lce_per_l2_bin": class_bin_lce_l2,
+            "avg_l2_per_bin": class_bin_l2,
+            "count_per_bin": class_bin_count_l2
         })
 
     # ---------- Final aggregation ----------
@@ -1075,10 +1547,10 @@ def compute_multiclass_calibration_metrics_w_lce(
     avg_lce = np.dot(np.array(per_class_lce_avg).T, np.array(class_freqs))
     avg_mlce = np.dot(np.array(per_class_mlce).T, np.array(class_freqs))
 
-    # ---------- NEW: aggregate ESS-binned profile across classes ----------
-    agg_bin_lce = []
+    # ---------- Aggregate ESS-binned profile across classes ----------
+    agg_bin_lce_ess = []
     agg_bin_ess = []
-    agg_bin_count = []
+    agg_bin_count_ess = []
 
     for eb in range(n_bins_ess):
         vals_lce = []
@@ -1100,25 +1572,511 @@ def compute_multiclass_calibration_metrics_w_lce(
         total_bin_count = int(np.sum(vals_counts)) if len(vals_counts) > 0 else 0
 
         if total_bin_count > 0:
-            agg_bin_lce.append(float(np.sum(vals_lce) / total_bin_count))
+            agg_bin_lce_ess.append(float(np.sum(vals_lce) / total_bin_count))
             agg_bin_ess.append(float(np.sum(vals_ess) / total_bin_count))
-            agg_bin_count.append(total_bin_count)
+            agg_bin_count_ess.append(total_bin_count)
         else:
-            agg_bin_lce.append(np.nan)
+            agg_bin_lce_ess.append(np.nan)
             agg_bin_ess.append(np.nan)
-            agg_bin_count.append(0)
+            agg_bin_count_ess.append(0)
+
+    # ---------- Aggregate L2-binned profile across classes ----------
+    agg_bin_lce_l2 = []
+    agg_bin_l2 = []
+    agg_bin_count_l2 = []
+
+    for lb in range(n_bins_l2):
+        vals_lce = []
+        vals_l2 = []
+        vals_counts = []
+
+        for c in range(n_classes):
+            count_c = per_class_l2_profiles[c]["count_per_bin"][lb]
+            lce_c = per_class_l2_profiles[c]["avg_abs_lce_per_l2_bin"][lb]
+            l2_c = per_class_l2_profiles[c]["avg_l2_per_bin"][lb]
+
+            if count_c > 0 and not np.isnan(lce_c):
+                vals_lce.append(lce_c * count_c)
+                vals_counts.append(count_c)
+
+            if count_c > 0 and not np.isnan(l2_c):
+                vals_l2.append(l2_c * count_c)
+
+        total_bin_count = int(np.sum(vals_counts)) if len(vals_counts) > 0 else 0
+
+        if total_bin_count > 0:
+            agg_bin_lce_l2.append(float(np.sum(vals_lce) / total_bin_count))
+            agg_bin_l2.append(float(np.sum(vals_l2) / total_bin_count))
+            agg_bin_count_l2.append(total_bin_count)
+        else:
+            agg_bin_lce_l2.append(np.nan)
+            agg_bin_l2.append(np.nan)
+            agg_bin_count_l2.append(0)
 
     ess_lce_profile = {
-        "avg_abs_lce_per_ess_bin": agg_bin_lce,
+        "avg_abs_lce_per_ess_bin": agg_bin_lce_ess,
         "avg_ess_per_bin": agg_bin_ess,
-        "count_per_bin": agg_bin_count,
+        "count_per_bin": agg_bin_count_ess,
         "per_class": per_class_ess_profiles
     }
 
+    l2_lce_profile = {
+        "avg_abs_lce_per_l2_bin": agg_bin_lce_l2,
+        "avg_l2_per_bin": agg_bin_l2,
+        "count_per_bin": agg_bin_count_l2,
+        "per_class": per_class_l2_profiles
+    }
+
     if full_ece:
-        return avg_ecce, avg_ece, avg_mce, avg_brier, nll, lce_list, mlce_list, ess_lce_profile
+        return (
+            avg_ecce, avg_ece, avg_mce, avg_brier, nll,
+            lce_list, mlce_list, ess_lce_profile, l2_lce_profile
+        )
     else:
-        return avg_ecce, avg_ece, avg_mce, avg_brier, nll, avg_lce, avg_mlce, ess_lce_profile
+        return (
+            avg_ecce, avg_ece, avg_mce, avg_brier, nll,
+            avg_lce, avg_mlce, ess_lce_profile, l2_lce_profile
+        )
+        
+# def compute_multiclass_calibration_metrics_w_lce_quant(
+#     probs: torch.Tensor,
+#     y_true: torch.Tensor,
+#     pca: torch.Tensor,
+#     l2: torch.Tensor,
+#     class_freqs: list,
+#     n_bins: int = 15,
+#     n_bins_esse: int = 15,
+#     gamma: float = 0.1,    
+#     full_ece: bool = False,
+#     bin_strategy: str = 'default',  # 'quantile' or default
+#     data: str = 'cifar10',
+#     model_type: str = 'resnet'
+# ):
+#     """
+#     Computes:
+#       - ECCE (per-class then averaged)
+#       - ECE (per-class then averaged or list if full_ece)
+#       - MCE (averaged across classes)
+#       - Brier score
+#       - NLL
+#       - LCE metrics (average absolute LCE and average MLCE across classes)
+#       - NEW: ESS-binned LCE profile, where support is measured by ESS
+#              computed from kernel weights within the same confidence bin
+#              and excluding self-contribution.
+
+#     Parameters:
+#       probs: (N, C) predicted probabilities
+#       y_true: (N,) true labels (long)
+#       pca: (N, d) feature vectors
+#       class_freqs: class frequencies for weighted aggregation
+#       n_bins: number of bins used both for confidence and ESS profile
+#       gamma: Gaussian kernel bandwidth
+#       full_ece: if True, return per-class ECE/ECCE/LCE metrics and ESS profiles
+#       bin_strategy: 'quantile' or default uniform confidence bins
+
+#     Returns:
+#       If full_ece=False:
+#         avg_ecce, avg_ece, avg_mce, avg_brier, nll, avg_lce, avg_mlce, ess_lce_profile
+
+#       If full_ece=True:
+#         avg_ecce, avg_ece, avg_mce, avg_brier, nll, lce_list, mlce_list, ess_lce_profile
+
+#       where ess_lce_profile is a dict with:
+#         - 'avg_abs_lce_per_ess_bin': weighted average abs LCE in each ESS bin
+#         - 'avg_ess_per_bin': weighted average ESS in each ESS bin
+#         - 'count_per_bin': total number of valid samples in each ESS bin
+#         - 'per_class': list with the same information for each class
+#     """
+#     device = probs.device
+#     N, n_classes = probs.shape
+#     eps = 1e-12
+#     n_bins_ess = n_bins_esse
+    
+#     l2 = l2.to(device).float().view(-1)
+#     if l2.shape[0] != N:
+#         raise ValueError("l2 must have shape (N,), same first dimension as probs.")
+    
+#     # Metrics containers
+#     ecces = []
+#     eces = []
+#     mces = []
+#     per_class_lce_avg = []
+#     per_class_mlce = []
+
+#     # NEW: store per-class ESS-binned profiles
+#     per_class_ess_profiles = []
+#     per_class_l2_profiles = []
+
+#     if data == 'food101':
+#         filter_thr = 10
+#     else:
+#         filter_thr = 10 if model_type == "vit" else 20
+
+#     # Negative log-likelihood
+#     log_probs = torch.log(probs + 1e-12)
+#     loss = F.nll_loss(log_probs, y_true, reduction='mean')
+#     nll = loss.item()
+
+#     # Multiclass Brier
+#     y_onehot = F.one_hot(y_true, num_classes=n_classes).float().to(device)
+#     avg_brier = torch.mean(torch.sum((probs - y_onehot) ** 2, dim=1)).item()
+
+#     # PCA checks
+#     pca = pca.to(device).float()
+#     if pca.dim() == 1:
+#         pca = pca.view(N, 1)
+#     if pca.shape[0] != N:
+#         raise ValueError("pca must have same first dimension as probs (N samples).")
+
+#     if gamma <= 0:
+#         raise ValueError("gamma must be > 0")
+
+#     for class_idx in range(n_classes):
+#         print('Class ', class_idx)
+
+#         labels_binary = (y_true == class_idx).float().to(device)   # (N,)
+#         probs_class = probs[:, class_idx].to(device)               # (N,)
+
+#         # Confidence bins
+#         if bin_strategy == 'quantile':
+#             arr = probs_class.detach().cpu().numpy()
+#             bin_edges_np = np.quantile(arr, np.linspace(0.0, 1.0, n_bins + 1))
+#             bin_edges_np[0] = 0.0
+#             bin_edges_np[-1] = 1.0
+#             bin_edges = torch.tensor(bin_edges_np, dtype=torch.float32, device=device)
+
+#             # indices in [0, n_bins-1]
+#             bin_indices = torch.bucketize(probs_class, bin_edges, right=False) - 1
+#             bin_indices = bin_indices.clamp(0, n_bins - 1)
+#             bin_loop = range(n_bins)
+#         else:
+#             bin_edges = torch.linspace(0.0, 1.0, n_bins + 1, device=device)
+#             # indices in [1, n_bins]
+#             bin_indices = torch.bucketize(probs_class, bin_edges, right=True)
+#             bin_indices = bin_indices.clamp(1, n_bins)
+#             bin_loop = range(1, n_bins + 1)
+
+#         total_count = probs_class.numel()
+#         ece = 0.0
+#         mce = 0.0
+
+#         # For ECCE
+#         bin_accs = []
+#         bin_confs = []
+#         bin_weights = []
+
+#         # Per-sample LCE and ESS
+#         lce_vals = torch.zeros(N, device=device)
+#         ess_vals = torch.zeros(N, device=device)
+#         l2_vals = torch.zeros(N, device=device)
+
+#         valid_idx = []
+
+#         for b in bin_loop:
+#             idx_in_bin = (bin_indices == b).nonzero(as_tuple=True)[0]
+#             if idx_in_bin.numel() == 0:
+#                 continue
+
+#             # ECE / MCE
+#             bin_probs = probs_class[idx_in_bin]
+#             bin_labels = labels_binary[idx_in_bin]
+#             bin_accuracy = torch.mean(bin_labels).item()
+#             bin_confidence = torch.mean(bin_probs).item()
+#             bin_error = abs(bin_accuracy - bin_confidence)
+
+#             bin_accs.append(bin_accuracy)
+#             bin_confs.append(bin_confidence)
+#             bin_weights.append(idx_in_bin.numel() / total_count)
+
+#             ece += bin_error * idx_in_bin.numel() / total_count
+#             mce = max(mce, bin_error)
+
+#             print(idx_in_bin.numel())
+
+#             # ---------- LCE + ESS computation in this confidence bin ----------
+#             if idx_in_bin.numel() > filter_thr:
+#                 pca_bin = pca[idx_in_bin]   # (s, d)
+#                 e_sub = (probs_class[idx_in_bin] - labels_binary[idx_in_bin]).to(device)  # (s,)
+
+#                 s = pca_bin.size(0)
+#                 chunk_size = 1024  # tune this
+
+#                 lce_sub = torch.zeros(s, device=device)
+#                 ess_sub = torch.zeros(s, device=device)
+
+#                 sq_norms_all = (pca_bin ** 2).sum(dim=1)  # (s,)
+
+#                 for start in range(0, s, chunk_size):
+#                     end = min(start + chunk_size, s)
+
+#                     X = pca_bin[start:end]                         # (b, d)
+#                     sq_norms_X = (X ** 2).sum(dim=1, keepdim=True)  # (b, 1)
+
+#                     D_chunk = sq_norms_X + sq_norms_all.unsqueeze(0) - 2 * X @ pca_bin.t()
+#                     D_chunk = torch.clamp(D_chunk, min=0)
+
+#                     K_chunk = torch.exp(-D_chunk / (2.0 * gamma ** 2))  # (b, s)
+
+#                     # LCE
+#                     numer_chunk = K_chunk @ e_sub
+#                     denom_chunk = K_chunk.sum(dim=1)
+
+#                     denom_safe = denom_chunk.clone()
+#                     zero_mask_lce = denom_safe <= eps
+#                     denom_safe[zero_mask_lce] = 1.0
+
+#                     lce_chunk = numer_chunk / (denom_safe + eps)
+#                     lce_chunk[zero_mask_lce] = 0.0
+#                     lce_sub[start:end] = lce_chunk
+
+#                     # ESS excluding self
+#                     Ksupport_chunk = K_chunk.clone()
+
+#                     row_ids = torch.arange(start, end, device=device)
+#                     Ksupport_chunk[torch.arange(end - start, device=device), row_ids] = 0.0
+
+#                     row_sum = Ksupport_chunk.sum(dim=1)
+#                     zero_mask_ess = row_sum <= eps
+
+#                     row_sum_safe = row_sum.clone()
+#                     row_sum_safe[zero_mask_ess] = 1.0
+
+#                     w_norm = Ksupport_chunk / row_sum_safe.unsqueeze(1)
+#                     ess_chunk = 1.0 / (w_norm.pow(2).sum(dim=1) + eps)
+#                     ess_chunk[zero_mask_ess] = 0.0
+
+#                     ess_sub[start:end] = ess_chunk
+
+#                 lce_vals[idx_in_bin] = lce_sub
+#                 ess_vals[idx_in_bin] = ess_sub
+#                 valid_idx.append(idx_in_bin)
+#                 # pca_bin = pca[idx_in_bin]  # (s, d)
+
+#                 # sq_norms = (pca_bin ** 2).sum(dim=1, keepdim=True)
+#                 # D_bin = sq_norms + sq_norms.t() - 2 * pca_bin @ pca_bin.t()
+#                 # D_bin = torch.clamp(D_bin, min=0)
+
+#                 # # Gaussian kernel
+#                 # Ksub = torch.exp(-D_bin / (2.0 * gamma ** 2))  # (s, s)
+
+#                 # # ---------- LCE ----------
+#                 # e_sub = (probs_class[idx_in_bin] - labels_binary[idx_in_bin]).to(device)
+#                 # numer = Ksub.matmul(e_sub)
+#                 # denom = Ksub.sum(dim=1)
+
+#                 # denom_safe = denom.clone()
+#                 # zero_mask_lce = denom_safe <= eps
+#                 # denom_safe[zero_mask_lce] = 1.0
+
+#                 # lce_sub = numer / (denom_safe + eps)
+#                 # if zero_mask_lce.any():
+#                 #     lce_sub[zero_mask_lce] = 0.0
+
+#                 # # ---------- ESS (exclude self-contribution) ----------
+#                 # Ksupport = Ksub.clone()
+#                 # Ksupport.fill_diagonal_(0.0)
+
+#                 # row_sum = Ksupport.sum(dim=1, keepdim=True)  # (s, 1)
+#                 # row_sum_safe = row_sum.clone()
+#                 # zero_mask_ess = row_sum_safe.squeeze(1) <= eps
+#                 # row_sum_safe[row_sum_safe <= eps] = 1.0
+
+#                 # w_norm = Ksupport / (row_sum_safe + eps)
+#                 # ess_sub = 1.0 / (w_norm.pow(2).sum(dim=1) + eps)
+
+#                 # # no neighbor support after removing diagonal
+#                 # ess_sub[zero_mask_ess] = 0.0
+
+#                 # # write back
+#                 # lce_vals[idx_in_bin] = lce_sub
+#                 # ess_vals[idx_in_bin] = ess_sub
+#                 # valid_idx.append(idx_in_bin)
+
+#         # ECCE
+#         if len(bin_accs) > 0:
+#             bin_accs_t = torch.tensor(bin_accs, device=device, dtype=torch.float32)
+#             bin_confs_t = torch.tensor(bin_confs, device=device, dtype=torch.float32)
+#             bin_weights_t = torch.tensor(bin_weights, device=device, dtype=torch.float32)
+
+#             cum_pred = torch.cumsum(bin_weights_t * bin_confs_t, dim=0)
+#             cum_true = torch.cumsum(bin_weights_t * bin_accs_t, dim=0)
+#             ecce_val = torch.sum(torch.abs(cum_pred - cum_true)).item()
+#             ecce_val /= len(bin_accs)
+#         else:
+#             ecce_val = 0.0
+
+#         ecces.append(ecce_val)
+#         eces.append(ece)
+#         mces.append(mce)
+
+#         # ---------- Per-class LCE aggregation ----------
+#         if len(valid_idx) > 0:
+#             valid_idx = torch.cat(valid_idx)
+#             lce_abs = torch.abs(lce_vals[valid_idx])
+#             ess_valid = ess_vals[valid_idx]
+#             l2_valid = l2[valid_idx]
+
+#             per_class_lce_avg.append(float(lce_abs.mean().item()))
+#             per_class_mlce.append(float(lce_abs.max().item()))
+
+#             # ---------- NEW: ESS-binned LCE profile ----------
+#             # Keep only samples with positive ESS
+#             positive_mask = ess_valid > 0
+#             ess_valid_pos = ess_valid[positive_mask]
+#             lce_abs_pos = lce_abs[positive_mask]
+            
+#             finite_mask = torch.isfinite(l2_valid)
+#             l2_valid = l2_valid[finite_mask]
+#             lce_abs_valid = lce_abs[finite_mask]
+            
+#             if ess_valid_pos.numel() > 0:
+#                 if l2_valid.numel() <= 0:
+#                     print("Warning: no valid L2 values for class ", class_idx)
+#                 ess_np = ess_valid_pos.detach().cpu().numpy()   
+#                 l2_np = l2_valid.detach().cpu().numpy()             
+
+#                 # Quantile ESS bins
+#                 ess_edges_np = np.quantile(ess_np, np.linspace(0.0, 1.0, n_bins_ess + 1))
+#                 ess_edges_np[0] = ess_np.min() - 1e-12
+#                 ess_edges_np[-1] = ess_np.max() + 1e-12
+                
+#                 # Quantile L2 bins
+#                 n_bins_l2 = n_bins_ess  # can be different if desired
+#                 l2_edges_np = np.quantile(l2_np, np.linspace(0.0, 1.0, n_bins_l2 + 1))
+#                 l2_edges_np[0] = l2_np.min() - 1e-12
+#                 l2_edges_np[-1] = l2_np.max() + 1e-12
+
+#                 # Handle degenerate case where many ESS values are identical
+#                 ess_edges_np = np.maximum.accumulate(ess_edges_np)
+#                 # Handle degenerate case
+#                 l2_edges_np = np.maximum.accumulate(l2_edges_np)
+
+#                 ess_edges = torch.tensor(ess_edges_np, dtype=torch.float32, device=device)
+#                 l2_edges = torch.tensor(l2_edges_np, dtype=torch.float32, device=device)
+
+#                 ess_bin_idx = torch.bucketize(ess_valid_pos, ess_edges, right=False) - 1
+#                 ess_bin_idx = ess_bin_idx.clamp(0, n_bins_ess - 1)
+#                 l2_bin_idx = torch.bucketize(l2_valid, l2_edges, right=False) - 1
+#                 l2_bin_idx = l2_bin_idx.clamp(0, n_bins_l2 - 1)
+
+#                 class_bin_lce = []
+#                 class_bin_ess = []
+#                 class_bin_l2 = []
+#                 class_bin_count = []
+
+#                 for eb in range(n_bins_ess):
+#                     idx_ess_bin = (ess_bin_idx == eb).nonzero(as_tuple=True)[0]
+#                     idx_l2_bin = (l2_bin_idx == eb).nonzero(as_tuple=True)[0]
+#                     if idx_ess_bin.numel() == 0:
+#                         class_bin_lce.append(np.nan)
+#                         class_bin_ess.append(np.nan)
+#                         class_bin_l2.append(np.nan)
+#                         class_bin_count.append(0)
+#                     else:
+#                         class_bin_lce.append(float(lce_abs_pos[idx_ess_bin].mean().item()))
+#                         class_bin_ess.append(float(ess_valid_pos[idx_ess_bin].mean().item()))
+#                         class_bin_l2.append(float(l2_valid[idx_l2_bin].mean().item()))
+#                         class_bin_count.append(int(idx_ess_bin.numel()))
+#             else:
+#                 class_bin_lce = [np.nan] * n_bins_ess
+#                 class_bin_ess = [np.nan] * n_bins_ess
+#                 class_bin_l2 = [np.nan] * n_bins_ess
+#                 class_bin_count = [0] * n_bins_ess
+
+#         else:
+#             per_class_lce_avg.append(0.0)
+#             per_class_mlce.append(0.0)
+
+#             class_bin_lce = [np.nan] * n_bins_ess
+#             class_bin_ess = [np.nan] * n_bins_ess
+#             class_bin_l2 = [np.nan] * n_bins_l2
+#             class_bin_count = [0] * n_bins_ess
+
+#         per_class_ess_profiles.append({
+#             "avg_abs_lce_per_ess_bin": class_bin_lce,
+#             "avg_ess_per_bin": class_bin_ess,
+#             "count_per_bin": class_bin_count
+#         })
+        
+#         per_class_l2_profiles.append({
+#             "avg_abs_lce_per_l2_bin": class_bin_lce,
+#             "avg_l2_per_bin": class_bin_l2,
+#             "count_per_bin": class_bin_count
+#         })
+
+#     # ---------- Final aggregation ----------
+#     if full_ece:
+#         avg_ece = [round(x, 4) for x in eces]
+#         avg_ecce = [round(x, 4) for x in ecces]
+#         lce_list = [round(x, 4) for x in per_class_lce_avg]
+#         mlce_list = [round(x, 4) for x in per_class_mlce]
+#     else:
+#         avg_ece = np.dot(np.array(eces).T, np.array(class_freqs))
+#         avg_ecce = np.dot(np.array(ecces).T, np.array(class_freqs))
+#         lce_list = None
+
+#     avg_mce = np.dot(np.array(mces).T, np.array(class_freqs))
+#     avg_lce = np.dot(np.array(per_class_lce_avg).T, np.array(class_freqs))
+#     avg_mlce = np.dot(np.array(per_class_mlce).T, np.array(class_freqs))
+
+#     # ---------- NEW: aggregate ESS-binned profile across classes ----------
+#     agg_bin_lce = []
+#     agg_bin_ess = []
+#     agg_bin_l2 = []
+#     agg_bin_count = []
+
+#     for eb in range(n_bins_ess):
+#         vals_lce = []
+#         vals_ess = []
+#         vals_l2 = []
+#         vals_counts = []
+
+#         for c in range(n_classes):
+#             count_c = per_class_ess_profiles[c]["count_per_bin"][eb]
+#             lce_c = per_class_ess_profiles[c]["avg_abs_lce_per_ess_bin"][eb]
+#             ess_c = per_class_ess_profiles[c]["avg_ess_per_bin"][eb]
+#             l2_c = per_class_l2_profiles[c]["avg_l2_per_bin"][eb]
+
+#             if count_c > 0 and not np.isnan(lce_c):
+#                 vals_lce.append(lce_c * count_c)
+#                 vals_counts.append(count_c)
+
+#             if count_c > 0 and not np.isnan(ess_c):
+#                 vals_ess.append(ess_c * count_c)
+                
+#             if count_c > 0 and not np.isnan(l2_c):
+#                 vals_l2.append(l2_c * count_c)
+
+#         total_bin_count = int(np.sum(vals_counts)) if len(vals_counts) > 0 else 0
+
+#         if total_bin_count > 0:
+#             agg_bin_lce.append(float(np.sum(vals_lce) / total_bin_count))
+#             agg_bin_ess.append(float(np.sum(vals_ess) / total_bin_count))
+#             agg_bin_l2.append(float(np.sum(vals_l2) / total_bin_count))
+#             agg_bin_count.append(total_bin_count)
+#         else:
+#             agg_bin_lce.append(np.nan)
+#             agg_bin_ess.append(np.nan)
+#             agg_bin_l2.append(np.nan)
+#             agg_bin_count.append(0)
+
+#     ess_lce_profile = {
+#         "avg_abs_lce_per_ess_bin": agg_bin_lce,
+#         "avg_ess_per_bin": agg_bin_ess,
+#         "count_per_bin": agg_bin_count,
+#         "per_class": per_class_ess_profiles
+#     }
+#     l2_lce_profile = {
+#         "avg_abs_lce_per_l2_bin": agg_bin_lce,
+#         "avg_l2_per_bin": agg_bin_l2,
+#         "count_per_bin": agg_bin_count,
+#         "per_class": per_class_l2_profiles
+#     }
+#     if full_ece:
+#         return avg_ecce, avg_ece, avg_mce, avg_brier, nll, lce_list, mlce_list, ess_lce_profile, l2_lce_profile
+#     else:
+#         return avg_ecce, avg_ece, avg_mce, avg_brier, nll, avg_lce, avg_mlce, ess_lce_profile, l2_lce_profile
+    
     
 def compute_multiclass_calibration_metrics(probs: torch.Tensor, y_true: torch.Tensor, n_bins: int = 15, class_freqs: list = None, full_ece: bool = False):
     """
@@ -1526,7 +2484,7 @@ def extract_method_label(folder_name: str) -> str:
     return parts[0]
 
 
-def collect_ess_profiles(metrics_root: str):
+def collect_ess_profiles(metrics_root: str, dataset_name: str):
     """
     Collect all ESS profile CSV files grouped by method label.
 
@@ -1546,7 +2504,17 @@ def collect_ess_profiles(metrics_root: str):
         folder_path = os.path.join(metrics_root, entry)
         if not os.path.isdir(folder_path):
             continue
-
+        
+        # keep only folders for the selected dataset
+        if dataset_name.lower() == 'cifar10':
+            if dataset_name.lower() not in entry.lower():
+                continue
+            elif (dataset_name.lower() in entry.lower()) and ('cifar100' in entry.lower()):
+                continue
+        else:
+            if dataset_name.lower() not in entry.lower():
+                continue     
+        
         method_label = extract_method_label(entry)
 
         # only aggregated ESS profile files, not per-class ones
@@ -1594,7 +2562,7 @@ def aggregate_method_runs(method_to_runs):
     agg_dict = {}
     method_map = {'competition_DC': 'DC', 'competition_PC': 'PC', 'competition_IR': 'IR', 
                   'competition_TS': 'TS', 'competition_SMS': 'SM', 'competition_PS': 'PS', 
-                  'calibrate': 'LC', 'pre-train': 'NC', 'reference': 'KC', 'quantize': 'VQ'}
+                  'calibrate': 'LN', 'pre-train': 'NC', 'reference': 'KC', 'kernel': 'KC', 'quantize': 'VQ'}
 
     for method, run_dfs in method_to_runs.items():
         aligned = []
@@ -1624,9 +2592,10 @@ def aggregate_method_runs(method_to_runs):
             "std_lce": std_lce,
             "sem_lce": sem_lce,
             "n_runs": n_runs
-        })
-
-        agg_dict[method_map[method]] = agg_df
+        })      
+         
+        if method_map[method] != 'SM':
+            agg_dict[method_map[method]] = agg_df  
 
     return agg_dict
 
@@ -1639,15 +2608,29 @@ def method_sort_key(method_name: str):
     3. quantize last
     4. everything else in between alphabetically
     """
-    lower = method_name.lower()
+    order = {
+        "NC": 0,
+        "DC": 1,
+        "PC": 2,
+        "IR": 3,
+        "TS": 4,
+        # "SM": 5,
+        "PS": 6,
+        "LC": 7,
+        "KC": 8,
+        "VQ": 9,
+    }
+    return (order.get(method_name, 999), method_name)
 
-    if lower in {"uncalibrated", "baseline", "raw", "none"}:
-        return (0, lower)
-    if lower.startswith("competition_"):
-        return (2, lower)
-    if lower == "quantize":
-        return (4, lower)
-    return (3, lower)
+    # lower = method_name.lower()
+
+    # if lower in {"uncalibrated", "baseline", "raw", "none"}:
+    #     return (0, lower)
+    # if lower.startswith("competition_"):
+    #     return (2, lower)
+    # if lower == "quantize":
+    #     return (4, lower)
+    # return (3, lower)
 
 
 def plot_ess_profiles(
@@ -1657,66 +2640,994 @@ def plot_ess_profiles(
     interval="std"
 ):
     """
-    Plot mean avg_abs_lce across ESS bins for all methods with variability bands.
+    Plot mean average absolute LCE across ESS bins for all methods with variability bands.
 
     Parameters
     ----------
     agg_dict : dict
-        output of aggregate_method_runs
+        Dictionary mapping method name -> DataFrame.
+        Each DataFrame must contain at least:
+            - 'ess_bin'
+            - 'mean_lce'
+            - 'std_lce'
+        and optionally:
+            - 'sem_lce'
     save_path : str or None
-        if provided, save figure there
+        If provided, save figure there.
     interval : str
-        'std' for mean ± std
-        'sem95' for mean ± 1.96*SEM
+        'std'   -> mean ± std
+        'sem95' -> mean ± 1.96 * SEM
     """
-    plt.figure(figsize=(10, 6))
 
-    sorted_methods = sorted(agg_dict.keys(), key=method_sort_key)
+    plt.rcParams.update({
+        "figure.dpi": 300,
+        "savefig.dpi": 300,
+        "axes.titlesize": 18,
+        "axes.labelsize": 16,
+        "xtick.labelsize": 14,
+        "ytick.labelsize": 14,
+        "legend.fontsize": 12,
+        "font.size": 12
+    })
 
-    for method in sorted_methods:
-        df = agg_dict[method]
+    sns.set_theme(
+        style="ticks",
+        font_scale=1.4,
+        rc={
+            "text.usetex": True,
+            "text.latex.preamble": r"\usepackage{amsfonts}\usepackage{amsmath}\usepackage{bm}",
+            "font.family": "serif",
+        }
+    )
+    
+    sns.color_palette("colorblind")
 
-        x = df["ess_bin"].to_numpy()
-        y = df["mean_lce"].to_numpy()
+    dict_marker = {
+        "LN": "d",
+        "DC": "s",
+        "IR": "H",
+        "VQ": "o",
+        "TS": "v",
+        "PS": "P",
+        "NC": "X",
+        "KC": "*",
+        "PC": "D",
+    }
 
-        if interval == "sem95":
-            band = 1.96 * df["sem_lce"].to_numpy()
-        else:
-            band = df["std_lce"].to_numpy()
+    order = ["VQ", "LN", "DC", "KC", "TS", "IR", "PS", "PC", "NC"]
 
-        lower = y - band
-        upper = y + band
+    # Build one long dataframe from agg_dict
+    frames = []
+    for method, df_method in agg_dict.items():
+        df_tmp = df_method.copy()
+        df_tmp["method"] = method
+        frames.append(df_tmp)
 
-        plt.plot(x, y, marker='o', linewidth=2, label=method)
-        plt.fill_between(x, lower, upper, alpha=0.2)
+    if len(frames) == 0:
+        raise ValueError("agg_dict is empty.")
 
-    plt.xlabel("Density bin")
-    plt.ylabel("Average absolute LCE")
-    plt.title(title)
-    plt.xticks(sorted(df["ess_bin"].unique()))
-    plt.grid(True, alpha=0.3)
-    plt.legend()
+    plot_df = pd.concat(frames, ignore_index=True)
+
+    required_cols = {"ess_bin", "mean_lce", "std_lce", "method"}
+    missing = required_cols - set(plot_df.columns)
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}")
+
+    if interval == "sem95":
+        if "sem_lce" not in plot_df.columns:
+            raise ValueError("interval='sem95' requires a 'sem_lce' column.")
+        plot_df["band"] = 1.96 * plot_df["sem_lce"]
+    else:
+        plot_df["band"] = plot_df["std_lce"]
+
+    plot_df["lower"] = plot_df["mean_lce"] - plot_df["band"]
+    plot_df["upper"] = plot_df["mean_lce"] + plot_df["band"]
+
+    # keep only methods in desired order if present
+    methods_present = [m for m in order if m in plot_df["method"].unique()]
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # seaborn lineplot
+    sns.lineplot(
+        data=plot_df[plot_df["method"].isin(methods_present)],
+        x="ess_bin",
+        y="mean_lce",
+        hue="method",
+        style="method",
+        markers={m: dict_marker.get(m, "o") for m in methods_present},
+        dashes=False,
+        hue_order=methods_present,
+        style_order=methods_present,
+        linewidth=2,
+        ax=ax,
+    )
+
+    # add variability bands manually
+    palette = sns.color_palette(n_colors=len(methods_present))
+    color_map = dict(zip(methods_present, palette))
+
+    for method in methods_present:
+        dsub = plot_df[plot_df["method"] == method].sort_values("ess_bin")
+        ax.fill_between(
+            dsub["ess_bin"].to_numpy(),
+            dsub["lower"].to_numpy(),
+            dsub["upper"].to_numpy(),
+            color=color_map[method],
+            alpha=0.2,
+        )
+
+    ax.set_xlabel("Ranking by Bin Density (Less Dense $ \\to $ Denser)")
+    ax.set_ylabel("Average Absolute LCE")
+    ax.set_title(title)
+    ax.set_xticks(sorted(plot_df["ess_bin"].unique()))
+    ax.grid(True, alpha=0.3)
+    ax.legend(title="Method")
+    sns.despine()
     plt.tight_layout()
 
     if save_path is not None:
         plt.savefig(save_path, dpi=300, bbox_inches="tight")
 
     plt.show()
+    
+# def plot_ess_profiles(
+#     agg_dict,
+#     save_path=None,
+#     title="Average absolute LCE vs density bin",
+#     interval="std"
+# ):
+#     """
+#     Plot mean avg_abs_lce across ESS bins for all methods with variability bands.
+
+#     Parameters
+#     ----------
+#     agg_dict : dict
+#         output of aggregate_method_runs
+#     save_path : str or None
+#         if provided, save figure there
+#     interval : str
+#         'std' for mean ± std
+#         'sem95' for mean ± 1.96*SEM
+#     """
+#     plt.rcParams.update({
+#         'figure.dpi': 300,  # high resolution
+#         'savefig.dpi': 300,
+#         'axes.titlesize': 18,  # title font size
+#         'axes.labelsize': 16,  # x/y label font size
+#         'xtick.labelsize': 36,  # tick label sizes
+#         'ytick.labelsize': 36,
+#         'legend.fontsize': 14,
+#         'font.size': 14
+#     })
+#     sns.set(font_scale=3,
+#                 style="ticks",
+#                 rc={
+#                     "text.usetex": True,
+#                     'text.latex.preamble': r'\usepackage{amsfonts} \usepackage{amsmath} \usepackage{bm}',
+#                     "font.family": "serif",
+#                 })
+#     dict_marker = {
+#         "$\\textsc{LN}$": "d",
+#         "$\\textsc{DC}$": "s",
+#         "$\\textsc{IR}$": "H",
+#         "$\\textsc{VQ}$": "o",
+#         "$\\textsc{TS}$": "v",
+#         "$\\textsc{PS}$": "P",
+#         "$\\textsc{NC}$": "X",
+#         "$\\textsc{KC}$": "*",
+#         "$\\textsc{PC}$": "D"
+        
+#     }
+        
+#     plt.figure(figsize=(10, 6))
+
+#     #sorted_methods = sorted(agg_dict.keys(), key=method_sort_key)
+#     order= ['VQ', 'LN', 'DC', 'KC', 'TS', 'IR', 'PS', 'PC', "NC"]
+#     hue_order= ['VQ', 'LN', 'DC', 'KC', 'TS', 'IR', 'PS', 'PC', "NC"]
+
+#     # for method in sorted_methods:
+#     #     df = agg_dict[method]
+
+#     #     x = df["ess_bin"].to_numpy()
+#     #     y = df["mean_lce"].to_numpy()                
+
+#     #     if interval == "sem95":
+#     #         band = 1.96 * df["sem_lce"].to_numpy()
+#     #     else:
+#     #         band = df["std_lce"].to_numpy()
+
+#     #     lower = y - band
+#     #     upper = y + band
+
+#     #     sns.lineplot(x, y, marker='o', linewidth=2, label=method) #plt.plot(x, y, marker='o', linewidth=2, label=method)
+#     #     plt.fill_between(x, lower, upper, alpha=0.2)
+    
+#     long = df.melt(
+#         id_vars=["method", "data"],
+#         value_vars=metrics,
+#         var_name="metric",
+#         value_name="value"
+#     )
+    
+#     g = sns.lineplot(
+#         data=long[~long.method.isin(['VQ-L1', 'VQ-DC', 'VQ-NC', "SMS"])],
+#         x="method",
+#         y="value",
+#         hue="method",
+#         kind="box",
+#         col="data",
+#         row="metric",
+#         sharey=False,
+#         height=2.2,
+#         aspect=2,
+#         order=['VQ', 'LN', 'DC', 'KC', 'TS', 'IR', 'PS', 'PC', "NC"],
+#         hue_order=['VQ', 'LN', 'DC', 'KC', 'TS', 'IR', 'PS', 'PC', "NC"]
+#     )
+
+#     plt.xlabel("Density bin")
+#     plt.ylabel("Average absolute LCE")
+#     plt.title(title)
+#     plt.xticks(sorted(df["ess_bin"].unique()))
+#     plt.grid(True, alpha=0.3)
+#     plt.legend()
+#     plt.tight_layout()
+
+#     if save_path is not None:
+#         plt.savefig(save_path, dpi=300, bbox_inches="tight")
+
+#     plt.show()
 
 
-if __name__ == "__main__":
-    metrics_root = "metrics"  # change if needed
+# if __name__ == "__main__":
+#     metrics_root = "metrics"  # change if needed
 
-    method_to_runs = collect_ess_profiles(metrics_root)
-    agg_dict = aggregate_method_runs(method_to_runs)
+#     method_to_runs = collect_ess_profiles(metrics_root)
+#     agg_dict = aggregate_method_runs(method_to_runs)
 
-    print("Methods found:")
-    for method, runs in method_to_runs.items():
-        print(f"  {method}: {len(runs)} runs")
+#     print("Methods found:")
+#     for method, runs in method_to_runs.items():
+#         print(f"  {method}: {len(runs)} runs")
 
-    plot_ess_profiles(
-        agg_dict,
-        save_path=os.path.join(metrics_root, "ess_profile_comparison.png"),
-        title="Average absolute LCE across density bins",
-        interval="std"   # use "sem95" for 95% confidence band
+#     plot_ess_profiles(
+#         agg_dict,
+#         save_path=os.path.join(metrics_root, "ess_profile_comparison.png"),
+#         title="Average absolute LCE across density bins",
+#         interval="std"   # use "sem95" for 95% confidence band
+#     )
+import torch
+import torch.nn.functional as F
+import numpy as np
+
+
+def compute_multiclass_calibration_metrics_w_lce_quantv2(
+    probs: torch.Tensor,
+    y_true: torch.Tensor,
+    pca: torch.Tensor,
+    l2: torch.Tensor,
+    class_freqs: list,
+    n_bins: int = 15,
+    n_bins_esse: int = 15,
+    gamma: float = 0.1,
+    full_ece: bool = False,
+    bin_strategy: str = 'default',  # 'quantile' or default
+    data: str = 'cifar10',
+    model_type: str = 'resnet'
+):
+    """
+    Computes:
+      - ECCE (per-class then averaged)
+      - ECE (per-class then averaged or list if full_ece)
+      - MCE (averaged across classes)
+      - Brier score
+      - NLL
+      - LCE metrics from confidence-bin neighborhoods
+      - ESS-binned LCE profile (LCE computed within confidence bins)
+      - L2-binned LCE profile (LCE computed within global L2 bins)
+
+    Important:
+      - ESS profile: for each class, compute LCE within confidence bins;
+        then bin valid samples by ESS.
+      - L2 profile: for each class, compute LCE within global instance-level L2 bins.
+        L2 bins are NOT classwise.
+
+    Returns:
+      If full_ece=False:
+        avg_ecce, avg_ece, avg_mce, avg_brier, nll, avg_lce, avg_mlce,
+        ess_lce_profile, l2_lce_profile
+
+      If full_ece=True:
+        avg_ecce, avg_ece, avg_mce, avg_brier, nll, lce_list, mlce_list,
+        ess_lce_profile, l2_lce_profile
+    """
+    device = probs.device
+    N, n_classes = probs.shape
+    eps = 1e-12
+    n_bins_ess = n_bins_esse
+    n_bins_l2 = n_bins_esse
+
+    # ---------------- checks ----------------
+    pca = pca.to(device).float()
+    if pca.dim() == 1:
+        pca = pca.view(N, 1)
+    if pca.shape[0] != N:
+        raise ValueError("pca must have same first dimension as probs (N samples).")
+
+    l2 = l2.to(device).float().view(-1)
+    if l2.shape[0] != N:
+        raise ValueError("l2 must have shape (N,), same first dimension as probs.")
+
+    if gamma <= 0:
+        raise ValueError("gamma must be > 0")
+
+    class_freqs = np.array(class_freqs, dtype=float)
+    if not np.isclose(class_freqs.sum(), 1.0):
+        class_freqs = class_freqs / class_freqs.sum()
+
+    if data == 'food101':
+        filter_thr = 10
+    else:
+        filter_thr = 10 if model_type == "vit" else 20
+
+    # ---------------- global metrics ----------------
+    log_probs = torch.log(probs + 1e-12)
+    nll = F.nll_loss(log_probs, y_true, reduction='mean').item()
+
+    y_onehot = F.one_hot(y_true, num_classes=n_classes).float().to(device)
+    avg_brier = torch.mean(torch.sum((probs - y_onehot) ** 2, dim=1)).item()
+
+    # ---------------- helpers ----------------
+    def build_confidence_bins(values: torch.Tensor, n_bins: int, strategy: str):
+        if strategy == 'quantile':
+            arr = values.detach().cpu().numpy()
+            edges_np = np.quantile(arr, np.linspace(0.0, 1.0, n_bins + 1))
+            edges_np[0] = 0.0
+            edges_np[-1] = 1.0
+            edges_np = np.maximum.accumulate(edges_np)
+            edges = torch.tensor(edges_np, dtype=torch.float32, device=device)
+
+            idx = torch.bucketize(values, edges, right=False) - 1
+            idx = idx.clamp(0, n_bins - 1)
+            loop = range(n_bins)
+        else:
+            edges = torch.linspace(0.0, 1.0, n_bins + 1, device=device)
+            idx = torch.bucketize(values, edges, right=True)
+            idx = idx.clamp(1, n_bins)
+            loop = range(1, n_bins + 1)
+
+        return edges, idx, loop
+
+    def build_global_quantile_bins(values: torch.Tensor, n_bins: int):
+        finite_mask = torch.isfinite(values)
+        if finite_mask.sum().item() == 0:
+            raise ValueError("No finite values found for global quantile bins.")
+
+        v = values[finite_mask]
+        v_np = v.detach().cpu().numpy()
+        edges_np = np.quantile(v_np, np.linspace(0.0, 1.0, n_bins + 1))
+        edges_np[0] = v_np.min() - 1e-12
+        edges_np[-1] = v_np.max() + 1e-12
+        edges_np = np.maximum.accumulate(edges_np)
+
+        edges = torch.tensor(edges_np, dtype=torch.float32, device=device)
+        idx_all = torch.full((values.shape[0],), -1, dtype=torch.long, device=device)
+        idx_all[finite_mask] = torch.bucketize(v, edges, right=False) - 1
+        idx_all[finite_mask] = idx_all[finite_mask].clamp(0, n_bins - 1)
+
+        return edges_np, idx_all
+
+    def compute_lce_and_ess_for_partition(
+        probs_class: torch.Tensor,
+        labels_binary: torch.Tensor,
+        pca: torch.Tensor,
+        partition_idx: torch.Tensor,
+        partition_loop,
+        filter_thr: int,
+        gamma: float,
+        eps: float,
+        compute_ess: bool = True,
+    ):
+        """
+        Compute per-sample LCE (and optionally ESS) by running kernel smoothing
+        separately inside each partition bin.
+        """
+        N = probs_class.shape[0]
+        lce_vals = torch.full((N,), float('nan'), device=device)
+        ess_vals = torch.full((N,), float('nan'), device=device)
+
+        valid_idx = []
+
+        for b in partition_loop:
+            idx_in_bin = (partition_idx == b).nonzero(as_tuple=True)[0]
+            if idx_in_bin.numel() == 0:
+                continue
+
+            if idx_in_bin.numel() <= filter_thr:
+                continue
+
+            pca_bin = pca[idx_in_bin]  # (s, d)
+            e_sub = (probs_class[idx_in_bin] - labels_binary[idx_in_bin]).to(device)  # (s,)
+
+            s = pca_bin.size(0)
+            chunk_size = 1024
+
+            lce_sub = torch.zeros(s, device=device)
+            ess_sub = torch.zeros(s, device=device)
+
+            sq_norms_all = (pca_bin ** 2).sum(dim=1)  # (s,)
+
+            for start in range(0, s, chunk_size):
+                end = min(start + chunk_size, s)
+
+                X = pca_bin[start:end]                           # (b, d)
+                sq_norms_X = (X ** 2).sum(dim=1, keepdim=True)   # (b, 1)
+
+                D_chunk = sq_norms_X + sq_norms_all.unsqueeze(0) - 2 * X @ pca_bin.t()
+                D_chunk = torch.clamp(D_chunk, min=0)
+
+                K_chunk = torch.exp(-D_chunk / (2.0 * gamma ** 2))  # (b, s)
+
+                # LCE
+                numer_chunk = K_chunk @ e_sub
+                denom_chunk = K_chunk.sum(dim=1)
+
+                denom_safe = denom_chunk.clone()
+                zero_mask_lce = denom_safe <= eps
+                denom_safe[zero_mask_lce] = 1.0
+
+                lce_chunk = numer_chunk / (denom_safe + eps)
+                lce_chunk[zero_mask_lce] = 0.0
+                lce_sub[start:end] = lce_chunk
+
+                # ESS
+                if compute_ess:
+                    Ksupport_chunk = K_chunk.clone()
+                    row_ids = torch.arange(start, end, device=device)
+                    Ksupport_chunk[torch.arange(end - start, device=device), row_ids] = 0.0
+
+                    row_sum = Ksupport_chunk.sum(dim=1)
+                    zero_mask_ess = row_sum <= eps
+
+                    row_sum_safe = row_sum.clone()
+                    row_sum_safe[zero_mask_ess] = 1.0
+
+                    w_norm = Ksupport_chunk / row_sum_safe.unsqueeze(1)
+                    ess_chunk = 1.0 / (w_norm.pow(2).sum(dim=1) + eps)
+                    ess_chunk[zero_mask_ess] = 0.0
+                    ess_sub[start:end] = ess_chunk
+
+            lce_vals[idx_in_bin] = lce_sub
+            if compute_ess:
+                ess_vals[idx_in_bin] = ess_sub
+            valid_idx.append(idx_in_bin)
+
+        if len(valid_idx) > 0:
+            valid_idx = torch.cat(valid_idx)
+        else:
+            valid_idx = torch.tensor([], dtype=torch.long, device=device)
+
+        return lce_vals, ess_vals, valid_idx
+
+    # ---------------- global L2 bins (instance-level) ----------------
+    l2_edges_np, l2_bin_idx_global = build_global_quantile_bins(l2, n_bins_l2)
+    # print(torch.quantile(l2, torch.tensor([0.0, 0.5, 0.9, 0.95, 0.99, 1.0], device=l2.device)))
+    # l2_cap = torch.quantile(l2, 0.99)
+    # l2_clip = torch.clamp(l2, max=l2_cap)
+
+    # l2_min = l2_clip.min()
+    # l2_max = l2_clip.max()
+    # l2_norm = (l2_clip - l2_min) / (l2_max - l2_min + 1e-12)
+
+    # l2_edges_np = torch.linspace(0.0, 1.0, n_bins_l2 + 1, device=device)
+    # l2_bin_idx_global = torch.bucketize(l2_norm, l2_edges_np, right=False) - 1
+    # l2_bin_idx_global = l2_bin_idx_global.clamp(0, n_bins_l2 - 1)
+    l2_bin_loop = range(n_bins_l2)
+
+    # true global instance counts / avg l2 for top-level L2 profile
+    global_l2_bin_counts = []
+    global_l2_bin_avgs = []
+    for lb in l2_bin_loop:
+        idx_bin = (l2_bin_idx_global == lb).nonzero(as_tuple=True)[0]
+        global_l2_bin_counts.append(int(idx_bin.numel()))
+        if idx_bin.numel() > 0:
+            global_l2_bin_avgs.append(float(l2[idx_bin].mean().item()))
+        else:
+            global_l2_bin_avgs.append(np.nan)
+
+    # ---------------- outputs ----------------
+    ecces = []
+    eces = []
+    mces = []
+    per_class_lce_avg = []
+    per_class_mlce = []
+
+    per_class_ess_profiles = []
+    per_class_l2_profiles = []
+
+    # ---------------- class loop ----------------
+    for class_idx in range(n_classes):
+        print("Class ", class_idx)
+
+        labels_binary = (y_true == class_idx).float().to(device)
+        probs_class = probs[:, class_idx].to(device)
+
+        # ----- standard confidence-bin metrics -----
+        _, conf_bin_idx, conf_bin_loop = build_confidence_bins(probs_class, n_bins, bin_strategy)
+
+        total_count = probs_class.numel()
+        ece = 0.0
+        mce = 0.0
+        bin_accs = []
+        bin_confs = []
+        bin_weights = []
+
+        for b in conf_bin_loop:
+            idx_in_bin = (conf_bin_idx == b).nonzero(as_tuple=True)[0]
+            if idx_in_bin.numel() == 0:
+                continue
+
+            bin_probs = probs_class[idx_in_bin]
+            bin_labels = labels_binary[idx_in_bin]
+            bin_accuracy = torch.mean(bin_labels).item()
+            bin_confidence = torch.mean(bin_probs).item()
+            bin_error = abs(bin_accuracy - bin_confidence)
+
+            bin_accs.append(bin_accuracy)
+            bin_confs.append(bin_confidence)
+            bin_weights.append(idx_in_bin.numel() / total_count)
+
+            ece += bin_error * idx_in_bin.numel() / total_count
+            mce = max(mce, bin_error)
+
+        if len(bin_accs) > 0:
+            bin_accs_t = torch.tensor(bin_accs, device=device, dtype=torch.float32)
+            bin_confs_t = torch.tensor(bin_confs, device=device, dtype=torch.float32)
+            bin_weights_t = torch.tensor(bin_weights, device=device, dtype=torch.float32)
+
+            cum_pred = torch.cumsum(bin_weights_t * bin_confs_t, dim=0)
+            cum_true = torch.cumsum(bin_weights_t * bin_accs_t, dim=0)
+            ecce_val = torch.sum(torch.abs(cum_pred - cum_true)).item() / len(bin_accs)
+        else:
+            ecce_val = 0.0
+
+        ecces.append(ecce_val)
+        eces.append(ece)
+        mces.append(mce)
+
+        # ----- run LCE inside confidence bins -----
+        lce_vals_conf, ess_vals_conf, valid_idx_conf = compute_lce_and_ess_for_partition(
+            probs_class=probs_class,
+            labels_binary=labels_binary,
+            pca=pca,
+            partition_idx=conf_bin_idx,
+            partition_loop=conf_bin_loop,
+            filter_thr=filter_thr,
+            gamma=gamma,
+            eps=eps,
+            compute_ess=True,
+        )
+
+        if valid_idx_conf.numel() > 0:
+            lce_abs_conf = torch.abs(lce_vals_conf[valid_idx_conf])
+            per_class_lce_avg.append(float(lce_abs_conf.mean().item()))
+            per_class_mlce.append(float(lce_abs_conf.max().item()))
+
+            ess_valid = ess_vals_conf[valid_idx_conf]
+            positive_mask = torch.isfinite(ess_valid) & (ess_valid > 0)
+            ess_valid_pos = ess_valid[positive_mask]
+            lce_abs_pos = lce_abs_conf[positive_mask]
+
+            if ess_valid_pos.numel() > 0:
+                ess_np = ess_valid_pos.detach().cpu().numpy()
+                ess_edges_np = np.quantile(ess_np, np.linspace(0.0, 1.0, n_bins_ess + 1))
+                ess_edges_np[0] = ess_np.min() - 1e-12
+                ess_edges_np[-1] = ess_np.max() + 1e-12
+                ess_edges_np = np.maximum.accumulate(ess_edges_np)
+
+                ess_edges = torch.tensor(ess_edges_np, dtype=torch.float32, device=device)
+                ess_bin_idx = torch.bucketize(ess_valid_pos, ess_edges, right=False) - 1
+                ess_bin_idx = ess_bin_idx.clamp(0, n_bins_ess - 1)
+
+                class_bin_lce_ess = []
+                class_bin_ess = []
+                class_bin_count_ess = []
+
+                for eb in range(n_bins_ess):
+                    idx_ess_bin = (ess_bin_idx == eb).nonzero(as_tuple=True)[0]
+                    if idx_ess_bin.numel() == 0:
+                        class_bin_lce_ess.append(np.nan)
+                        class_bin_ess.append(np.nan)
+                        class_bin_count_ess.append(0)
+                    else:
+                        class_bin_lce_ess.append(float(lce_abs_pos[idx_ess_bin].mean().item()))
+                        class_bin_ess.append(float(ess_valid_pos[idx_ess_bin].mean().item()))
+                        class_bin_count_ess.append(int(idx_ess_bin.numel()))
+            else:
+                class_bin_lce_ess = [np.nan] * n_bins_ess
+                class_bin_ess = [np.nan] * n_bins_ess
+                class_bin_count_ess = [0] * n_bins_ess
+        else:
+            per_class_lce_avg.append(0.0)
+            per_class_mlce.append(0.0)
+            class_bin_lce_ess = [np.nan] * n_bins_ess
+            class_bin_ess = [np.nan] * n_bins_ess
+            class_bin_count_ess = [0] * n_bins_ess
+
+        per_class_ess_profiles.append({
+            "avg_abs_lce_per_ess_bin": class_bin_lce_ess,
+            "avg_ess_per_bin": class_bin_ess,
+            "count_per_bin": class_bin_count_ess
+        })
+
+        # ----- run LCE again inside GLOBAL L2 bins -----
+        lce_vals_l2, _, valid_idx_l2 = compute_lce_and_ess_for_partition(
+            probs_class=probs_class,
+            labels_binary=labels_binary,
+            pca=pca,
+            partition_idx=l2_bin_idx_global,
+            partition_loop=l2_bin_loop,
+            filter_thr=filter_thr,
+            gamma=gamma,
+            eps=eps,
+            compute_ess=False,
+        )
+
+        class_bin_lce_l2 = []
+        class_bin_l2 = []
+        class_bin_count_l2 = []
+
+        valid_lce_mask_l2 = torch.isfinite(lce_vals_l2)
+
+        for lb in l2_bin_loop:
+            idx_bin = ((l2_bin_idx_global == lb) & valid_lce_mask_l2).nonzero(as_tuple=True)[0]
+
+            if idx_bin.numel() == 0:
+                class_bin_lce_l2.append(np.nan)
+                class_bin_l2.append(np.nan)
+                class_bin_count_l2.append(0)
+            else:
+                class_bin_lce_l2.append(float(torch.abs(lce_vals_l2[idx_bin]).mean().item()))
+                class_bin_l2.append(float(l2[idx_bin].mean().item()))
+                class_bin_count_l2.append(int(idx_bin.numel()))
+
+        per_class_l2_profiles.append({
+            "avg_abs_lce_per_l2_bin": class_bin_lce_l2,
+            "avg_l2_per_bin": class_bin_l2,
+            "count_per_bin": class_bin_count_l2
+        })
+
+    # ---------------- aggregate scalar metrics ----------------
+    if full_ece:
+        avg_ece = [round(x, 4) for x in eces]
+        avg_ecce = [round(x, 4) for x in ecces]
+        lce_list = [round(x, 4) for x in per_class_lce_avg]
+        mlce_list = [round(x, 4) for x in per_class_mlce]
+    else:
+        avg_ece = np.dot(np.array(eces), class_freqs)
+        avg_ecce = np.dot(np.array(ecces), class_freqs)
+        lce_list = None
+
+    avg_mce = np.dot(np.array(mces), class_freqs)
+    avg_lce = np.dot(np.array(per_class_lce_avg), class_freqs)
+    avg_mlce = np.dot(np.array(per_class_mlce), class_freqs)
+
+    # ---------------- aggregate ESS profile across classes ----------------
+    agg_bin_lce_ess = []
+    agg_bin_ess = []
+    agg_bin_count_ess = []
+
+    for eb in range(n_bins_ess):
+        vals_lce = []
+        vals_ess = []
+        vals_counts = []
+
+        for c in range(n_classes):
+            count_c = per_class_ess_profiles[c]["count_per_bin"][eb]
+            lce_c = per_class_ess_profiles[c]["avg_abs_lce_per_ess_bin"][eb]
+            ess_c = per_class_ess_profiles[c]["avg_ess_per_bin"][eb]
+
+            if count_c > 0 and not np.isnan(lce_c):
+                vals_lce.append(class_freqs[c] * lce_c)
+            if count_c > 0 and not np.isnan(ess_c):
+                vals_ess.append(class_freqs[c] * ess_c)
+            vals_counts.append(count_c)
+
+        valid_classes_lce = [
+            c for c in range(n_classes)
+            if per_class_ess_profiles[c]["count_per_bin"][eb] > 0
+            and not np.isnan(per_class_ess_profiles[c]["avg_abs_lce_per_ess_bin"][eb])
+        ]
+        valid_classes_ess = [
+            c for c in range(n_classes)
+            if per_class_ess_profiles[c]["count_per_bin"][eb] > 0
+            and not np.isnan(per_class_ess_profiles[c]["avg_ess_per_bin"][eb])
+        ]
+
+        if len(valid_classes_lce) > 0:
+            w_lce = class_freqs[valid_classes_lce]
+            w_lce = w_lce / w_lce.sum()
+            agg_bin_lce_ess.append(float(np.sum([
+                w_lce[i] * per_class_ess_profiles[c]["avg_abs_lce_per_ess_bin"][eb]
+                for i, c in enumerate(valid_classes_lce)
+            ])))
+        else:
+            agg_bin_lce_ess.append(np.nan)
+
+        if len(valid_classes_ess) > 0:
+            w_ess = class_freqs[valid_classes_ess]
+            w_ess = w_ess / w_ess.sum()
+            agg_bin_ess.append(float(np.sum([
+                w_ess[i] * per_class_ess_profiles[c]["avg_ess_per_bin"][eb]
+                for i, c in enumerate(valid_classes_ess)
+            ])))
+        else:
+            agg_bin_ess.append(np.nan)
+
+        agg_bin_count_ess.append(int(np.sum(vals_counts)))
+
+    ess_lce_profile = {
+        "avg_abs_lce_per_ess_bin": agg_bin_lce_ess,
+        "avg_ess_per_bin": agg_bin_ess,
+        "count_per_bin": agg_bin_count_ess,
+        "per_class": per_class_ess_profiles
+    }
+
+    # ---------------- aggregate L2 profile across classes ----------------
+    agg_bin_lce_l2 = []
+
+    for lb in l2_bin_loop:
+        valid_classes = [
+            c for c in range(n_classes)
+            if per_class_l2_profiles[c]["count_per_bin"][lb] > 0
+            and not np.isnan(per_class_l2_profiles[c]["avg_abs_lce_per_l2_bin"][lb])
+        ]
+
+        if len(valid_classes) > 0:
+            w = class_freqs[valid_classes]
+            w = w / w.sum()
+            agg_bin_lce_l2.append(float(np.sum([
+                w[i] * per_class_l2_profiles[c]["avg_abs_lce_per_l2_bin"][lb]
+                for i, c in enumerate(valid_classes)
+            ])))
+        else:
+            agg_bin_lce_l2.append(np.nan)
+
+    l2_lce_profile = {
+        "avg_abs_lce_per_l2_bin": agg_bin_lce_l2,
+        "avg_l2_per_bin": global_l2_bin_avgs,      # true instance-level bin average
+        "count_per_bin": global_l2_bin_counts,     # true instance-level bin count
+        "per_class": per_class_l2_profiles,
+        "l2_bin_edges": l2_edges_np.tolist()
+    }
+
+    if full_ece:
+        return avg_ecce, avg_ece, avg_mce, avg_brier, nll, lce_list, mlce_list, ess_lce_profile, l2_lce_profile        
+    else:
+        return avg_ecce, avg_ece, avg_mce, avg_brier, nll, avg_lce, avg_mlce, ess_lce_profile, l2_lce_profile
+        
+import os
+import glob
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+
+def plot_entropy_lce(
+    args,
+    save_path,    
+    x_col="avg_l2",
+    y_col="avg_abs_lce",
+    bin_col=None,
+    title=r"$|LCE|$ vs entropy"):
+    
+    plt.rcParams.update({
+        "figure.dpi": 300,
+        "savefig.dpi": 300,
+        "axes.titlesize": 18,
+        "axes.labelsize": 16,
+        "xtick.labelsize": 14,
+        "ytick.labelsize": 14,
+        "legend.fontsize": 12,
+        "font.size": 12
+    })
+
+    sns.set_theme(
+        style="ticks",
+        font_scale=1.4,
+        rc={
+            "text.usetex": True,
+            "text.latex.preamble": r"\usepackage{amsfonts}\usepackage{amsmath}\usepackage{bm}",
+            "font.family": "serif",
+        }
     )
+
+    # colorblind-friendly palette
+    palette = sns.color_palette("colorblind")
+    main_color = palette[0]
+
+    # ------------------------------------------------------------------
+    # 1. Read CSV files
+    # ------------------------------------------------------------------
+    # if csv_paths is None:
+    #     if csv_dir is None:
+    #         raise ValueError("Provide either csv_paths or csv_dir.")
+    #     csv_paths = sorted(glob.glob(os.path.join(csv_dir, pattern)))
+
+    # if len(csv_paths) == 0:
+    #     raise ValueError("No CSV files found.")
+    
+    # datasets = ['cifar10', 'cifar100', 'tissue']
+    num_classes = {'cifar10': 10, 'cifar100': 100, 'tissue': 8}
+    # for data in datasets:
+    seeds = [42, 43, 44, 45, 46]
+    root = f"results/metrics/quantize_{args.data}_{num_classes[args.data]}_classes_None_features/"
+    
+    run_dfs = []
+    for seed in seeds:
+        path = os.path.join(root, f"l2_profile_seed_{seed}_corrupt_None_resnet.csv")
+        df = pd.read_csv(path)
+
+        if x_col not in df.columns:
+            raise ValueError(f"Column '{x_col}' not found in {path}. Columns: {list(df.columns)}")
+        if y_col not in df.columns:
+            raise ValueError(f"Column '{y_col}' not found in {path}. Columns: {list(df.columns)}")
+
+        df = df.copy()
+        df["run"] = seed
+        df["source_file"] = os.path.basename(path)
+
+        # If no explicit bin column is provided, use row order
+        if bin_col is None:
+            df["plot_bin"] = np.arange(len(df))
+            current_bin_col = "plot_bin"
+        else:
+            if bin_col not in df.columns:
+                raise ValueError(f"Column '{bin_col}' not found in {path}. Columns: {list(df.columns)}")
+            current_bin_col = bin_col
+
+        # Keep only needed columns
+        df = df[[current_bin_col, x_col, y_col, "run", "source_file"]].rename(
+            columns={current_bin_col: "bin_id"}
+        )
+
+        run_dfs.append(df)
+
+    all_runs = pd.concat(run_dfs, ignore_index=True)
+
+    # ------------------------------------------------------------------
+    # 2. Aggregate mean and std across runs
+    # ------------------------------------------------------------------
+    summary = (
+        all_runs
+        .groupby("bin_id", as_index=False)
+        .agg(
+            entropy_mean=(x_col, "mean"),
+            entropy_std=(x_col, "std"),
+            lce_mean=(y_col, "mean"),
+            lce_std=(y_col, "std"),
+            n_runs=("run", "nunique")
+        )
+        .sort_values("entropy_mean")
+        .reset_index(drop=True)
+    )
+
+    # std is NaN if only one run contributes to a bin
+    summary["entropy_std"] = summary["entropy_std"].fillna(0.0)
+    summary["lce_std"] = summary["lce_std"].fillna(0.0)
+
+    # ------------------------------------------------------------------
+    # 3. Plot
+    # ------------------------------------------------------------------
+    fig, ax = plt.subplots(figsize=(7.5, 5.5))
+
+    # mean curve
+    sns.lineplot(
+        data=summary,
+        x="entropy_mean",
+        y="lce_mean",
+        marker="o",
+        linewidth=2.2,
+        markersize=6,
+        color=main_color,
+        ax=ax,
+        label=r"Mean over runs"
+    )
+
+    # std band
+    ax.fill_between(
+        summary["entropy_mean"].to_numpy(),
+        (summary["lce_mean"] - summary["lce_std"]).to_numpy(),
+        (summary["lce_mean"] + summary["lce_std"]).to_numpy(),
+        alpha=0.22,
+        color=main_color,
+        label=r"$\pm 1$ std"
+    )
+
+    ax.set_xlabel(r"Average entropy")
+    ax.set_ylabel(r"Average $|LCE|$")
+    ax.set_title(title)
+
+    sns.despine()
+    ax.grid(True, alpha=0.25)
+    ax.legend(frameon=False)
+
+    plt.tight_layout()
+
+    if save_path is not None:
+        filename = os.path.join(save_path, f"entropy_profile_comparison_{args.data}.png") #
+        plt.savefig(filename, bbox_inches="tight")
+
+    return summary
+
+def save_summary_as_latex_table(
+    summary,
+    save_dir,
+    filename="entropy_lce_table.txt",
+    x_label=r"$\overline{H}$",
+    y_label=r"$\overline{|LCE|}\,\pm\,\sigma$",
+    precision_x=3,
+    precision_y=4):   
+     
+    lines = []
+    lines.append(r"\begin{table}[t]")
+    lines.append(r"\centering")
+    lines.append(r"\begin{tabular}{cc}")
+    lines.append(r"\toprule")
+    lines.append(f"{x_label} & {y_label} \\\\")
+    lines.append(r"\midrule")
+
+    for _, row in summary.iterrows():
+        x = row["entropy_mean"]
+        y = row["lce_mean"]
+        ystd = row["lce_std"]
+
+        x_str = f"{x:.{precision_x}f}"
+        y_str = f"{y:.{precision_y}f} $\\pm$ {ystd:.{precision_y}f}"
+
+        lines.append(f"{x_str} & {y_str} \\\\")
+
+    lines.append(r"\bottomrule")
+    lines.append(r"\end{tabular}")
+    lines.append(r"\caption{Calibration profile across runs.}")
+    lines.append(r"\label{tab:entropy_lce}")
+    lines.append(r"\end{table}")
+
+    os.makedirs(save_dir, exist_ok=True)
+    out_path = os.path.join(save_dir, filename)
+
+    with open(out_path, "w") as f:
+        f.write("\n".join(lines))
+
+    return out_path
+
+def save_pipe_table(summary, save_dir, filename="entropy_lce_table.txt",
+                    x_col_mean="entropy_mean", y_col_mean="lce_mean", y_col_std="lce_std",
+                    x_name="Entropy", y_name="LCE",
+                    precision_x=3, precision_y=4):
+    os.makedirs(save_dir, exist_ok=True)
+    out_path = os.path.join(save_dir, filename)
+
+    lines = []
+    lines.append(f"|{x_name}|{y_name}|")
+    lines.append("|---|---|")
+
+    for _, row in summary.iterrows():
+        x = row[x_col_mean]
+        y = row[y_col_mean]
+        ystd = row[y_col_std]
+
+        x_str = f"{x:.{precision_x}f}"
+        y_str = f"{y:.{precision_y}f}±{ystd:.{precision_y}f}"
+
+        lines.append(f"|{x_str}|{y_str}|")
+
+    with open(out_path, "w") as f:
+        f.write("\n".join(lines))
+
+    return out_path
+    
+    
+    
+    
+    

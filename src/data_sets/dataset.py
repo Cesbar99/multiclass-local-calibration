@@ -203,6 +203,16 @@ def generateCalibrationDatav2(kwargs, dataname=None):
                 kwargs.checkpoint.epochs,
                 kwargs.checkpoint.temperature
             )    
+            if kwargs.data == 'weather':
+                test_shift_results = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_shift_seed-{}_ep-{}_tmp_{}.csv".format(
+                    'pre-train',
+                    kwargs.data,
+                    kwargs.dataset.num_classes,
+                    kwargs.dataset.num_features,
+                    kwargs.checkpoint.seed,
+                    kwargs.checkpoint.epochs,
+                    kwargs.checkpoint.temperature
+                )
         
         # if kwargs.data == 'food101':
         #     val_results = "results/{}/{}_{}_classes_{}_features/raw_results_val_cal_seed-{}_ep-{}_tmp_{}.csv".format(
@@ -217,7 +227,11 @@ def generateCalibrationDatav2(kwargs, dataname=None):
     
     # Load your data
     df_train_calibration_data = pd.read_csv(cal_results)
-    df_eval_calibration_data = pd.read_csv(test_results)   
+    if kwargs.data == 'weather' and kwargs.dataset.shift:
+        df_eval_calibration_data = pd.read_csv(test_shift_results)
+        df_in_test = pd.read_csv(test_results)
+    else:
+        df_eval_calibration_data = pd.read_csv(test_results)
     # if kwargs.data == 'food101':
     #     df_val_calibration_data = pd.read_csv(val_results)    
 
@@ -257,6 +271,22 @@ def generateCalibrationDatav2(kwargs, dataname=None):
     y_eval_cal = df_eval_calibration_data["true"].values
     p_eval_cal = df_eval_calibration_data["preds"].values
     
+    if kwargs.data == 'weather' and kwargs.dataset.shift:
+        cols = df_in_test.columns
+        # Single pass grouping
+        features_cols = [c for c in cols if c.startswith("features")]
+        logits_cols   = [c for c in cols if c.startswith("logits")]
+        pca_cols      = [c for c in cols if c.startswith("pca")]
+        # Extract values
+        feats_in_test  = df_in_test[features_cols].values
+        logits_in_test = df_in_test[logits_cols].values
+        pca_in_test    = df_in_test[pca_cols].values
+        #feats_eval_cal_full = df_in_test.filter(regex=r'^features').values #df_train_calibration_data.drop(columns=["true", "preds"]).values
+        #logits_eval_cal_full = df_in_test.filter(regex=r'^logits').values
+        #pca_eval_cal_full = df_in_test.filter(regex=r'^pca').values
+        y_in_test = df_in_test["true"].values
+        p_in_test = df_in_test["preds"].values
+    
     # if kwargs.data == 'food101':
     #     cols = df_val_calibration_data.columns
     #     # Single pass grouping
@@ -273,20 +303,36 @@ def generateCalibrationDatav2(kwargs, dataname=None):
     #     y_val_cal = df_val_calibration_data["true"].values
     #     p_val_cal = df_val_calibration_data["preds"].values
     # else:
+    
     # Split into 90% test and 10% val
-    (feats_test, feats_val,
-    logits_test, logits_val,
-    pca_test, pca_val,
-    y_test, y_val,
-    p_test, p_val) = train_test_split(
-        feats_eval_cal,
-        logits_eval_cal,
-        pca_eval_cal,
-        y_eval_cal,
-        p_eval_cal,
-        test_size=0.1, #0.1  # 10% for validation
-        random_state=kwargs.seed, # for reproducibility
-        shuffle=True)        
+    if kwargs.data == 'weather' and kwargs.dataset.shift:
+        (feats_test, feats_val,
+        logits_test, logits_val,
+        pca_test, pca_val,
+        y_test, y_val,
+        p_test, p_val) = train_test_split(
+            feats_in_test,
+            logits_in_test,
+            pca_in_test,
+            y_in_test,
+            p_in_test,
+            test_size=0.1, #0.1  # 10% for validation
+            random_state=kwargs.seed, # for reproducibility
+            shuffle=True)    
+    else:
+        (feats_test, feats_val,
+        logits_test, logits_val,
+        pca_test, pca_val,
+        y_test, y_val,
+        p_test, p_val) = train_test_split(
+            feats_eval_cal,
+            logits_eval_cal,
+            pca_eval_cal,
+            y_eval_cal,
+            p_eval_cal,
+            test_size=0.1, #0.1  # 10% for validation
+            random_state=kwargs.seed, # for reproducibility
+            shuffle=True)        
     
     print(f'Learn Calibration shape: {feats_train_cal.shape}, Validation shape: {feats_val.shape}, Test Calibration shape: {feats_test.shape}')
     # Convert to PyTorch tensors
@@ -622,6 +668,21 @@ class ClassificationDataset(Dataset):
             
         y = self.y[idx]
         return x, y
+
+class WeatherClassificationDataset(Dataset):
+    def __init__(self, X_num, X_cat, y):
+        self.X_num = torch.tensor(X_num, dtype=torch.float32)  
+        self.X_cat = torch.tensor(X_cat, dtype=torch.long)         
+        self.y = torch.tensor(y, dtype=torch.long)  # one-hot encoded                
+
+    def __len__(self):
+        return len(self.y)
+
+    def __getitem__(self, idx):
+        x_num = self.X_num[idx]           
+        x_cat = self.X_cat[idx]           
+        y = self.y[idx]
+        return (x_cat, x_num), y 
         
 class OttoClassificationDataset(Dataset):
     def __init__(self, X, y):        
@@ -849,8 +910,305 @@ class OttoData(Dataset):
         self.data_train_cal_loader  = DataLoader(train_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
         
         print("Loading otto data for pre-training complete")   
+
+class WeatherData(Dataset):
+    def __init__(self, kwargs, experiment=None, name='wheather', seed=42):        
+        self.dataname = name
+        if experiment == 'pre-train':   
+            self.generatePretrainingWheatherData(batch_size=kwargs.batch_size, seed=seed, exp_name=experiment)      
+        elif experiment == 'xg_debug':
+            self.X_train, self.y_train, self.X_val, self.y_val, self.X_train_cal, self.y_train_cal, self.X_eval_cal, self.y_eval_cal, self.X_eval_cal_shift, self.y_eval_cal_shift = self.generatePretrainingWheatherData(batch_size=kwargs.batch_size, seed=seed, exp_name=experiment)      
+        else:
+            if kwargs.calibrator_version == 'v2':
+                self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationDatav2(kwargs)
+            else:
+                self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationData(kwargs) 
+
+    def generatePretrainingWheatherData(self, seed, batch_size, exp_name='pre-train'):        
         
+        scaler = StandardScaler()
+        
+        ######## TRAINING SET ########
+        weather = pd.read_csv(f'./data/WEATHER/shifts_canonical_train_seed_{seed}.csv')  # 60k obs        
+        train_df, val_df = train_test_split(weather, test_size=0.1, stratify=weather["fact_cwsm_class"], random_state=seed)                
+        
+        X = train_df.iloc[:,6:] #weather.drop(columns=['id', 'target'])                                    
+        self.categorical_features, self.numerical_features, _ = find_categorical_columns(X, target_col='fact_cwsm_class',
+                                                                                                   threshold_for_categorical=20)                    
+        X_num_raw = X.drop(columns=self.categorical_features) #+['fact_cwsm_class'])
+        X_cat_raw = X.drop(columns=self.numerical_features) #+['fact_cwsm_class'])
+        
+        cat_maps = self.fit_category_maps(X_cat_raw, self.categorical_features)
+        label_map = self.fit_label_map(train_df["fact_cwsm_class"])
+        
+        # self.cat_levels = {}
+        # for col in self.categorical_features:
+        #     self.cat_levels[col] = pd.Categorical(X_cat[col]).categories
+        # for col in X_cat.columns:
+        #     try:
+        #         X_cat[col] = X_cat[col].astype(int)
+        #     except (ValueError, TypeError):
+        #         pass
+        # X_cat = X_cat.astype('category').apply(lambda col: col.cat.codes)
+        # weather['target_int'] = weather['fact_cwsm_class'].astype(int).astype('category').cat.codes
+        # y_train = weather['target_int'].values #- 1 # from 0 to 8 not from 1 to 9!!!!                 
+        
+        X_num = scaler.fit_transform(X_num_raw)  # normalize input   
+        X_cat, self.category_counts = self.transform_categories(X_cat_raw, self.categorical_features, cat_maps, use_unknown=True)
+        y_train = self.transform_labels(train_df["fact_cwsm_class"], label_map)      
+        self.class_counts = np.bincount(y_train, minlength=5)   
+        X_train = np.concatenate([X_num, X_cat], axis=1)
+        
+        ######## VALIDATION SET ########
+        X_val_raw = val_df.iloc[:, 6:].copy()
+
+        X_val_num = scaler.transform(X_val_raw[self.numerical_features].copy())
+        X_val_cat, _ = self.transform_categories(
+            X_val_raw[self.categorical_features].copy(),
+            self.categorical_features,
+            cat_maps,
+            use_unknown=True
+        )
+        y_val = self.transform_labels(val_df["fact_cwsm_class"], label_map)
+
+        X_val = np.concatenate([X_val_num, X_val_cat], axis=1)
+        
+        ######## TEST SET (IN-DISTRIBUTION) ########        
+        eval_in_df = pd.read_csv(f'./data/WEATHER/shifts_canonical_eval_in_seed_{seed}.csv')  # 60k obs   
+        
+        X = eval_in_df.iloc[:,6:] #weather.drop(columns=['id', 'target'])           
+
+        X_num = scaler.transform(X[self.numerical_features].copy())
+        X_cat, _ = self.transform_categories(
+            X[self.categorical_features].copy(),
+            self.categorical_features,
+            cat_maps,
+            use_unknown=True
+        )
+        y_eval_cal = self.transform_labels(eval_in_df["fact_cwsm_class"], label_map)
+
+        X_eval_cal = np.concatenate([X_num, X_cat], axis=1)                                     
+        
+        # X_eval_cal = weather.iloc[:,6:] #weather.drop(columns=['id', 'target'])               
+        # X_num = X_eval_cal.drop(columns=self.categorical_features) #+['fact_cwsm_class'])
+        # X_cat = X_eval_cal.drop(columns=self.numerical_features) #+['fact_cwsm_class'])
+        # for col in X_cat.columns:
+        #     try:
+        #         X_cat[col] = X_cat[col].astype(int)
+        #     except (ValueError, TypeError):
+        #         pass
+        # X_cat = X_cat.astype('category').apply(lambda col: col.cat.codes)
+        # weather['target_int'] = weather['fact_cwsm_class'].astype(int).astype('category').cat.codes
+        # y_eval_cal = weather['target_int'].values #- 1 # from 0 to 8 not from 1 to 9!!!!            
+        
+        # X_eval_cal = scaler.transform(X_num)  # normalize input   
+        # X_eval_cal = np.concatenate([X_eval_cal, X_cat.values], axis=1)
+        
+        ######## TEST SET (SHIFT) ########        
+        eval_out_df = pd.read_csv(f'./data/WEATHER/shifts_canonical_eval_out_seed_{seed}.csv')  # 60k obs     
+        
+        X = eval_out_df.iloc[:,6:] #weather.drop(columns=['id', 'target'])           
+
+        X_num = scaler.transform(X[self.numerical_features].copy())
+        X_cat, _ = self.transform_categories(
+            X[self.categorical_features].copy(),
+            self.categorical_features,
+            cat_maps,
+            use_unknown=True
+        )
+        y_eval_cal_shift = self.transform_labels(eval_out_df["fact_cwsm_class"], label_map)
+
+        X_eval_cal_shift = np.concatenate([X_num, X_cat], axis=1)      
+        
+        # X_eval_cal_shift = weather.iloc[:,6:] #weather.drop(columns=['id', 'target'])               
+        # X_eval_cal_shift = filter_unseen_rows(X_eval_cal_shift, self.categorical_features, self.cat_levels)
+        # weather = weather.loc[X_eval_cal_shift.index].copy()
+        # X_num = X_eval_cal_shift[self.numerical_features].copy()
+        # X_cat = X_eval_cal_shift[self.categorical_features].copy()
+              
+        # for col in X_cat.columns:
+        #     try:
+        #         X_cat[col] = pd.Categorical(X_cat[col], categories=self.cat_levels[col]).codes # X_cat[col] = X_cat[col].astype(int)
+        #     except (ValueError, TypeError):
+        #         pass
+        # X_cat = X_cat.astype('category').apply(lambda col: col.cat.codes)
+        # weather['target_int'] = weather['fact_cwsm_class'].astype(int).astype('category').cat.codes
+        # y_eval_cal_shift = weather['target_int'].values #- 1 # from 0 to 8 not from 1 to 9!!!!        
+        
+        # X_eval_cal_shift = scaler.transform(X_num)  # normalize input   
+        # X_eval_cal_shift = np.concatenate([X_eval_cal_shift, X_cat.values], axis=1)
+        
+        ######## CALIBRATION SET ########
+        cal_df = pd.read_csv(f'./data/WEATHER/shifts_canonical_dev_in_processed.csv')  # 60k obs                    
+        
+        X = cal_df.iloc[:,6:] #weather.drop(columns=['id', 'target'])           
+
+        X_num = scaler.transform(X[self.numerical_features].copy())
+        X_cat, _ = self.transform_categories(
+            X[self.categorical_features].copy(),
+            self.categorical_features,
+            cat_maps,
+            use_unknown=True
+        )
+        y_train_cal = self.transform_labels(cal_df["fact_cwsm_class"], label_map)
+
+        X_train_cal = np.concatenate([X_num, X_cat], axis=1)                            
+        
+        # X_train_cal = weather.iloc[:,6:] #weather.drop(columns=['id', 'target'])                       
+        # X_num = X_train_cal.drop(columns=self.categorical_features) #+['fact_cwsm_class'])
+        # X_cat = X_train_cal.drop(columns=self.numerical_features) #+['fact_cwsm_class'])              
+        # for col in X_cat.columns:
+        #     try:
+        #         X_cat[col] = X_cat[col].astype(int)
+        #     except (ValueError, TypeError):
+        #         pass
+        # X_cat = X_cat.astype('category').apply(lambda col: col.cat.codes)
+        # weather['target_int'] = weather['fact_cwsm_class'].astype(int).astype('category').cat.codes
+        # y_train_cal = weather['target_int'].values #- 1 # from 0 to 8 not from 1 to 9!!!!        
+        
+        # X_train_cal = scaler.transform(X_num)  # normalize input               
+        # X_train_cal = np.concatenate([X_train_cal, X_cat.values], axis=1)
+
+        ######## VALIDATION SET (PRE-TRAINING) ########
+        # X_train, X_train_cal, y_train, y_train_cal = train_test_split(X, y, test_size=0.5, random_state=random_state)
+        # X_eval_cal, X_train_cal, y_eval_cal, y_train_cal = train_test_split(X_train_cal, y_train_cal, test_size=0.16, random_state=random_state)        
+        # X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.1, random_state=seed, stratify=y_train)   
+        print(f'Train shape: {X_train.shape}, Learn Calibration shape: {X_train_cal.shape}, Validation shape: {X_val.shape}, Eval Calibration shape: {X_eval_cal.shape}')
                 
+        # X_train = torch.tensor(X_train, dtype=torch.float32)
+        # y_train = torch.tensor(y_train, dtype=torch.long) 
+        # X_train_cal = torch.tensor(X_train_cal, dtype=torch.float32)
+        # y_train_cal = torch.tensor(y_train_cal, dtype=torch.long) 
+        # X_eval_cal = torch.tensor(X_eval_cal, dtype=torch.float32)
+        # y_eval_cal = torch.tensor(y_eval_cal, dtype=torch.long) 
+        # X_val = torch.tensor(X_val, dtype=torch.float32)
+        # y_val = torch.tensor(y_val, dtype=torch.long) 
+        
+        # train_set = WeatherClassificationDataset(X_train, y_train)
+        # eval_cal_set   = WeatherClassificationDataset(X_eval_cal, y_eval_cal)
+        # val_set   = WeatherClassificationDataset(X_val, y_val)
+        # train_cal_set  = WeatherClassificationDataset(X_train_cal, y_train_cal)          
+
+        # self.data_train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True,)
+        # self.data_eval_cal_loader   = DataLoader(eval_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        # self.data_val_loader   = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        # self.data_train_cal_loader  = DataLoader(train_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        n_num = len(self.numerical_features)
+
+        X_train_num = X_train[:, :n_num]
+        X_train_cat = X_train[:, n_num:]
+
+        X_val_num = X_val[:, :n_num]
+        X_val_cat = X_val[:, n_num:]
+
+        X_train_cal_num = X_train_cal[:, :n_num]
+        X_train_cal_cat = X_train_cal[:, n_num:]
+
+        X_eval_cal_num = X_eval_cal[:, :n_num]
+        X_eval_cal_cat = X_eval_cal[:, n_num:]
+        
+        X_eval_cal_num_shift = X_eval_cal_shift[:, :n_num]
+        X_eval_cal_cat_shift = X_eval_cal_shift[:, n_num:]
+        
+        for split_name, X_cat_arr in [
+            ("train", X_train_cat),
+            ("val", X_val_cat),
+            ("train_cal", X_train_cal_cat),
+            ("eval", X_eval_cal_cat),
+            ("eval_shift", X_eval_cal_cat_shift),
+        ]:
+            print(f"\n{split_name}")
+            for i in range(X_cat_arr.shape[1]):
+                print(
+                    i,
+                    "min=", X_cat_arr[:, i].min(),
+                    "max=", X_cat_arr[:, i].max(),
+                    "allowed_max=", self.category_counts[i] - 1
+                )
+            
+        # X_train_num = X_train[:, :-len(self.numerical_features)]
+        # X_train_cat = X_train[:, -len(self.numerical_features):]
+        # X_val_num = X_val[:, :-len(self.numerical_features)]
+        # X_val_cat = X_val[:, -len(self.numerical_features):]
+        # X_train_cal_num = X_train_cal[:, :-len(self.numerical_features)]
+        # X_train_cal_cat = X_train_cal[:, -len(self.numerical_features):]
+        # X_eval_cal_num = X_eval_cal[:, :-len(self.numerical_features)]
+        # X_eval_cal_cat = X_eval_cal[:, -len(self.numerical_features):]
+                  
+        X_train_num = torch.tensor(X_train_num, dtype=torch.float32)
+        X_train_cat = torch.tensor(X_train_cat, dtype=torch.long)
+        y_train = torch.tensor(y_train, dtype=torch.long) 
+        
+        X_train_cal_num = torch.tensor(X_train_cal_num, dtype=torch.float32)
+        X_train_cal_cat = torch.tensor(X_train_cal_cat, dtype=torch.long)
+        y_train_cal = torch.tensor(y_train_cal, dtype=torch.long) 
+        
+        X_eval_cal_num = torch.tensor(X_eval_cal_num, dtype=torch.float32)
+        X_eval_cal_cat = torch.tensor(X_eval_cal_cat, dtype=torch.long)
+        y_eval_cal = torch.tensor(y_eval_cal, dtype=torch.long)         
+        
+        X_eval_cal_num_shift = torch.tensor(X_eval_cal_num_shift, dtype=torch.float32)
+        X_eval_cal_cat_shift = torch.tensor(X_eval_cal_cat_shift, dtype=torch.long)
+        y_eval_cal_shift = torch.tensor(y_eval_cal_shift, dtype=torch.long) 
+        
+        X_val_num = torch.tensor(X_val_num, dtype=torch.float32)
+        X_val_cat = torch.tensor(X_val_cat, dtype=torch.long)
+        y_val = torch.tensor(y_val, dtype=torch.long) 
+        
+        train_set = WeatherClassificationDataset(X_train_num, X_train_cat, y_train)
+        eval_cal_set   = WeatherClassificationDataset(X_eval_cal_num, X_eval_cal_cat, y_eval_cal)
+        eval_cal_set_shift   = WeatherClassificationDataset(X_eval_cal_num_shift, X_eval_cal_cat_shift, y_eval_cal_shift)
+        val_set   = WeatherClassificationDataset(X_val_num, X_val_cat, y_val)
+        train_cal_set  = WeatherClassificationDataset(X_train_cal_num, X_train_cal_cat, y_train_cal)             
+
+        self.data_train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True,)
+        self.data_eval_cal_loader   = DataLoader(eval_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        self.data_eval_cal_shift_loader   = DataLoader(eval_cal_set_shift, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        self.data_val_loader   = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        self.data_train_cal_loader  = DataLoader(train_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)            
+        
+        print("Loading weather data for pre-training complete")       
+        
+        if exp_name == 'xg_debug':
+            return X_train, y_train, X_val, y_val, X_train_cal, y_train_cal, X_eval_cal, y_eval_cal, X_eval_cal_shift, y_eval_cal_shift        
+        
+    def fit_category_maps(self, df, categorical_features):
+        cat_maps = {}
+        for col in categorical_features:
+            cat_maps[col] = pd.Index(pd.Categorical(df[col]).categories)
+        return cat_maps
+
+    def transform_categories(self, df, categorical_features, cat_maps, use_unknown=True):
+        cols = []
+        category_counts = []
+
+        for col in categorical_features:
+            categories = cat_maps[col]
+            codes = pd.Categorical(df[col], categories=categories).codes
+
+            if use_unknown:
+                unknown_idx = len(categories)
+                codes = np.where(codes < 0, unknown_idx, codes)
+                category_counts.append(len(categories) + 1)
+            else:
+                if (codes < 0).any():
+                    raise ValueError(f"Unseen category in {col}")
+                category_counts.append(len(categories))
+
+            cols.append(codes.reshape(-1, 1))
+
+        X_cat = np.concatenate(cols, axis=1) if cols else np.empty((len(df), 0), dtype=np.int64)
+        return X_cat, category_counts
+
+    def fit_label_map(self, y):
+        return pd.Index(pd.Categorical(y.astype(int)).categories)
+
+    def transform_labels(self, y, label_categories):
+        codes = pd.Categorical(y.astype(int), categories=label_categories).codes
+        if (codes < 0).any():
+            raise ValueError("Unseen label found.")
+        return codes       
+                    
 class MnistData(Dataset):    
     def __init__(self, kwargs, experiment=None, name='mnist'):          
         if experiment == 'pre-train':   
@@ -969,11 +1327,12 @@ class MedMnistData(Dataset):
     def __init__(self, kwargs, experiment=None, name='path'):         
         self.name = name 
         if experiment == 'pre-train':                     
-            kwargs.class_freqs = self.generatePretrainingMedMnistData(size=kwargs.size,
+            self.generatePretrainingMedMnistData(size=kwargs.size,
                                 batch_size = kwargs.batch_size,
-                                random_state = kwargs.random_state)      
+                                random_state = kwargs.random_state)    
+            kwargs.dataset.class_freqs = self.class_freqs  
         elif experiment == 'calibrate' or experiment == 'competition' or experiment == 'quantize'  or experiment == 'replicate':
-                kwargs.dataset.class_freqs = [0.321, 0.047, 0.035, 0.093, 0.071, 0.047, 0.237, 0.149]
+                # kwargs.dataset.class_freqs = [0.321, 0.047, 0.035, 0.093, 0.071, 0.047, 0.237, 0.149]
                 if kwargs.calibrator_version == 'v2':
                     self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader = generateCalibrationDatav2(kwargs)
                 else:
@@ -1021,7 +1380,7 @@ class MedMnistData(Dataset):
         
         if self.name == 'tissue':
             train_set = TissueMNIST(root="./data/TISSUE/data_train", split="train", transform=trans, download=True, size=size) #, as_rgb=self.as_rgb) #165k        
-            class_freqs = print_class_frequencies(train_set)
+            self.class_freqs = print_class_frequencies(train_set)
             train_size = len(train_set)
             half_size = train_size // 2                    
             train_set, eval_cal_set = random_split(train_set, [half_size, train_size - half_size], generator=generator) #82.5k BOTH  
@@ -1042,8 +1401,7 @@ class MedMnistData(Dataset):
         self.data_val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
         self.data_train_cal_loader = DataLoader(train_cal_set, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
         
-        print(f"Loading {self.name} mnist data for pre-training complete.") 
-        return class_freqs
+        print(f"Loading {self.name} mnist data for pre-training complete.")         
 
 
 class Cifar10Data(Dataset):    
@@ -1550,3 +1908,56 @@ class CubicData:
         )
 
         return self.data_train_cal_loader, self.data_test_cal_loader, self.data_val_cal_loader
+
+def find_categorical_columns(train_df, target_col='fact_cwsm_class', threshold_for_categorical=20):             
+
+    # obvious types
+    categorical_cols = train_df.select_dtypes(include=['object', 'category', 'bool']).columns.tolist()
+    numerical_cols = train_df.select_dtypes(include=['number']).columns.tolist()
+
+    # remove target
+    if target_col in categorical_cols:
+        categorical_cols.remove(target_col)
+    if target_col in numerical_cols:
+        numerical_cols.remove(target_col)
+
+    # heuristic: numeric columns with few unique values are likely categorical
+    numeric_as_categorical = []
+    for col in numerical_cols:
+        n_unique = train_df[col].nunique(dropna=True)
+        if n_unique <= threshold_for_categorical:
+            numeric_as_categorical.append(col)
+
+    # move them
+    for col in numeric_as_categorical:
+        numerical_cols.remove(col)
+        categorical_cols.append(col)
+
+    # optional: convert categorical columns to integer codes
+    for col in categorical_cols:
+        train_df[col] = train_df[col].astype('category')
+
+    category_counts = [train_df[col].nunique() for col in categorical_cols]    
+
+    # print("Categorical columns:", categorical_cols, '\n')
+    # print("Numerical columns:", numerical_features)
+    # print("Category counts:", category_counts)
+    
+    return categorical_cols, numerical_cols, category_counts 
+
+def filter_unseen_rows(df, categorical_features, cat_levels):
+    mask = pd.Series(True, index=df.index)
+
+    for col in categorical_features:
+        allowed = cat_levels[col]
+        col_mask = df[col].isin(allowed)
+
+        # if you want to keep NaNs too, use:
+        # col_mask = df[col].isin(allowed) | df[col].isna()
+
+        mask &= col_mask
+
+    dropped = (~mask).sum()
+    print(f"Dropping {dropped} rows with unseen categorical values out of {len(df)}")
+
+    return df.loc[mask].copy()

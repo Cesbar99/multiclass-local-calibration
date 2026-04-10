@@ -87,7 +87,9 @@ def quantize(kwargs, wandb_logger):
     elif kwargs.checkpoint.epochs == 5:
         model_class = 'vit'
     else:
-        raise ValueError(f'Checkpoint not corresponding to a trained modl! {kwargs.checkpoint.epochs} was given but only 9 and 20 are supported')
+        if not kwargs.data == 'weather':
+            raise ValueError(
+                f'Checkpoint not corresponding to a trained modl! {kwargs.checkpoint.epochs} was given but only 9 and 20 are supported')
                     
     name = kwargs.exp_name
     if kwargs.models.S != 64:
@@ -146,10 +148,9 @@ def quantize(kwargs, wandb_logger):
             for key, value in study.best_trial.params.items():
                 print(f"    {key}: {value}")
                 kwargs.models[key] = value
-        # Params: {'lambda_kl': 1.191, 'alpha1': 1.001, 'log_var_initializer': 0.2715}
 
     ############################# QUANTISATION TRAINING #############################
-    pl_model = VQClassifier(kwargs, num_classes=kwargs.dataset.num_classes, feature_dim=kwargs.dataset.feature_dim, feature_loader=dataset.data_train_cal_loader)        
+    pl_model = VQClassifier(kwargs, num_classes=kwargs.dataset.num_classes, feature_dim=kwargs.dataset.feature_dim, feature_loader=dataset.data_train_cal_loader, backbone=model_class)        
     name = kwargs.exp_name
     if kwargs.models.S != 64:
         name += f'slot-{kwargs.models.S}'

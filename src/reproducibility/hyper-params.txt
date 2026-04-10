@@ -148,7 +148,6 @@ ECCE,ECE,MCE,Brier,NLL,LCE,MLCE
 0.030204928852617743,0.07169395283595496,0.4513881392776966,0.08131076162680984,2.0760250091552734,0.0735005741007626,0.7013295479118824
 
 #######################################################################################################################################################
-BUGS
 
 values of alpha_sim and alpha_cls. How to find good initialisations? -> OPTUNA
 
@@ -158,6 +157,9 @@ NEW SOTA?
 CUDA_VISIBLE_DEVICES=1 python -u run.py exp_name=calibrate pretrain=False calibrate=True data=cifar10 checkpoint.epochs=9 models.log_var_initializer=1 models.alpha1=1 models.alpha2=0. models.lambda_kl=1 models.sampling=False models.smoothing=0. models.dropout=0.3 models.hidden_dim=64 models.epochs=100 use_optuna=False n_trials=100 models.optimizer.weight_decay=0. dataset.batch_size=2048 dataset.feature_dim=2048 similarity_dim=50 calibrator_version=v2 gamma=10 models.adabw=False models.fixed_var=True models.linearly_combine_pca=True models.kernel_only=False extract_embeddings=False models.alpha_sim=0.1 models.alpha_cls=0.1
 
 #######################################################################################################################################################
-USED 4 EXPERIMENTS:
-CUDA_VISIBLE_DEVICES=1 python -u run.py exp_name=calibrate pretrain=False calibrate=True data=cifar10 checkpoint.epochs=9 models.log_var_initializer=10 models.alpha1=1 models.alpha2=0. models.lambda_kl=1 models.sampling=False models.smoothing=0. models.dropout=0.3 models.hidden_dim=64 models.epochs=100 use_optuna=False n_trials=100 models.optimizer.weight_decay=0. dataset.batch_size=128 dataset.feature_dim=2048 similarity_dim=50 calibrator_version=v2 gamma=10 models.adabw=False models.fixed_var=True models.linearly_combine_pca=True models.kernel_only=False extract_embeddings=False models.alpha_sim=1 models.alpha_cls=1
-
+USED 4 EXPERIMENTS: -> tune it?
+CUDA_VISIBLE_DEVICES=1 python -u run.py exp_name=calibrate pretrain=False calibrate=True data=cifar10 checkpoint.epochs=9 models.log_var_initializer=10 models.alpha1=1 models.alpha2=0. models.lambda_kl=1 models.sampling=False models.smoothing=0. models.dropout=0.3 models.hidden_dim=64 models.epochs=100 use_optuna=False n_trials=100 models.optimizer.weight_decay=0. dataset.batch_size=1024 dataset.feature_dim=2048 similarity_dim=50 calibrator_version=v2 gamma=10 models.adabw=False models.fixed_var=True models.linearly_combine_pca=True models.kernel_only=False models.alpha_sim=0.5 models.alpha_cls=0.5 extract_embeddings=False
++
+USE val_kl (not val_total) FOR SAVING CHECKPOINTS!
++
+Uniform priors for TISSUEMNIST (comment line 976 in dataset.py)

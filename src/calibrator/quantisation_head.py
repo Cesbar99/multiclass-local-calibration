@@ -18,13 +18,13 @@ class VQHeadEMA(nn.Module):
     Output: z_q_st   (B, S, d)   # quantized in forward, identity in backward
             indices  (B, S)
     """
-    def __init__(self, K: int, d: int, L1: bool = False, decay: float = 0.99, eps: float = 1e-5):
+    def __init__(self, K: int, d: int, L1: bool = False, decay: float = 0.99, eps: float = 1e-8):
         super().__init__()
         self.K = K
         self.d = d
         self.decay = decay
         self.eps = eps
-        self.L1 = L1
+        self.L1 = L1        
 
         # Codebook embeddings (updated by EMA, not gradients)
         embed = torch.randn(K, d)
@@ -47,7 +47,33 @@ class VQHeadEMA(nn.Module):
         self.codebook.copy_(samples[idx])
         self.cluster_size.zero_()
         self.embed_avg.zero_()
-        
+    
+    @torch.no_grad()
+    def init_codebook_from_samples_std(self, samples: torch.Tensor):
+        """
+        samples: (N, d) slot vectors used to initialize codebook
+
+        Standardizes samples before initializing codebook.
+        Stores mean/std for later use in forward.
+        """
+        assert samples.dim() == 2 and samples.size(1) == self.d
+
+        # ---- compute dataset statistics ----
+        self.register_buffer("feat_mean", samples.mean(dim=0))
+        self.register_buffer("feat_std", samples.std(dim=0).clamp_min(1e-6))
+
+        # ---- standardize ----
+        samples_std = (samples - self.feat_mean) / self.feat_std
+
+        # ---- random subset initialization ----
+        N = samples_std.size(0)
+        idx = torch.randperm(N, device=samples.device)[: self.K]
+        self.codebook.copy_(samples_std[idx])
+
+        # ---- reset EMA state ----
+        self.cluster_size.zero_()
+        self.embed_avg.zero_()
+            
     # @torch.no_grad()
     # def init_codebook_kmeanspp(self, samples: torch.Tensor, max_samples: int = 200000):
     #     """
@@ -124,7 +150,7 @@ class VQHeadEMA(nn.Module):
     #     self.embed_avg.zero_()
   
 
-    def forward(self, z: torch.Tensor):
+    def forward(self, z: torch.Tensor, return_entropy: bool = False, tau: float = 1.0):
         assert z.dim() == 3 and z.size(-1) == self.d, f"Expected (B,S,{self.d}), got {tuple(z.shape)}"
         B, S, d = z.shape
 
@@ -154,9 +180,19 @@ class VQHeadEMA(nn.Module):
         # EMA update (only when training)
         if self.training:
             self._ema_update(z_flat, indices)
+            
+        if return_entropy:
+            # soft assignment probabilities over codewords
+            probs = F.softmax(-dist / tau, dim=1)      # (BS, K)
 
-        # Return indices as (B, S) for downstream calibration usage
-        return z_q_st, indices.view(B, S)
+            # entropy per slot
+            entropy = -(probs * torch.log(probs + self.eps)).sum(dim=1)   # (BS,)
+            entropy = entropy.view(B, S)
+            
+            return z_q_st, indices.view(B, S), entropy
+        else:
+            # Return indices as (B, S) for downstream calibration usage
+            return z_q_st, indices.view(B, S)
 
     @torch.no_grad()
     def _ema_update(self, z_flat: torch.Tensor, indices: torch.Tensor):

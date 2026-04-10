@@ -26,7 +26,7 @@ class VQDirCal(nn.Module):
     As in Eqs. (30)-(34). :contentReference[oaicite:2]{index=2}
     """
 
-    def __init__(self, K: int, C: int, S: int, eps: float = 1e-4, quadratic: bool = False, learn_pi: bool = False, learn_bias: bool=False, diag: bool = False,
+    def __init__(self, K: int, C: int, S: int, eps: float = 1e-8, quadratic: bool = False, learn_pi: bool = False, learn_bias: bool=False, diag: bool = False,
                  random: bool = False, standard_dirichlet: bool = False): #1e-8
         super().__init__()
         self.K = K
@@ -51,7 +51,7 @@ class VQDirCal(nn.Module):
             if learn_bias:        
                 self.bias_code = nn.Embedding(K, C)  # corresponds to {b_1,...,b_K} in R^C 
                 nn.init.normal_(self.bias_code.weight, mean=0., std=0.01)       
-            if self.diag:      
+            if self.diag or self.learn_bias:      
                 self.T_code = nn.Parameter(torch.ones(S))  # corresponds to {b_1,...,b_K} in R^C     
                 nn.init.normal_(self.T_code, mean=1., std=0.01)   
             if self.quadratic:
@@ -68,12 +68,12 @@ class VQDirCal(nn.Module):
             else:
                 self.register_buffer("pi", torch.full((C,), 1.0 / C))
 
-            #nn.init.normal_(self.A_code.weight, mean=0., std=0.01) 
-            #nn.init.normal_(self.B_code.weight, mean=0., std=0.01) 
+            # nn.init.normal_(self.A_code.weight, mean=0., std=0.01) 
+            # nn.init.normal_(self.B_code.weight, mean=0., std=0.01) 
             self.init_alpha_minus_1_all_1s() # intitialises alpha_minus_1 as a matrix of all 1s   
             if hasattr(self, "pi_logits"):        
-                #self.init_pi_to_cancel_logB()        
-               nn.init.normal_(self.pi_logits, mean=0., std=0.01)                  
+                # self.init_pi_to_cancel_logB()        
+                nn.init.normal_(self.pi_logits, mean=0., std=0.01)                  
 
     @torch.no_grad()
     def set_global_pi_from_counts(self, y: torch.Tensor):

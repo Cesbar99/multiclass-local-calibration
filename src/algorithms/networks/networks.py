@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import torchvision.models as models
 from torchvision.models import ResNet18_Weights
 import timm
-from tab_transformer_pytorch import FTTransformer
+from tab_transformer_pytorch import FTTransformer, TabTransformer
 
 class ScaledLogits(nn.Module):
     def __init__(self, temperature=1.0):
@@ -767,6 +767,77 @@ class ResMLP(nn.Module):
         x = self.blocks(x)
         return self.output_layer(x)    
     
+class Wheather_FTT(nn.Module):
+    """Model for just classification.
+    The architecture of our model is the same as standard DenseNet121
+    """
+    def __init__(self, category_counts, numerical_features, temperature=1.0, num_labels=5):
+        super(Wheather_FTT, self).__init__()      
+        self.scaler = ScaledLogits(temperature)   
+        cont_mean_std = torch.randn(115, 2)     
+        self.ftt = FTTransformer( # 
+            categories = category_counts,                               # tuple containing the number of unique values within each category (10, 5, 6, 5, 8)
+            num_continuous = len(numerical_features),                   # number of continuous values
+            dim = 64, #32                                               # dimension, paper set at 32
+            dim_out = num_labels,                                       # binary prediction, but could be anything
+            depth = 6, #6                                               # depth, paper recommended 6
+            heads = 8, #8                                               # heads, paper recommends 8
+            attn_dropout = 0.1,                                         # post-attention dropout
+            ff_dropout = 0.1                                           # feed forward dropout
+            #mlp_hidden_mults = (4, 2),                                 # relative multiples of each hidden dimension of the last mlp to logits
+            #mlp_act = nn.ReLU()                                        # activation for final mlp, defaults to relu, but could be anything else (selu etc)
+            #continuous_mean_std = cont_mean_std # (optional) - normalize the continuous values before layer norm
+        )        
+        print(self.ftt)
+
+    def forward(self, x):
+        x_cat, x_num = x
+        logits = self.ftt(x_cat, x_num)                
+        return self.scaler(logits)   
+
+    def repr(self, x):
+        """
+        Return the penultimate representation, i.e. the feature vector
+        right before the final classification Linear layer.
+        """
+        x_cat, x_num = x
+
+        assert x_cat.shape[-1] == self.ftt.num_categories, (
+            f'you must pass in {self.ftt.num_categories} values for your categories input'
+        )
+        assert x_num.shape[-1] == self.ftt.num_continuous, (
+            f'you must pass in {self.ftt.num_continuous} values for your numerical input'
+        )
+
+        # categorical embeddings
+        xs = []
+        if self.ftt.num_unique_categories > 0:
+            x_cat = x_cat + self.ftt.categories_offset
+            x_cat = self.ftt.categorical_embeds(x_cat)
+            xs.append(x_cat)
+
+        # numerical embeddings
+        if self.ftt.num_continuous > 0:
+            x_num = self.ftt.numerical_embedder(x_num)
+            xs.append(x_num)
+
+        # concatenate tokens
+        x = torch.cat(xs, dim=1)
+
+        # prepend CLS token
+        b = x.shape[0]
+        cls_tokens = self.ftt.cls_token.expand(b, -1, -1)
+        x = torch.cat((cls_tokens, x), dim=1)
+
+        # transformer
+        x = self.ftt.transformer(x)
+
+        # CLS representation
+        x = x[:, 0]
+
+        # penultimate representation = everything in to_logits except final Linear
+        features = self.ftt.to_logits[:-1](x)
+        return features
     
 class CovType_FTT(nn.Module):
     """Model for just classification.

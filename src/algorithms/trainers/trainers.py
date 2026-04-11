@@ -1154,14 +1154,14 @@ class WeatherModel(pl.LightningModule):
             self.acc_val = torchmetrics.Accuracy(task=task, num_classes=num_classes) # CHANGE IF NEEDED
         self.acc_test = torchmetrics.Accuracy(task=task, num_classes=num_classes) # CHANGE IF NEEDED
         
-        if self.class_counts is not None:
-            class_counts = torch.tensor(class_counts, dtype=torch.float32)
-            class_weights = 1.0 / (class_counts + 1e-8)
-            class_weights = class_weights / class_weights.sum() * num_classes
-            print('using class weights: ', class_weights)
-            self.register_buffer("class_weights", class_weights)
-        else:
-            self.class_weights = None
+        # if self.class_counts is not None:
+        #     class_counts = torch.tensor(class_counts, dtype=torch.float32)
+        #     class_weights = 1.0 / (class_counts + 1e-8)
+        #     class_weights = class_weights / class_weights.sum() * num_classes
+        #     print('using class weights: ', class_weights)
+        #     self.register_buffer("class_weights", class_weights)
+        # else:
+        self.class_weights = None
 
     def forward(self, x):
         return self.model(x)
@@ -1274,9 +1274,8 @@ class WeatherModel(pl.LightningModule):
         x, y = batch    
         # x_cat, x_num = x          
           
-        feats = self.model.repr(x)        
-        
-        logits = self.model.ftt.to_logits[-1](feats)
+        feats = self.model.repr(x)
+        logits = self.model.ftt.to_logits[-1](feats) # self.model.ftt.to_logits(feats)  
             
         preds = torch.argmax(logits, dim=-1).view(-1,1)  # predicted class
         # Create dict in the same format as predict outputs

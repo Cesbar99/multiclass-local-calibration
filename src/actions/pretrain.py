@@ -94,43 +94,43 @@ def pretrain(kwargs, wandb_logger):
         
     elif kwargs.data == 'weather':
         dataset = WeatherData(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data, seed=seed)
-        splits = WeatherData(kwargs.dataset, experiment='xg_debug', name='weather', seed=42)
+        # splits = WeatherData(kwargs.dataset, experiment='xg_debug', name='weather', seed=42)
 
-        # number of classes
-        num_classes = len(set(splits.y_train))
+        # # number of classes
+        # num_classes = len(set(splits.y_train))
 
-        model = XGBClassifier(
-            objective='multi:softprob',
-            num_class=num_classes,
-            eval_metric='mlogloss',
+        # model = XGBClassifier(
+        #     objective='multi:softprob',
+        #     num_class=num_classes,
+        #     eval_metric='mlogloss',
 
-            # good starting defaults
-            n_estimators=500,
-            learning_rate=0.05,
-            max_depth=6,
-            subsample=0.8,
-            colsample_bytree=0.8,
+        #     # good starting defaults
+        #     n_estimators=500,
+        #     learning_rate=0.05,
+        #     max_depth=6,
+        #     subsample=0.8,
+        #     colsample_bytree=0.8,
 
-            tree_method='hist',  # fast
-            random_state=42,
-        )
+        #     tree_method='hist',  # fast
+        #     random_state=42,
+        # )
 
-        # train with validation monitoring
-        model.fit(
-            splits.X_train, splits.y_train,
-            eval_set=[(splits.X_val, splits.y_val)],
-            verbose=True
-        )
+        # # train with validation monitoring
+        # model.fit(
+        #     splits.X_train, splits.y_train,
+        #     eval_set=[(splits.X_val, splits.y_val)],
+        #     verbose=True
+        # )
 
-        # predictions
-        y_pred = model.predict(splits.X_eval_cal)
+        # # predictions
+        # y_pred = model.predict(splits.X_eval_cal)
 
-        # evaluation
-        acc = accuracy_score(splits.y_eval_cal, y_pred)
-        print(f"\nEval accuracy: {acc:.4f}")
+        # # evaluation
+        # acc = accuracy_score(splits.y_eval_cal, y_pred)
+        # print(f"\nEval accuracy: {acc:.4f}")
 
-        print("\nClassification report:")
-        print(classification_report(splits.y_eval_cal, y_pred))
+        # print("\nClassification report:")
+        # print(classification_report(splits.y_eval_cal, y_pred))
         
         pl_model = WeatherModel(kwargs.models, dataset.numerical_features, dataset.category_counts, dataset.class_counts)
     

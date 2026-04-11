@@ -37,6 +37,8 @@ def calibrate(kwargs, wandb_logger):
         if kwargs.dataset.variant:
             kwargs.data = kwargs.data + '_' + kwargs.dataset.variant                        
         dataset = MnistData(kwargs, experiment=kwargs.exp_name)
+    elif kwargs.data == 'weather':       
+        dataset = WeatherData(kwargs, experiment=kwargs.exp_name)        
     elif kwargs.data == 'tissue':
         dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)   
     elif kwargs.data == 'path':
@@ -83,6 +85,7 @@ def calibrate(kwargs, wandb_logger):
     elif kwargs.checkpoint.epochs == 5:
         model_class = 'vit'
     else:
+        model_class = 'ftt'
         if not kwargs.data == 'weather':
             raise ValueError(
                 f'Checkpoint not corresponding to a trained modl! {kwargs.checkpoint.epochs} was given but only 9 and 20 are supported')
@@ -250,6 +253,16 @@ def calibrate(kwargs, wandb_logger):
                     total_epochs,
                     model_class           
                 )
+            if kwargs.data == 'weather' and kwargs.dataset.shift:
+                raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_shift_seed-{}_ep-{}_{}.csv".format(
+                    kwargs.exp_name,
+                    kwargs.data,
+                    kwargs.dataset.num_classes,
+                    kwargs.dataset.num_features,
+                    seed,
+                    total_epochs,
+                    model_class           
+                )
             raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_{}.csv".format(
                 kwargs.exp_name,
                 kwargs.data,
@@ -269,6 +282,16 @@ def calibrate(kwargs, wandb_logger):
                     total_epochs,
                     model_class           
                 )
+                if kwargs.data == 'weather' and kwargs.dataset.shift:
+                    raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_shift_seed-{}_ep-{}_{}.csv".format(
+                        'reference_kernel',
+                        kwargs.data,
+                        kwargs.dataset.num_classes,
+                        kwargs.dataset.num_features,
+                        seed,
+                        total_epochs,
+                        model_class           
+                    )
                 raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_{}.csv".format(
                     'reference_kernel',
                     kwargs.data,
@@ -288,6 +311,16 @@ def calibrate(kwargs, wandb_logger):
                     total_epochs,
                     model_class           
                 )
+                if kwargs.data == 'weather' and kwargs.dataset.shift:
+                    raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_shift_seed-{}_ep-{}_{}.csv".format(
+                        'kernel_only',
+                        kwargs.data,
+                        kwargs.dataset.num_classes,
+                        kwargs.dataset.num_features,
+                        seed,
+                        total_epochs,
+                        model_class           
+                    )
                 raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}_{}.csv".format(
                     'kernel_only',
                     kwargs.data,
@@ -311,7 +344,11 @@ def calibrate(kwargs, wandb_logger):
                 pl_model.model.load_state_dict(checkpoint)   #        
         print(F'LOADING CHECKPOINT FILE {best_model_path}')
     else:
-        print(F'BEGIN CALIBRATION FOR {total_epochs} EPOCHS WITH SEED {seed}!')        
+        print(F'BEGIN CALIBRATION FOR {total_epochs} EPOCHS WITH SEED {seed}!')  
+        if kwargs.models.lambda_kl == 0:
+            criterion = 'val_total'
+        else:
+            criterion = 'val_kl'
         trainer = pl.Trainer(
                 max_epochs=total_epochs,
                 accelerator="cuda",
@@ -322,12 +359,12 @@ def calibrate(kwargs, wandb_logger):
                 deterministic=False,
                 callbacks=[ #CalibrationPlotCallback(kwargs, dataset.data_train_cal_loader, every_n_epochs=5, device="cuda", type='train'), 
                             #CalibrationPlotCallback(kwargs, dataset.data_test_cal_loader, every_n_epochs=5, device="cuda", type='test'),
-                            EarlyStopping(monitor="val_kl", #val_total
+                            EarlyStopping(monitor=criterion, #val_total
                                         patience=10, #5
                                         mode="min", 
                                         verbose=True, 
                                         min_delta=0.0),
-                            ModelCheckpoint(monitor="val_kl", #val_total                                                                                               # Metric to track
+                            ModelCheckpoint(monitor=criterion, #val_total                                                                                               # Metric to track
                                 mode="min",                                                                                                     # Lower is better
                                 save_top_k=1,                                                                                                   # Only keep the best model
                                 filename=filename, #f"classifier_seed-{seed}_ep-{total_epochs}",                                                           # Static filename (no epoch suffix)

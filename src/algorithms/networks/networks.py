@@ -774,11 +774,12 @@ class Wheather_FTT(nn.Module):
     def __init__(self, category_counts, numerical_features, temperature=1.0, num_labels=5):
         super(Wheather_FTT, self).__init__()      
         self.scaler = ScaledLogits(temperature)   
-        cont_mean_std = torch.randn(115, 2)     
+        # cont_mean_std = torch.randn(115, 2)     
+        dim = 64
         self.ftt = FTTransformer( # 
             categories = category_counts,                               # tuple containing the number of unique values within each category (10, 5, 6, 5, 8)
             num_continuous = len(numerical_features),                   # number of continuous values
-            dim = 64, #32                                               # dimension, paper set at 32
+            dim = dim, #32                                               # dimension, paper set at 32
             dim_out = num_labels,                                       # binary prediction, but could be anything
             depth = 6, #6                                               # depth, paper recommended 6
             heads = 8, #8                                               # heads, paper recommends 8
@@ -788,7 +789,15 @@ class Wheather_FTT(nn.Module):
             #mlp_act = nn.ReLU()                                        # activation for final mlp, defaults to relu, but could be anything else (selu etc)
             #continuous_mean_std = cont_mean_std # (optional) - normalize the continuous values before layer norm
         )        
-        print(self.ftt)
+        # Replace the original classification head
+        self.ftt.to_logits = nn.Sequential(
+            nn.LayerNorm(dim),
+            nn.Linear(dim, 2048),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(2048, num_labels)
+        )
+        print(self.ftt)    
 
     def forward(self, x):
         x_cat, x_num = x
@@ -836,7 +845,7 @@ class Wheather_FTT(nn.Module):
         x = x[:, 0]
 
         # penultimate representation = everything in to_logits except final Linear
-        features = self.ftt.to_logits[:-1](x)
+        features = self.ftt.to_logits[:-1](x) # x 
         return features
     
 class CovType_FTT(nn.Module):

@@ -228,7 +228,7 @@ def generateCalibrationDatav2(kwargs, dataname=None):
     # Load your data
     df_train_calibration_data = pd.read_csv(cal_results)
     if kwargs.data == 'weather' and kwargs.dataset.shift:
-        df_eval_calibration_data = pd.read_csv(test_shift_results)
+        df_eval_calibration_data = pd.read_csv(test_shift_results)        
         df_in_test = pd.read_csv(test_results)
     else:
         df_eval_calibration_data = pd.read_csv(test_results)
@@ -306,11 +306,11 @@ def generateCalibrationDatav2(kwargs, dataname=None):
     
     # Split into 90% test and 10% val
     if kwargs.data == 'weather' and kwargs.dataset.shift:
-        (feats_test, feats_val,
-        logits_test, logits_val,
-        pca_test, pca_val,
-        y_test, y_val,
-        p_test, p_val) = train_test_split(
+        (feats_in_test, feats_val,
+        logits_in_test, logits_val,
+        pca_in_test, pca_val,
+        y_in_test, y_val,
+        p_in_test, p_val) = train_test_split(
             feats_in_test,
             logits_in_test,
             pca_in_test,
@@ -319,6 +319,13 @@ def generateCalibrationDatav2(kwargs, dataname=None):
             test_size=0.1, #0.1  # 10% for validation
             random_state=kwargs.seed, # for reproducibility
             shuffle=True)    
+        
+        feats_test = feats_eval_cal
+        logits_test = logits_eval_cal
+        pca_test = pca_eval_cal
+        y_test = y_eval_cal
+        p_test = p_eval_cal
+    
     else:
         (feats_test, feats_val,
         logits_test, logits_val,
@@ -927,18 +934,23 @@ class WeatherData(Dataset):
     def generatePretrainingWheatherData(self, seed, batch_size, exp_name='pre-train'):        
         
         scaler = StandardScaler()
+        ############  FOR ALL CONTINUOUS ############ 
+        self.category_counts = ()        
         
         ######## TRAINING SET ########
         weather = pd.read_csv(f'./data/WEATHER/shifts_canonical_train_seed_{seed}.csv')  # 60k obs        
         train_df, val_df = train_test_split(weather, test_size=0.1, stratify=weather["fact_cwsm_class"], random_state=seed)                
         
-        X = train_df.iloc[:,6:] #weather.drop(columns=['id', 'target'])                                    
-        self.categorical_features, self.numerical_features, _ = find_categorical_columns(X, target_col='fact_cwsm_class',
-                                                                                                   threshold_for_categorical=20)                    
-        X_num_raw = X.drop(columns=self.categorical_features) #+['fact_cwsm_class'])
-        X_cat_raw = X.drop(columns=self.numerical_features) #+['fact_cwsm_class'])
+        X = train_df.iloc[:,6:] #weather.drop(columns=['id', 'target'])  
+        feature_cols = X.columns.tolist()    
+        self.numerical_features = feature_cols  
+        X_train = scaler.fit_transform(X[feature_cols])                            
+        # self.categorical_features, self.numerical_features, _ = find_categorical_columns(X, target_col='fact_cwsm_class',
+        #                                                                                            threshold_for_categorical=20)                    
+        # X_num_raw = X.drop(columns=self.categorical_features) #+['fact_cwsm_class'])
+        # X_cat_raw = X.drop(columns=self.numerical_features) #+['fact_cwsm_class'])
         
-        cat_maps = self.fit_category_maps(X_cat_raw, self.categorical_features)
+        # cat_maps = self.fit_category_maps(X_cat_raw, self.categorical_features)
         label_map = self.fit_label_map(train_df["fact_cwsm_class"])
         
         # self.cat_levels = {}
@@ -953,41 +965,43 @@ class WeatherData(Dataset):
         # weather['target_int'] = weather['fact_cwsm_class'].astype(int).astype('category').cat.codes
         # y_train = weather['target_int'].values #- 1 # from 0 to 8 not from 1 to 9!!!!                 
         
-        X_num = scaler.fit_transform(X_num_raw)  # normalize input   
-        X_cat, self.category_counts = self.transform_categories(X_cat_raw, self.categorical_features, cat_maps, use_unknown=True)
+        # X_num = scaler.fit_transform(X_num_raw)  # normalize input   
+        # X_cat, self.category_counts = self.transform_categories(X_cat_raw, self.categorical_features, cat_maps, use_unknown=True)
         y_train = self.transform_labels(train_df["fact_cwsm_class"], label_map)      
         self.class_counts = np.bincount(y_train, minlength=5)   
-        X_train = np.concatenate([X_num, X_cat], axis=1)
+        # X_train = np.concatenate([X_num, X_cat], axis=1)
         
         ######## VALIDATION SET ########
         X_val_raw = val_df.iloc[:, 6:].copy()
+        X_val = scaler.transform(X_val_raw[feature_cols])
 
-        X_val_num = scaler.transform(X_val_raw[self.numerical_features].copy())
-        X_val_cat, _ = self.transform_categories(
-            X_val_raw[self.categorical_features].copy(),
-            self.categorical_features,
-            cat_maps,
-            use_unknown=True
-        )
+        # X_val_num = scaler.transform(X_val_raw[self.numerical_features].copy())
+        # X_val_cat, _ = self.transform_categories(
+        #     X_val_raw[self.categorical_features].copy(),
+        #     self.categorical_features,
+        #     cat_maps,
+        #     use_unknown=True
+        # )
         y_val = self.transform_labels(val_df["fact_cwsm_class"], label_map)
 
-        X_val = np.concatenate([X_val_num, X_val_cat], axis=1)
+        # X_val = np.concatenate([X_val_num, X_val_cat], axis=1)
         
         ######## TEST SET (IN-DISTRIBUTION) ########        
         eval_in_df = pd.read_csv(f'./data/WEATHER/shifts_canonical_eval_in_seed_{seed}.csv')  # 60k obs   
         
-        X = eval_in_df.iloc[:,6:] #weather.drop(columns=['id', 'target'])           
+        X = eval_in_df.iloc[:,6:] #weather.drop(columns=['id', 'target'])     
+        X_eval_cal = scaler.transform(X[feature_cols])      
 
-        X_num = scaler.transform(X[self.numerical_features].copy())
-        X_cat, _ = self.transform_categories(
-            X[self.categorical_features].copy(),
-            self.categorical_features,
-            cat_maps,
-            use_unknown=True
-        )
+        # X_num = scaler.transform(X[self.numerical_features].copy())
+        # X_cat, _ = self.transform_categories(
+        #     X[self.categorical_features].copy(),
+        #     self.categorical_features,
+        #     cat_maps,
+        #     use_unknown=True
+        # )
         y_eval_cal = self.transform_labels(eval_in_df["fact_cwsm_class"], label_map)
 
-        X_eval_cal = np.concatenate([X_num, X_cat], axis=1)                                     
+        # X_eval_cal = np.concatenate([X_num, X_cat], axis=1)                                     
         
         # X_eval_cal = weather.iloc[:,6:] #weather.drop(columns=['id', 'target'])               
         # X_num = X_eval_cal.drop(columns=self.categorical_features) #+['fact_cwsm_class'])
@@ -1007,18 +1021,19 @@ class WeatherData(Dataset):
         ######## TEST SET (SHIFT) ########        
         eval_out_df = pd.read_csv(f'./data/WEATHER/shifts_canonical_eval_out_seed_{seed}.csv')  # 60k obs     
         
-        X = eval_out_df.iloc[:,6:] #weather.drop(columns=['id', 'target'])           
+        X = eval_out_df.iloc[:,6:] #weather.drop(columns=['id', 'target'])        
+        X_eval_cal_shift = scaler.transform(X[feature_cols])      
 
-        X_num = scaler.transform(X[self.numerical_features].copy())
-        X_cat, _ = self.transform_categories(
-            X[self.categorical_features].copy(),
-            self.categorical_features,
-            cat_maps,
-            use_unknown=True
-        )
+        # X_num = scaler.transform(X[self.numerical_features].copy())
+        # X_cat, _ = self.transform_categories(
+        #     X[self.categorical_features].copy(),
+        #     self.categorical_features,
+        #     cat_maps,
+        #     use_unknown=True
+        # )
         y_eval_cal_shift = self.transform_labels(eval_out_df["fact_cwsm_class"], label_map)
 
-        X_eval_cal_shift = np.concatenate([X_num, X_cat], axis=1)      
+        # X_eval_cal_shift = np.concatenate([X_num, X_cat], axis=1)      
         
         # X_eval_cal_shift = weather.iloc[:,6:] #weather.drop(columns=['id', 'target'])               
         # X_eval_cal_shift = filter_unseen_rows(X_eval_cal_shift, self.categorical_features, self.cat_levels)
@@ -1041,18 +1056,19 @@ class WeatherData(Dataset):
         ######## CALIBRATION SET ########
         cal_df = pd.read_csv(f'./data/WEATHER/shifts_canonical_dev_in_processed.csv')  # 60k obs                    
         
-        X = cal_df.iloc[:,6:] #weather.drop(columns=['id', 'target'])           
+        X = cal_df.iloc[:,6:] #weather.drop(columns=['id', 'target'])        
+        X_train_cal = scaler.transform(X[feature_cols])      
 
-        X_num = scaler.transform(X[self.numerical_features].copy())
-        X_cat, _ = self.transform_categories(
-            X[self.categorical_features].copy(),
-            self.categorical_features,
-            cat_maps,
-            use_unknown=True
-        )
+        # X_num = scaler.transform(X[self.numerical_features].copy())
+        # X_cat, _ = self.transform_categories(
+        #     X[self.categorical_features].copy(),
+        #     self.categorical_features,
+        #     cat_maps,
+        #     use_unknown=True
+        # )
         y_train_cal = self.transform_labels(cal_df["fact_cwsm_class"], label_map)
 
-        X_train_cal = np.concatenate([X_num, X_cat], axis=1)                            
+        # X_train_cal = np.concatenate([X_num, X_cat], axis=1)                            
         
         # X_train_cal = weather.iloc[:,6:] #weather.drop(columns=['id', 'target'])                       
         # X_num = X_train_cal.drop(columns=self.categorical_features) #+['fact_cwsm_class'])
@@ -1110,21 +1126,21 @@ class WeatherData(Dataset):
         X_eval_cal_num_shift = X_eval_cal_shift[:, :n_num]
         X_eval_cal_cat_shift = X_eval_cal_shift[:, n_num:]
         
-        for split_name, X_cat_arr in [
-            ("train", X_train_cat),
-            ("val", X_val_cat),
-            ("train_cal", X_train_cal_cat),
-            ("eval", X_eval_cal_cat),
-            ("eval_shift", X_eval_cal_cat_shift),
-        ]:
-            print(f"\n{split_name}")
-            for i in range(X_cat_arr.shape[1]):
-                print(
-                    i,
-                    "min=", X_cat_arr[:, i].min(),
-                    "max=", X_cat_arr[:, i].max(),
-                    "allowed_max=", self.category_counts[i] - 1
-                )
+        # for split_name, X_cat_arr in [
+        #     ("train", X_train_cat),
+        #     ("val", X_val_cat),
+        #     ("train_cal", X_train_cal_cat),
+        #     ("eval", X_eval_cal_cat),
+        #     ("eval_shift", X_eval_cal_cat_shift),
+        # ]:
+        #     print(f"\n{split_name}")
+        #     for i in range(X_cat_arr.shape[1]):
+        #         print(
+        #             i,
+        #             "min=", X_cat_arr[:, i].min(),
+        #             "max=", X_cat_arr[:, i].max(),
+        #             "allowed_max=", self.category_counts[i] - 1
+        #         )
             
         # X_train_num = X_train[:, :-len(self.numerical_features)]
         # X_train_cat = X_train[:, -len(self.numerical_features):]

@@ -55,6 +55,10 @@ def competition(kwargs, wandb_logger=None):
         corrupt = kwargs.corruption_type
         kwargs.corruption_type = None
         dataset = Cifar100Data(kwargs, experiment=kwargs.exp_name)  
+    elif kwargs.data == 'weather':
+        corrupt = False
+        kwargs.corruption_type = None
+        dataset = WeatherData(kwargs, experiment=kwargs.exp_name)        
     elif kwargs.data == 'food101':
         corrupt = kwargs.corruption_type
         kwargs.corruption_type = None
@@ -93,9 +97,11 @@ def competition(kwargs, wandb_logger=None):
     elif kwargs.checkpoint.epochs == 5:
         model_class = 'vit'
     else:
-        raise ValueError(f'Checkpoint not corresponding to a trained modl! {kwargs.checkpoint.epochs} was given but only 9 and 20 are supported')
+        model_class = 'ftt'
+        if not kwargs.data == 'weather':
+            raise ValueError(
+                f'Checkpoint not corresponding to a trained modl! {kwargs.checkpoint.epochs} was given but only 9 and 20 are supported')                    
             
-    
     if 'SMS' in kwargs.methods:
         kwargs.method = 'SMS' # STRUCTURED MATRIX SCALING
         #num_classes}_classes_{kwargs.dataset.num_features}_features/"
@@ -121,6 +127,17 @@ def competition(kwargs, wandb_logger=None):
                 kwargs.models.max_iter,
                 model_class                      
             )
+        if kwargs.data == 'weather' and kwargs.dataset.shift: 
+            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_shift_seed-{}_ep-{}_{}.csv".format(
+                    kwargs.exp_name,
+                    kwargs.method,
+                    kwargs.data,
+                    kwargs.dataset.num_classes,
+                    kwargs.dataset.num_features,
+                    seed,
+                    kwargs.models.max_iter,
+                    model_class           
+                )
         # Assume you already trained `model`
         scaler = SMS()
         # Fit on validation set
@@ -242,6 +259,18 @@ def competition(kwargs, wandb_logger=None):
                 kwargs.models.max_iter,
                 model_class                      
             )
+        if kwargs.data == 'weather' and kwargs.dataset.shift: 
+            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_shift_seed-{}_ep-{}_{}.csv".format(
+                    kwargs.exp_name,
+                    kwargs.method,
+                    kwargs.data,
+                    kwargs.dataset.num_classes,
+                    kwargs.dataset.num_features,
+                    seed,
+                    kwargs.models.max_iter,
+                    model_class           
+                )
+            
         # Assume you already trained `model`
         scaler = DirichletCalibrator(n_classes=kwargs.dataset.num_classes, max_iter=kwargs.models.max_iter, lr=kwargs.models.temp_lr)
         # Fit on validation set
@@ -363,6 +392,18 @@ def competition(kwargs, wandb_logger=None):
                 kwargs.models.max_iter,
                 model_class                      
             )
+        if kwargs.data == 'weather' and kwargs.dataset.shift: 
+            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_shift_seed-{}_ep-{}_{}.csv".format(
+                    kwargs.exp_name,
+                    kwargs.method,
+                    kwargs.data,
+                    kwargs.dataset.num_classes,
+                    kwargs.dataset.num_features,
+                    seed,
+                    kwargs.models.max_iter,
+                    model_class           
+                )
+            
         # Assume you already trained `model`
         scaler = TemperatureScaler(kwargs.models.max_iter, kwargs.models.temp_lr)
         # Fit on validation set
@@ -488,7 +529,7 @@ def competition(kwargs, wandb_logger=None):
                     seed,
                     kwargs.models.max_iter,
                     model_class                      
-                )
+                )            
             
             raws = []
             # scaler.eval()
@@ -546,6 +587,18 @@ def competition(kwargs, wandb_logger=None):
                 kwargs.models.max_iter,
                 model_class                      
             )
+        if kwargs.data == 'weather' and kwargs.dataset.shift: 
+            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_shift_seed-{}_ep-{}_{}.csv".format(
+                    kwargs.exp_name,
+                    kwargs.method,
+                    kwargs.data,
+                    kwargs.dataset.num_classes,
+                    kwargs.dataset.num_features,
+                    seed,
+                    kwargs.models.max_iter,
+                    model_class           
+                )
+            
         # Assume you already trained `model`
         scaler = IsotonicCalibrator(out_dim=kwargs.dataset.num_classes)
         # Fit on validation set
@@ -665,6 +718,18 @@ def competition(kwargs, wandb_logger=None):
                 kwargs.models.max_iter,
                 model_class                      
             )
+        if kwargs.data == 'weather' and kwargs.dataset.shift: 
+            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_shift_seed-{}_ep-{}_{}.csv".format(
+                    kwargs.exp_name,
+                    kwargs.method,
+                    kwargs.data,
+                    kwargs.dataset.num_classes,
+                    kwargs.dataset.num_features,
+                    seed,
+                    kwargs.models.max_iter,
+                    model_class           
+                )
+            
         # Assume you already trained `model`
         scaler = PlattScaler(out_dim=kwargs.dataset.num_classes)
         # Fit on validation set
@@ -785,6 +850,18 @@ def competition(kwargs, wandb_logger=None):
                 kwargs.models.max_iter,
                 model_class                      
             )
+        if kwargs.data == 'weather' and kwargs.dataset.shift: 
+            raw_results_path_test_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_test_cal_shift_seed-{}_ep-{}_{}.csv".format(
+                    kwargs.exp_name,
+                    kwargs.method,
+                    kwargs.data,
+                    kwargs.dataset.num_classes,
+                    kwargs.dataset.num_features,
+                    seed,
+                    kwargs.models.max_iter,
+                    model_class           
+                )
+            
         # Assume you already trained `model`
         scaler = DensityRatioCalibration(num_neighbors=kwargs.models.num_neighbors)
         # Fit on validation set

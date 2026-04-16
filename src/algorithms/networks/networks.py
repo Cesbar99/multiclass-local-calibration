@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
-from torchvision.models import ResNet18_Weights
+from torchvision.models import ResNet18_Weights, ConvNeXt_Tiny_Weights
 import timm
 from tab_transformer_pytorch import FTTransformer, TabTransformer
 
@@ -89,6 +89,64 @@ class MnistArch(nn.Module):
         logits = self.model(x) 
         return self.scaler(logits)   
 
+class TissueMNISTConvNeXtTiny(nn.Module):
+    """Model for classification based on torchvision ConvNeXt Tiny."""
+
+    def __init__(self, temperature=1.0, num_labels=8):
+        super(TissueMNISTConvNeXtTiny, self).__init__()
+        
+        self.n_classes = num_labels
+        self.scaler = ScaledLogits(temperature)
+
+        # Pretrained ConvNeXt Tiny
+        self.convnext_tiny = models.convnext_tiny(
+            weights=ConvNeXt_Tiny_Weights.IMAGENET1K_V1
+        )
+
+        # In torchvision ConvNeXt Tiny, classifier is:
+        # Sequential(LayerNorm2d/LayerNorm, Flatten(1), Linear(768, 1000))
+        self.num_features = self.convnext_tiny.classifier[2].in_features
+
+        # Replace classifier with your custom head
+        self.convnext_tiny.classifier = nn.Sequential(
+            self.convnext_tiny.classifier[0],   # keep pretrained norm
+            self.convnext_tiny.classifier[1],   # keep flatten
+            nn.Dropout(p=0.2),
+            nn.Linear(self.num_features, num_labels)
+        )        
+
+        # Freeze everything
+        for param in self.convnext_tiny.parameters():
+            param.requires_grad = False
+
+        # Unfreeze last feature stage + classifier
+        # ConvNeXt Tiny features layout in torchvision:
+        # features[0] = stem
+        # features[1] = stage 1
+        # features[2] = downsample
+        # features[3] = stage 2
+        # features[4] = downsample
+        # features[5] = stage 3
+        # features[6] = downsample
+        # features[7] = stage 4 (last stage)
+        for name, param in self.convnext_tiny.named_parameters():
+            if "features.7" in name or "classifier" in name:
+                param.requires_grad = True
+
+    def repr(self, x):
+        # Backbone features
+        x = self.convnext_tiny.features(x)
+        x = self.convnext_tiny.avgpool(x)
+
+        # Stop before final Linear layer
+        x = self.convnext_tiny.classifier[0](x)  # norm
+        x = self.convnext_tiny.classifier[1](x)  # flatten
+
+        return x
+
+    def forward(self, x):
+        logits = self.convnext_tiny(x)
+        return self.scaler(logits)
     
 class TissueMNISTResNet50(nn.Module):
     """Model for just classification.
@@ -338,6 +396,64 @@ class Cifar10ResNet50(nn.Module):
         logits = self.resnet50(x)
         return self.scaler(logits)      
 
+class Cifar10ConvNeXtTiny(nn.Module):
+    """Model for classification based on torchvision ConvNeXt Tiny."""
+
+    def __init__(self, temperature=1.0, num_labels=10):
+        super(Cifar10ConvNeXtTiny, self).__init__()
+        
+        self.n_classes = num_labels
+        self.scaler = ScaledLogits(temperature)
+
+        # Pretrained ConvNeXt Tiny
+        self.convnext_tiny = models.convnext_tiny(
+            weights=ConvNeXt_Tiny_Weights.IMAGENET1K_V1
+        )
+
+        # In torchvision ConvNeXt Tiny, classifier is:
+        # Sequential(LayerNorm2d/LayerNorm, Flatten(1), Linear(768, 1000))
+        self.num_features = self.convnext_tiny.classifier[2].in_features
+
+        # Replace classifier with your custom head
+        self.convnext_tiny.classifier = nn.Sequential(
+            self.convnext_tiny.classifier[0],   # keep pretrained norm
+            self.convnext_tiny.classifier[1],   # keep flatten
+            nn.Dropout(p=0.2),
+            nn.Linear(self.num_features, num_labels)
+        )        
+
+        # Freeze everything
+        for param in self.convnext_tiny.parameters():
+            param.requires_grad = False
+
+        # Unfreeze last feature stage + classifier
+        # ConvNeXt Tiny features layout in torchvision:
+        # features[0] = stem
+        # features[1] = stage 1
+        # features[2] = downsample
+        # features[3] = stage 2
+        # features[4] = downsample
+        # features[5] = stage 3
+        # features[6] = downsample
+        # features[7] = stage 4 (last stage)
+        for name, param in self.convnext_tiny.named_parameters():
+            if "features.7" in name or "classifier" in name:
+                param.requires_grad = True
+
+    def repr(self, x):
+        # Backbone features
+        x = self.convnext_tiny.features(x)
+        x = self.convnext_tiny.avgpool(x)
+
+        # Stop before final Linear layer
+        x = self.convnext_tiny.classifier[0](x)  # norm
+        x = self.convnext_tiny.classifier[1](x)  # flatten
+
+        return x
+
+    def forward(self, x):
+        logits = self.convnext_tiny(x)
+        return self.scaler(logits)
     
 class Cifar10Vit(nn.Module):
     """Model for just classification.
@@ -371,7 +487,6 @@ class Cifar10Vit(nn.Module):
     def forward(self, x):
         logits = self.vit(x)                
         return self.scaler(logits)   
-    
     
 class Cifar10LTVit(nn.Module):
     """Model for just classification.
@@ -444,7 +559,66 @@ class Cifar100ResNet50(nn.Module):
 
     def forward(self, x):
         logits = self.resnet50(x)
-        return self.scaler(logits)      
+        return self.scaler(logits)   
+    
+class Cifar100ConvNeXtTiny(nn.Module):
+    """Model for classification based on torchvision ConvNeXt Tiny."""
+
+    def __init__(self, temperature=1.0, num_labels=100):
+        super(Cifar100ConvNeXtTiny, self).__init__()
+        
+        self.n_classes = num_labels
+        self.scaler = ScaledLogits(temperature)
+
+        # Pretrained ConvNeXt Tiny
+        self.convnext_tiny = models.convnext_tiny(
+            weights=ConvNeXt_Tiny_Weights.IMAGENET1K_V1
+        )
+
+        # In torchvision ConvNeXt Tiny, classifier is:
+        # Sequential(LayerNorm2d/LayerNorm, Flatten(1), Linear(768, 1000))
+        self.num_features = self.convnext_tiny.classifier[2].in_features
+
+        # Replace classifier with your custom head
+        self.convnext_tiny.classifier = nn.Sequential(
+            self.convnext_tiny.classifier[0],   # keep pretrained norm
+            self.convnext_tiny.classifier[1],   # keep flatten
+            nn.Dropout(p=0.2),
+            nn.Linear(self.num_features, num_labels)
+        )        
+
+        # Freeze everything
+        for param in self.convnext_tiny.parameters():
+            param.requires_grad = False
+
+        # Unfreeze last feature stage + classifier
+        # ConvNeXt Tiny features layout in torchvision:
+        # features[0] = stem
+        # features[1] = stage 1
+        # features[2] = downsample
+        # features[3] = stage 2
+        # features[4] = downsample
+        # features[5] = stage 3
+        # features[6] = downsample
+        # features[7] = stage 4 (last stage)
+        for name, param in self.convnext_tiny.named_parameters():
+            if "features.7" in name or "classifier" in name:
+                param.requires_grad = True
+
+    def repr(self, x):
+        # Backbone features
+        x = self.convnext_tiny.features(x)
+        x = self.convnext_tiny.avgpool(x)
+
+        # Stop before final Linear layer
+        x = self.convnext_tiny.classifier[0](x)  # norm
+        x = self.convnext_tiny.classifier[1](x)  # flatten
+
+        return x
+
+    def forward(self, x):
+        logits = self.convnext_tiny(x)
+        return self.scaler(logits)   
     
 class Food101ResNet50(nn.Module):
     """Model for just classification.

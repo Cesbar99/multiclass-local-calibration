@@ -31,7 +31,10 @@ def main(cfg: DictConfig):
         model_class = 'resnet'
     elif kwargs.checkpoint.epochs == 5:
         model_class = 'vit'
+    elif kwargs.checkpoint.epochs == 20:
+        model_class = 'convnext'
     else:
+        model_class = 'ftt'
         if not kwargs.data == 'weather':
             raise ValueError(
                 f'Checkpoint not corresponding to a trained modl! {kwargs.checkpoint.epochs} was given but only 9 and 20 are supported')
@@ -90,7 +93,7 @@ def main(cfg: DictConfig):
             kwargs.exp_name = 'quantize'
             for slot in kwargs.models.slots:
                 kwargs.models.S = slot
-                repr_dim = 2048 if model_class == 'resnet' else 768
+                repr_dim = 769 if model_class == 'vit' else 2048                
                 kwargs.models.d = int(repr_dim/slot)
                 print(f'Testing model with {kwargs.models.d} dimensions per slot...')
                 print(f'Testing model with {kwargs.models.S} slots...')
@@ -121,16 +124,19 @@ def main(cfg: DictConfig):
             test(kwargs)                
 
     elif kwargs.calibrate:                
-        kwargs.exp_name = 'calibrate'
+        kwargs.exp_name = 'calibrate'        
         if kwargs.dataset.batch_size is None:
             kwargs.dataset.batch_size = kwargs.batch_size_map.get(kwargs.exp_name, 512)  # fallback default        
             print('Using default batch_size set to: ', kwargs.dataset.batch_size)
             print("Calibrating model with {kwargs.calibration_method} technique...")
-        for seed in kwargs.seeds:   
+        for seed in kwargs.seeds:  
             pl.seed_everything(seed)     
             kwargs.seed = seed
-            kwargs.checkpoint.seed = seed
-            calibrate(kwargs, wandb_logger)
+            kwargs.checkpoint.seed = seed 
+            for subsample in kwargs.dataset.subsamples:
+                kwargs.dataset.subsample = subsample
+                print(f'\nUsing subsample: {kwargs.dataset.subsample}\n')        
+                calibrate(kwargs, wandb_logger)
             
     elif kwargs.competition:        
         kwargs.exp_name = 'competition'
@@ -142,7 +148,10 @@ def main(cfg: DictConfig):
             pl.seed_everything(seed) 
             kwargs.seed = seed
             kwargs.checkpoint.seed = seed
-            competition(kwargs, wandb_logger)
+            for subsample in kwargs.dataset.subsamples:
+                kwargs.dataset.subsample = subsample
+                print(f'\nUsing subsample: {kwargs.dataset.subsample}\n')        
+                competition(kwargs, wandb_logger)
             
     elif kwargs.viz_and_test:
         print("Computing visualisations and computing aggreagting metricss...")                                 
@@ -155,14 +164,16 @@ def main(cfg: DictConfig):
             print("Using quadratic calibration model...")
         else:
             print("Using linear calibration model...")
-            
+                
         if kwargs.dataset.batch_size is None:
             kwargs.dataset.batch_size = kwargs.batch_size_map.get(kwargs.exp_name, 512)  # fallback default        
             print('Using default batch_size set to: ', kwargs.dataset.batch_size) 
+        else:
+            print('Using batch_size set to: ', kwargs.dataset.batch_size)
                        
         for slot in kwargs.models.slots:
             kwargs.models.S = slot
-            repr_dim = 2048 if model_class == 'resnet' else 768
+            repr_dim = 769 if model_class == 'vit' else 2048
             kwargs.models.d = int(repr_dim / slot)
             print(f'Testing model with {kwargs.models.d} dimensions per slot...')
             print(f'Testing model with {kwargs.models.S} slots...')
@@ -176,7 +187,10 @@ def main(cfg: DictConfig):
                     pl.seed_everything(seed)     
                     kwargs.seed = seed
                     kwargs.checkpoint.seed = seed
-                    quantize(kwargs, wandb_logger)
+                    for subsample in kwargs.dataset.subsamples:
+                        kwargs.dataset.subsample = subsample
+                        print(f'\nUsing subsample: {kwargs.dataset.subsample}\n')        
+                        quantize(kwargs, wandb_logger)
 
     elif kwargs.replicate:                
         kwargs.exp_name = 'replicate'        
@@ -190,7 +204,10 @@ def main(cfg: DictConfig):
             pl.seed_everything(seed)     
             kwargs.seed = seed
             kwargs.checkpoint.seed = seed
-            replicate(kwargs, wandb_logger)
+            for subsample in kwargs.dataset.subsamples:
+                kwargs.dataset.subsample = subsample
+                print(f'\nUsing subsample: {kwargs.dataset.subsample}\n')        
+                replicate(kwargs, wandb_logger)
     
     wandb.finish()
     del wandb_logger
@@ -202,7 +219,7 @@ def main(cfg: DictConfig):
     
 #@hydra.main(config_path='./src/configs', config_name='config_local', version_base=None)
 def main_entry():            
-    
+        
     #cli_overrides = [arg for arg in sys.argv[1:] if "=" in arg]
     excluded_keys = {"dataset", "models"}
     init_overrides = [
@@ -215,7 +232,7 @@ def main_entry():
     ]
     with initialize(config_path="./src/configs", version_base=None):
                 
-        cfg = compose(config_name="config_local", overrides=init_overrides)
+        cfg = compose(config_name="config_local", overrides=init_overrides)        
         
         dataset_name = cfg.data
         if cfg.pretrain:
@@ -231,7 +248,7 @@ def main_entry():
         elif cfg.quantize:
             model_name = 'quantizer'
             full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides            
-            cfg = compose(config_name="config_local", overrides=full_overrides)
+            cfg = compose(config_name="config_local", overrides=full_overrides)            
             
         elif cfg.replicate:
             model_name = 'replicator'
@@ -287,7 +304,7 @@ def main_entry():
             model_name = 'competition'
             full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides
             cfg = compose(config_name="config_local", overrides=full_overrides)
-                                      
+                                    
     main(cfg) #main(cfg, split) #main(**OmegaConf.to_container(cfg, resolve=True) )
     
 

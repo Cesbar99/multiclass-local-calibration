@@ -76,7 +76,9 @@ class VQCalibrator(pl.LightningModule):
 
     def configure_optimizers(self):        
         opt_name = self.optimizer_cfg.name
-        opt_name = opt_name[0].upper() + opt_name[1:]
+        opt_name = opt_name[0].upper() + opt_name[1:]        
+        if opt_name == "Adamw":
+            opt_name = "AdamW"        
         lr = self.optimizer_cfg.lr
         wd = self.optimizer_cfg.get("weight_decay", 0.0)
 
@@ -124,27 +126,30 @@ class VQCalibrator(pl.LightningModule):
         p_hat = F.softmax(logits, dim=1)
         
         calibrated_probs, log_scores, alpha = self.cal(p_hat, indices)
-        preds = log_scores.argmax(dim=1).view(-1,1)      
-        
+                
         if self.random:
-                out = {
-                    "features": z.view(B, -1),               # (B, S*d), # quantized features alternatively use original features  
-                    "logits": log_scores,
-                    "preds": preds,     
-                    "true": torch.argmax(y_one_hot, dim=-1).view(-1,1),
-                    "indices": indices,
-                    "alpha": alpha.view(B, -1)
-                    }
-        elif self.quantization_only:            
+            preds = log_scores.argmax(dim=1).view(-1,1)      
+            out = {
+                "features": z.view(B, -1),               # (B, S*d), # quantized features alternatively use original features  
+                "logits": log_scores,
+                "preds": preds,     
+                "true": torch.argmax(y_one_hot, dim=-1).view(-1,1),
+                "indices": indices,
+                "alpha": alpha.view(B, -1)
+                }
+        elif self.quantization_only:     
+            preds = logits.argmax(dim=1).view(-1,1)             
             out = {
                     "features": z_q.view(B, -1), #z_q.view(B, -1),               # (B, S*d), # quantized features alternatively use original features  
                     "logits": logits,
                     "preds": preds,     
                     "true": torch.argmax(y_one_hot, dim=-1).view(-1,1),
                     "indices": indices,
-                    "alpha": alpha.view(B, -1)
+                    "alpha": alpha.view(B, -1),
+                    "l2": l2
                     }
         else:
+            preds = log_scores.argmax(dim=1).view(-1,1)      
             out = {
                     "features": z_q.view(B, -1), #z_q.view(B, -1),               # (B, S*d), # quantized features alternatively use original features  
                     "logits": log_scores,

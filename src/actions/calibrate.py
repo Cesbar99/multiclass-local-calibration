@@ -84,7 +84,9 @@ def calibrate(kwargs, wandb_logger):
         model_class = 'resnet'
     elif kwargs.checkpoint.epochs == 5:
         model_class = 'vit'
-    else:
+    elif kwargs.checkpoint.epochs == 20:
+        model_class = 'convnext'
+    else: # ftt uses 50 
         model_class = 'ftt'
         if not kwargs.data == 'weather':
             raise ValueError(
@@ -338,7 +340,7 @@ def calibrate(kwargs, wandb_logger):
         if kwargs.models.lambda_kl == 0:
             pl_model.load_state_dict(checkpoint['state_dict'])
         else:   #strict=False to allow loading only the local net weights into the reference kernel model
-            if (kwargs.data in ['tissue', 'cifar100']) or (seed == 43):
+            if (kwargs.data in ['tissue', 'cifar100', 'weather']) or (seed == 43):
                 pl_model.load_state_dict(checkpoint['state_dict'])
             else:
                 pl_model.model.load_state_dict(checkpoint)   #        
@@ -346,7 +348,7 @@ def calibrate(kwargs, wandb_logger):
     else:
         print(F'BEGIN CALIBRATION FOR {total_epochs} EPOCHS WITH SEED {seed}!')  
         if kwargs.models.lambda_kl == 0:
-            criterion = 'val_total'
+            criterion = 'val_con_loss' # 'val_total' 
         else:
             criterion = 'val_kl'
         trainer = pl.Trainer(
@@ -388,8 +390,8 @@ def calibrate(kwargs, wandb_logger):
         best_model_path = trainer.checkpoint_callback.best_model_path    
         
         print(F'LOADING CHECKPOINT FILE {best_model_path}')
-        # checkpoint = torch.load(best_model_path)
-        # pl_model.load_state_dict(checkpoint['state_dict'])
+        checkpoint = torch.load(best_model_path)
+        pl_model.load_state_dict(checkpoint['state_dict'])
         
     # path_model = join(path, f"classifier_seed-{seed}_ep-{total_epochs}")
     # torch.save(pl_model.model.state_dict(), path_model)
@@ -404,7 +406,7 @@ def calibrate(kwargs, wandb_logger):
     pl_model.to(device)
 
     with torch.no_grad():
-        for batch in tqdm(dataset.data_train_cal_loader, desc="Extracting pca features"): #tqdm(dataset.data_train_cal_loader, desc="Extracting pca features"):
+        for batch in tqdm(dataset.data_train_cal_loader, desc="Extracting pca features"): # tqdm(dataset.data_train_cal_loader, desc="Extracting pca features"):
             if kwargs.dataset.batch_size > 256:
                 # Process in smaller mini-batches to avoid OOM
                 mini_batch_size = 256

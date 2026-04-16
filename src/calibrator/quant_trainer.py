@@ -48,15 +48,15 @@ class VQClassifier(pl.LightningModule):
         if feats.dim() == 2:
             B, D = feats.shape
             assert D == self.feature_dim, f"Expected feature_dim={self.feature_dim}, got {D}"
-            if self.backbone == 'vit':
-                feats = self.bn(feats)     
+            # if self.backbone == 'vit':
+            #     feats = self.bn(feats)     
             z = feats.view(B, self.S, self.d)
         elif feats.dim() == 3:
             # z = feats
             B, S, d = feats.shape
             feats = feats.view(B, S * d)
-            if self.backbone == 'vit':
-                feats = self.bn(feats)
+            # if self.backbone == 'vit':
+            #     feats = self.bn(feats)
             z = feats.view(B, S, d)
         else:
             raise ValueError(f"Unexpected feature shape: {tuple(feats.shape)}")
@@ -111,6 +111,8 @@ class VQClassifier(pl.LightningModule):
         # mirror your dynamic optimizer selection style
         opt_name = self.optimizer_cfg.name
         opt_name = opt_name[0].upper() + opt_name[1:]
+        if opt_name == "Adamw":
+            opt_name = "AdamW" 
         lr = self.optimizer_cfg.lr
         wd = self.optimizer_cfg.get("weight_decay", 0.0)
 
@@ -152,10 +154,10 @@ class VQClassifier(pl.LightningModule):
                 break
 
         samples = torch.cat(samples, dim=0).to(self.device)  # (Nslots, d)
-        if self.backbone == 'vit':
-            self.vq.init_codebook_from_samples_std(samples)
-        else:
-            self.vq.init_codebook_from_samples(samples)
+        # if self.backbone == 'vit':
+        #     self.vq.init_codebook_from_samples_std(samples)
+        # else:
+        self.vq.init_codebook_from_samples(samples)
 
     @torch.no_grad()
     def extract(self, batch):

@@ -191,6 +191,9 @@ class MedMnistModel(pl.LightningModule):
         elif kwargs.model == 'tissue_resnet50':            
             self.model = TissueMNISTResNet50(self.temperature)
             num_classes = 8
+        elif kwargs.model == 'tissue_convnext':            
+            self.model = TissueMNISTConvNeXtTiny(self.temperature)
+            num_classes = 8
         elif kwargs.model == 'path_vit':
             self.model = PathMnistVit(self.temperature)
             num_classes = 9
@@ -320,6 +323,8 @@ class MedMnistModel(pl.LightningModule):
         
         if 'vit' in self.name:            
             logits = self.model.vit.get_classifier()(feats)   
+        elif 'convnext' in self.name:
+            logits = self.model.convnext_tiny.classifier(feats)
         else:
             logits = self.model.resnet50.fc(feats)
         preds = torch.argmax(logits, dim=-1).view(-1,1)  # predicted class
@@ -341,6 +346,8 @@ class Cifar10Model(pl.LightningModule):
         self.use_acc = kwargs.use_acc
         if 'vit' in self.name:
             self.model = Cifar10Vit(self.temperature) # Cifar100ResNet50(self.temperature) #Cifar100Vit(self.temperature)            ]
+        elif 'convnext' in self.name:
+            self.model = Cifar10ConvNeXtTiny(self.temperature)
         else:
             self.model = Cifar10ResNet50(self.temperature) #Cifar10Vit(self.temperature)            
         num_classes = 10
@@ -463,7 +470,9 @@ class Cifar10Model(pl.LightningModule):
         feats = self.model.repr(x)
         
         if 'vit' in self.name:            
-            logits = self.model.vit.get_classifier()(feats)            
+            logits = self.model.vit.get_classifier()(feats)    
+        elif 'convnext' in self.name:
+            logits = self.model.convnext_tiny.classifier(feats)        
         else:            
             logits = self.model.resnet50.fc(feats)
             
@@ -597,6 +606,8 @@ class Cifar100Model(pl.LightningModule):
         self.use_acc = kwargs.use_acc
         if 'vit' in self.name:
             self.model = Cifar100Vit(self.temperature) # Cifar100ResNet50(self.temperature) #Cifar100Vit(self.temperature)            ]
+        elif 'convnext' in self.name:
+            self.model = Cifar100ConvNeXtTiny(self.temperature)
         elif 'dense' in self.name:
             self.model = Cifar100DenseNet121(self.temperature)
         else:
@@ -729,6 +740,8 @@ class Cifar100Model(pl.LightningModule):
             logits = self.model.vit.get_classifier()(feats)         #logits = self.model.vit.head(feats)        
         elif 'dense' in self.name:
             logits = self.model.densenet121.classifier(feats)    
+        elif 'convnext' in self.name:
+            logits = self.model.convnext_tiny.classifier(feats)       
         else:         
             if '152' in self.name:                
                 logits = self.model.resnet152.fc(feats)
@@ -1272,15 +1285,16 @@ class WeatherModel(pl.LightningModule):
         
     def extract_features(self, batch):
         x, y = batch    
-        # x_cat, x_num = x          
-          
-        feats = self.model.repr(x)
-        logits = self.model.ftt.to_logits[-1](feats) # self.model.ftt.to_logits(feats)  
+        x_cat, x_num = x          
+                  
+        feats = x_num # self.model.repr(x)
+        feats_ = self.model.repr(x)
+        logits = self.model.ftt.to_logits[-1](feats_) # self.model.ftt.to_logits(feats)  
             
         preds = torch.argmax(logits, dim=-1).view(-1,1)  # predicted class
         # Create dict in the same format as predict outputs
         out = {
-            "features": feats,                  # replace logits with features
+            "features": feats_,  # use feats_ for hidden representations                # replace logits with features
             "logits": logits,
             "preds": preds,     # dummy preds
             "true": y

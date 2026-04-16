@@ -43,7 +43,9 @@ def test(kwargs):
         model_class = 'resnet'
     elif kwargs.checkpoint.epochs == 5:
         model_class = 'vit'
-    else:
+    elif kwargs.checkpoint.epochs == 20:
+        model_class = 'convnext'
+    else: # ftt uses 50 
         model_class = 'ftt'
         if not kwargs.data == 'weather':
             raise ValueError(
@@ -320,9 +322,9 @@ def test(kwargs):
     elif kwargs.exp_name == 'quantize':
          
         if kwargs.data == 'weather' and kwargs.dataset.shift:
-            to_add = kwargs.data + '_' + 'shift' 
+            to_add = kwargs.data + '_' + 'shift' + '_calsize_' + f'{kwargs.dataset.subsample}'
         else:
-            to_add = kwargs.data
+            to_add = kwargs.data + '_calsize_' + f'{kwargs.dataset.subsample}'
         total_epochs = kwargs.models.epochs
         # if kwargs.quantize:
         #     total_epochs = kwargs.models.epochs
@@ -482,8 +484,8 @@ def test(kwargs):
                 ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce_adabw(probs_test, y_true_test_, pca_test_, bw_test, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy) 
             else:
                 if kwargs.quantize or kwargs.test:
-                    # ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_,class_freqs, n_bins, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class) #compute_multiclass_calibration_metrics_w_lce_quantv2(probs_test, y_true_test_, pca_test_, l2_test_,class_freqs, n_bins, n_bins_esse, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
-                    ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test, ess_profile, l2_profile = compute_multiclass_calibration_metrics_w_lce_quantv2(probs_test, y_true_test_, pca_test_, l2_test_,class_freqs, n_bins, n_bins_esse, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
+                    ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test, ess_profile = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_,class_freqs, n_bins, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class) #compute_multiclass_calibration_metrics_w_lce_quantv2(probs_test, y_true_test_, pca_test_, l2_test_,class_freqs, n_bins, n_bins_esse, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
+                    # ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test, ess_profile, l2_profile = compute_multiclass_calibration_metrics_w_lce_quantv2(probs_test, y_true_test_, pca_test_, l2_test_,class_freqs, n_bins, n_bins_esse, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
                     results = {
                         "ECCE": [ecce_test],       
                         "ECE": [ece_test],
@@ -526,21 +528,21 @@ def test(kwargs):
                     df.to_csv(output_file, index=False)                                      
                     
                     # ---- Save aggregated ESS profile ----
-                    l2_results = {
-                        "l2_bin": list(range(len(l2_profile["avg_abs_lce_per_l2_bin"]))),
-                        "avg_abs_lce": l2_profile["avg_abs_lce_per_l2_bin"],
-                        "avg_l2": l2_profile["avg_l2_per_bin"],
-                        "count": l2_profile["count_per_bin"]
-                    }
+                    # l2_results = {
+                    #     "l2_bin": list(range(len(l2_profile["avg_abs_lce_per_l2_bin"]))),
+                    #     "avg_abs_lce": l2_profile["avg_abs_lce_per_l2_bin"],
+                    #     "avg_l2": l2_profile["avg_l2_per_bin"],
+                    #     "count": l2_profile["count_per_bin"]
+                    # }
 
-                    df_l2 = pd.DataFrame(l2_results)
+                    # df_l2 = pd.DataFrame(l2_results)
 
-                    l2_output_file = os.path.join(
-                        output_dir,
-                        f"l2_profile_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv"
-                    )
+                    # l2_output_file = os.path.join(
+                    #     output_dir,
+                    #     f"l2_profile_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv"
+                    # )
                     
-                    df_l2.to_csv(l2_output_file, index=False)
+                    # df_l2.to_csv(l2_output_file, index=False)
                     
                     # Print results
                     print(f"Test Quantisation — ECCE: {ecce_test:.4f}, ECE: {ece_test:.4f}, MCE: {mce_test:.4f}, Brier: {brier_test:.4f}, NLL: {nll_test:.4f}, LCE: {lce_test:.4f}") #, MLCE: {mlce_test:.4f}")        
@@ -654,9 +656,9 @@ def test(kwargs):
         
     elif kwargs.exp_name == 'calibrate':          
         if kwargs.data == 'weather' and kwargs.dataset.shift:
-            to_add = kwargs.data + '_' + 'shift' 
+            to_add = kwargs.data + '_' + 'shift' + '_calsize_' + f'{kwargs.dataset.subsample}'
         else:
-            to_add = kwargs.data
+            to_add = kwargs.data + '_calsize_' + f'{kwargs.dataset.subsample}'
         if kwargs.calibrate:
             total_epochs = kwargs.models.epochs
         else:
@@ -678,11 +680,11 @@ def test(kwargs):
                     total_epochs,                
                 )        
         else: 
-            appendix = kwargs.exp_name + '_' + kwargs.data + '_' + f'{kwargs.dataset.num_classes}_classes_' + f'{kwargs.dataset.num_features}_features'
+            appendix = kwargs.exp_name + '_' + to_add + '_' + f'{kwargs.dataset.num_classes}_classes_' + f'{kwargs.dataset.num_features}_features'
             if kwargs.models.lambda_kl == 0:
-                appendix = 'reference_kernel' + '_' + kwargs.data + '_' + f'{kwargs.dataset.num_classes}_classes_' + f'{kwargs.dataset.num_features}_features'
+                appendix = 'reference_kernel' + '_' + to_add + '_' + f'{kwargs.dataset.num_classes}_classes_' + f'{kwargs.dataset.num_features}_features'
             if kwargs.models.kernel_only:
-                appendix = 'kernel_only' + '_' + kwargs.data + '_' + f'{kwargs.dataset.num_classes}_classes_' + f'{kwargs.dataset.num_features}_features'
+                appendix = 'kernel_only' + '_' + to_add + '_' + f'{kwargs.dataset.num_classes}_classes_' + f'{kwargs.dataset.num_features}_features'
             test_file_name = 'multicalss_calibration_test_' + f'{kwargs.bin_strategy}' + '.png'        
             save_path = join(kwargs.save_path_calibration_plots, appendix)
             os.makedirs(save_path, exist_ok=True)    
@@ -850,9 +852,9 @@ def test(kwargs):
                         f"ess_profile_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv"
                     )
                     
-                    #df_ess.to_csv(ess_output_file, index=False)
-                    #print(f"Saved ESS profile to {ess_output_file}")
-                    print(f"Not Saved ESS profile to {ess_output_file}. Uncomment the line!")
+                    df_ess.to_csv(ess_output_file, index=False)
+                    print(f"Saved ESS profile to {ess_output_file}")
+                    # print(f"Not Saved ESS profile to {ess_output_file}. Uncomment the line!")
                     
                     # Print results
                     print(f"Test Calibration — ECCE: {ecce_test:.4f}, ECE: {ece_test:.4f}, MCE: {mce_test:.4f}, Brier: {brier_test:.4f}, NLL: {nll_test:.4f}, LCE: {lce_test:.4f}") #, MLCE: {mlce_test:.4f}")        
@@ -1003,9 +1005,9 @@ def test(kwargs):
                 
     elif kwargs.exp_name == 'competition':            
         if kwargs.data == 'weather' and kwargs.dataset.shift:
-            to_add = kwargs.data + '_' + 'shift' 
+            to_add = kwargs.data + '_' + 'shift' + '_calsize_' + f'{kwargs.dataset.subsample}'
         else:
-            to_add = kwargs.data                  
+            to_add = kwargs.data + '_calsize_' + f'{kwargs.dataset.subsample}'                 
         n_bins = kwargs.n_bins_calibration_metrics 
         n_bins_esse = kwargs.n_bins_esse
         gamma = kwargs.gamma 
@@ -1177,9 +1179,9 @@ def test(kwargs):
     elif kwargs.exp_name == 'replicate':
         
         if kwargs.data == 'weather' and kwargs.dataset.shift:
-            to_add = kwargs.data + '_' + 'shift' 
+            to_add = kwargs.data + '_' + 'shift' + '_calsize_' + f'{kwargs.dataset.subsample}'
         else:
-            to_add = kwargs.data
+            to_add = kwargs.data + '_calsize_' + f'{kwargs.dataset.subsample}'
         total_epochs = kwargs.models.max_iter   
         n_bins = kwargs.n_bins_calibration_metrics  
         n_bins_esse = kwargs.n_bins_esse

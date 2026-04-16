@@ -41,6 +41,8 @@ def quantize(kwargs, wandb_logger):
         if kwargs.dataset.variant:
             kwargs.data = kwargs.data + '_' + kwargs.dataset.variant                        
         dataset = MnistData(kwargs, experiment=kwargs.exp_name)
+    elif kwargs.data == 'weather':
+        dataset = WeatherData(kwargs, experiment=kwargs.exp_name)                
     elif kwargs.data == 'tissue':
         dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)   
     elif kwargs.data == 'path':
@@ -86,7 +88,10 @@ def quantize(kwargs, wandb_logger):
         model_class = 'resnet'
     elif kwargs.checkpoint.epochs == 5:
         model_class = 'vit'
-    else:
+    elif kwargs.checkpoint.epochs == 20:
+        model_class = 'convnext'
+    else: # ftt uses 50 
+        model_class = 'ftt'
         if not kwargs.data == 'weather':
             raise ValueError(
                 f'Checkpoint not corresponding to a trained modl! {kwargs.checkpoint.epochs} was given but only 9 and 20 are supported')
@@ -190,6 +195,16 @@ def quantize(kwargs, wandb_logger):
         )
     else:    
         raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_quant_seed-{}_ep-{}_{}.csv".format(
+                name, #kwargs.exp_name,
+                kwargs.data,
+                kwargs.dataset.num_classes,
+                kwargs.dataset.num_features,
+                seed,
+                total_epochs,
+                model_class           
+            )
+        if kwargs.data == 'weather' and kwargs.dataset.shift:
+            raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_quant_shift_seed-{}_ep-{}_{}.csv".format(
                 name, #kwargs.exp_name,
                 kwargs.data,
                 kwargs.dataset.num_classes,
@@ -318,6 +333,16 @@ def quantize(kwargs, wandb_logger):
                 total_epochs,           
                 model_class
             )
+        if kwargs.data == 'weather' and kwargs.dataset.shift:
+            raw_results_path_test_cal = "results/{}/{}_{}_classes_{}_features/raw_results_test_calquant_shift_seed-{}_ep-{}_{}.csv".format(
+                name, #kwargs.exp_name,
+                kwargs.data,
+                kwargs.dataset.num_classes,
+                kwargs.dataset.num_features,
+                seed,
+                total_epochs,           
+                model_class
+            )
         raw_results_path_train_cal = "results/{}/{}_{}_classes_{}_features/raw_results_train_calquant_seed-{}_ep-{}_{}.csv".format(
             name, #kwargs.exp_name,
             kwargs.data,
@@ -328,9 +353,9 @@ def quantize(kwargs, wandb_logger):
             model_class                       
         )
         
-    if kwargs.corruption_type:
-        print(F'LOADING CHECKPOINT FILE {best_model_path}')
+    if kwargs.corruption_type or (kwargs.extract_embeddings):        
         best_model_path = path + f"VQCALIBRATOR_seed-{seed}_ep-{total_epochs}_{model_class}.ckpt"
+        print(F'LOADING CHECKPOINT FILE {best_model_path}')
         checkpoint = torch.load(best_model_path, map_location=device, weights_only=False)        
         # import pdb; pdb.set_trace()
         state_dict = checkpoint["state_dict"]

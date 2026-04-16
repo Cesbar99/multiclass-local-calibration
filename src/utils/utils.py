@@ -807,6 +807,7 @@ def compute_multiclass_calibration_metrics_w_lce(
         return avg_ecce, avg_ece, avg_mce, avg_brier, nll, avg_lce, avg_mlce
 
 """
+
 def compute_multiclass_calibration_metrics_w_lce(
     probs: torch.Tensor,
     y_true: torch.Tensor,
@@ -1312,6 +1313,10 @@ def compute_multiclass_calibration_metrics_w_lce_quant(
             bin_indices = torch.bucketize(probs_class, bin_edges, right=True)
             bin_indices = bin_indices.clamp(1, n_bins)
             bin_loop = range(1, n_bins + 1)
+            # bin_edges = torch.linspace(0.0, 1.0, n_bins + 1, device=device)
+            # # bucketize returns integer bin indices in [0..n_bins]; we will iterate 1..n_bins
+            # bin_indices = torch.bucketize(probs_class, bin_edges, right=True)
+            # bin_indices = bin_indices.clamp(1, n_bins)
 
         total_count = probs_class.numel()
         ece = 0.0
@@ -2961,8 +2966,8 @@ def compute_multiclass_calibration_metrics_w_lce_quantv2(
         raise ValueError("gamma must be > 0")
 
     class_freqs = np.array(class_freqs, dtype=float)
-    if not np.isclose(class_freqs.sum(), 1.0):
-        class_freqs = class_freqs / class_freqs.sum()
+    # if not np.isclose(class_freqs.sum(), 1.0):
+    #     class_freqs = class_freqs / class_freqs.sum()
 
     if data == 'food101':
         filter_thr = 10

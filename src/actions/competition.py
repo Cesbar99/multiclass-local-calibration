@@ -96,7 +96,9 @@ def competition(kwargs, wandb_logger=None):
         model_class = 'resnet'
     elif kwargs.checkpoint.epochs == 5:
         model_class = 'vit'
-    else:
+    elif kwargs.checkpoint.epochs == 20:
+        model_class = 'convnext'
+    else: # ftt uses 50 
         model_class = 'ftt'
         if not kwargs.data == 'weather':
             raise ValueError(

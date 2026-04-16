@@ -305,27 +305,72 @@ def generateCalibrationDatav2(kwargs, dataname=None):
     # else:
     
     # Split into 90% test and 10% val
-    if kwargs.data == 'weather' and kwargs.dataset.shift:
-        (feats_in_test, feats_val,
-        logits_in_test, logits_val,
-        pca_in_test, pca_val,
-        y_in_test, y_val,
-        p_in_test, p_val) = train_test_split(
-            feats_in_test,
-            logits_in_test,
-            pca_in_test,
-            y_in_test,
-            p_in_test,
-            test_size=0.1, #0.1  # 10% for validation
-            random_state=kwargs.seed, # for reproducibility
-            shuffle=True)    
+    if kwargs.data == 'weather' or kwargs.data == 'tissue':                 
+        if kwargs.data == 'weather' and kwargs.dataset.shift:
+            (feats_in_test, feats_val,
+            logits_in_test, logits_val,
+            pca_in_test, pca_val,
+            y_in_test, y_val,
+            p_in_test, p_val) = train_test_split(
+                feats_in_test,
+                logits_in_test,
+                pca_in_test,
+                y_in_test,
+                p_in_test,
+                test_size=0.1, #0.1  # 10% for validation
+                random_state=kwargs.seed, # for reproducibility
+                shuffle=True)    
+            
+            feats_test = feats_eval_cal
+            logits_test = logits_eval_cal
+            pca_test = pca_eval_cal
+            y_test = y_eval_cal
+            p_test = p_eval_cal     
+        else:
+            (feats_test, feats_val,
+            logits_test, logits_val,
+            pca_test, pca_val,
+            y_test, y_val,
+            p_test, p_val) = train_test_split(
+                feats_eval_cal,
+                logits_eval_cal,
+                pca_eval_cal,
+                y_eval_cal,
+                p_eval_cal,
+                test_size=0.1, #0.1  # 10% for validation
+                random_state=kwargs.seed, # for reproducibility
+                shuffle=True)  
         
-        feats_test = feats_eval_cal
-        logits_test = logits_eval_cal
-        pca_test = pca_eval_cal
-        y_test = y_eval_cal
-        p_test = p_eval_cal
-    
+        if kwargs.dataset.subsample < 1.0:
+            discard_size = 1 - kwargs.dataset.subsample
+            
+            (feats_train_cal, _,
+            logits_train_cal, _,
+            pca_train_cal, _,
+            y_train_cal, _,
+            p_train_cal, _) = train_test_split(
+                feats_train_cal,
+                logits_train_cal,
+                pca_train_cal,
+                y_train_cal,
+                p_train_cal,
+                test_size=discard_size, #0.1  # 10% for validation
+                random_state=kwargs.seed, # for reproducibility
+                shuffle=True)                        
+                                            
+            (feats_val, _,
+            logits_val, _,
+            pca_val, _,
+            y_val, _,
+            p_val, _) = train_test_split(
+                feats_val,
+                logits_val,
+                pca_val,
+                y_val,
+                p_val,
+                test_size=discard_size, #0.1  # 10% for validation
+                random_state=kwargs.seed, # for reproducibility
+                shuffle=True)                              
     else:
         (feats_test, feats_val,
         logits_test, logits_val,

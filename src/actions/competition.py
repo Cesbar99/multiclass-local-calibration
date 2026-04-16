@@ -914,7 +914,8 @@ def competition(kwargs, wandb_logger=None):
                         kwargs.dataset.num_features,
                         kwargs.corruption_type,
                         seed,
-                        kwargs.models.max_iter           
+                        kwargs.models.max_iter,
+                model_class
                     )
             raw_results_path_train_cal = "results/{}_{}/{}_{}_classes_{}_features/raw_results_train_cal_corrupt_{}_seed-{}_ep-{}_{}.csv".format(
                     kwargs.exp_name,

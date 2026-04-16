@@ -182,12 +182,13 @@ def load_optuna_config(csv_path, kwargs, pretrain=False):
             kwargs.models[key] = parsed_value
              
                     
-def get_raw_res(raws, features=False, adabw=False, reduced_dim=None, fit_pca=None, quantize=False):
+def get_raw_res(raws, features=False, adabw=False, reduced_dim=None, fit_pca=None, quantize=False, already_pca=False):
     
     preds = torch.cat([raws[j]["preds"].cpu() for j in range(len(raws))])
     #probs = torch.cat([raws[j]["probs"].cpu() for j in range(len(raws))])
     logits = torch.cat([raws[j]["logits"].cpu() for j in range(len(raws))])
     feats = torch.cat([raws[j]["features"].cpu() for j in range(len(raws))]) if features else None
+    pcas = torch.cat([raws[j]["pca"].cpu() for j in range(len(raws))]) if already_pca else None
     true = torch.cat([raws[j]["true"].cpu() for j in range(len(raws))])
     if quantize:
         indices = torch.cat([raws[j]["indices"].cpu() for j in range(len(raws))])
@@ -285,6 +286,9 @@ def get_raw_res(raws, features=False, adabw=False, reduced_dim=None, fit_pca=Non
         raw_res = pd.concat([raw_res, feats_tmp], axis=1)    
     if adabw:
         raw_res = pd.concat([raw_res, sigma_tmp], axis=1)
+    if already_pca:
+        pcas = pd.DataFrame(pcas.cpu().numpy(), columns=[f"pca_{i}" for i in range(pcas.shape[1])])
+        raw_res = pd.concat([raw_res, pcas], axis=1)
     return raw_res, pca
 
 def create_logdir(name: str, resume_training: bool, wandb_logger):

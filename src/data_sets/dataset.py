@@ -18,6 +18,10 @@ from PIL import Image
 import io
 import numpy as np
 
+
+
+
+
 def generateCalibrationData(kwargs, dataname=None):
     #temperature = str(int(kwargs.checkpoint.temperature))
 
@@ -1383,7 +1387,13 @@ def print_class_frequencies(dataset):
         print(f"  Class {cls}: {count} ({count/total:.2%})")
         class_freqs.append(count/total)
     return class_freqs
-        
+
+class OOData(Dataset):
+    def __init__(self, cal_loader, val_loader, test_loader):
+        self.data_train_cal_loader = cal_loader
+        self.data_val_cal_loader = val_loader
+        self.data_test_cal_loader = test_loader
+
 class MedMnistData(Dataset):    
     def __init__(self, kwargs, experiment=None, name='path'):         
         self.name = name 

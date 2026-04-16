@@ -29,13 +29,14 @@ def test(kwargs):
         "pixelate",        
     ]
     
-    if (kwargs.corruption_type) and (kwargs.corruption_type not in corruptions):
-        raise ValueError(f'Unknown corruption type! {kwargs.corruption_type} was given.')
+    # if (kwargs.corruption_type) and (kwargs.corruption_type not in corruptions):
+    #     raise ValueError(f'Unknown corruption type! {kwargs.corruption_type} was given.')
     if kwargs.severity:
         sev = kwargs.severity    
     else:
         sev = 3 if kwargs.corruption_type == "brightness" else 1 # set severity level (can be tuned)
     if kwargs.corruption_type:
+        corruption_name = kwargs.corruption_type
         kwargs.corruption_type = kwargs.corruption_type + f"_severity_{sev}"
     
     epochs = kwargs.checkpoint.epochs
@@ -1374,5 +1375,6 @@ def test(kwargs):
                 title="Average Absolute LCE Across Density Bins for "+ f"{data_name} with a " + f"{model_class}", # ,
                 interval="std"   # use "sem95" for 95% confidence band
         )
+    kwargs.corruption_type = corruption_name
             
         

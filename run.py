@@ -172,15 +172,16 @@ def main(cfg: DictConfig):
             print('Using batch_size set to: ', kwargs.dataset.batch_size)
                        
         for slot in kwargs.models.slots:
-            kwargs.models.S = slot
+            # kwargs.models.S = slot
             repr_dim = 769 if model_class == 'vit' else 2048
-            kwargs.models.d = int(repr_dim / slot)
+            # kwargs.models.d = int(repr_dim / slot)
+            kwargs.models.d = int(repr_dim/kwargs.models.S)
             print(f'Testing model with {kwargs.models.d} dimensions per slot...')
             print(f'Testing model with {kwargs.models.S} slots...')
             print(f'Quantizing model with {kwargs.models.S} slots...')
             
             for kappa in kwargs.models.kappas:
-                kwargs.models.K = kappa               
+                # kwargs.models.K = kappa
                 print(f'Quantizing model with {kwargs.models.K} codewords...')
                 
                 for seed in kwargs.seeds:               

@@ -71,13 +71,12 @@ def pretrain(kwargs, wandb_logger):
         "pixelate",  # good severity: 1       
     ]
 
-    if (kwargs.corruption_type) and (kwargs.corruption_type not in corruptions):
-        raise ValueError(f'Unknown corruption type! {kwargs.corruption_type} was given.')
     if kwargs.severity:
         sev = kwargs.severity    
     else:
         sev = 3 if kwargs.corruption_type == "brightness" else 1 # set severity level (can be tuned)
     if kwargs.corruption_type:
+        corruption_name = kwargs.corruption_type
         kwargs.corruption_type = kwargs.corruption_type + f"_severity_{sev}"
     if kwargs.data == 'synthetic':
         dataset = SynthData(kwargs.dataset, experiment=kwargs.exp_name)
@@ -430,12 +429,11 @@ def pretrain(kwargs, wandb_logger):
                         save_path = "results/debug_images/"
                         os.makedirs(save_path, exist_ok=True) 
                         plt.imsave(save_path+"True_sample.png", images_np[0]) 
-                        print(f"Saved image to: {save_path}")                                    
-
+                        print(f"Saved image to: {save_path}")
                     images_np = corrupt_batch(
                         images_np,
-                        corruption_name=kwargs.corruption_type, #"gaussian_noise",  # change as needed
-                        severity=1, #pyrandom.randint(1, 5)
+                        corruption_name=corruption_name, #"gaussian_noise",  # change as needed
+                        severity=sev, #pyrandom.randint(1, 5)
                     )
 
                     images = torch.from_numpy(images_np).permute(0, 3, 1, 2).float() / 255.0
@@ -506,7 +504,7 @@ def pretrain(kwargs, wandb_logger):
 
                     images_np = corrupt_batch(
                         images_np,
-                        corruption_name=kwargs.corruption_type, #"gaussian_noise",  # change as needed
+                        corruption_name=corruption_name, #"gaussian_noise",  # change as needed
                         severity=sev, #pyrandom.randint(1, 5)
                     )
 
@@ -618,7 +616,7 @@ def pretrain(kwargs, wandb_logger):
 
                         images_np = corrupt_batch(
                             images_np,
-                            corruption_name=kwargs.corruption_type, #"gaussian_noise",  # change as needed
+                            corruption_name=corruption_name, #"gaussian_noise",  # change as needed
                             severity=sev, #pyrandom.randint(1, 5)
                         )
 
@@ -643,7 +641,9 @@ def pretrain(kwargs, wandb_logger):
 
     print("PRE-TRAINING OVER!")
     print("START TESTING!")
+    kwargs.corruption_type = corruption_name
     test(kwargs)
+    kwargs.corruption_type = corruption_name
     
     
     

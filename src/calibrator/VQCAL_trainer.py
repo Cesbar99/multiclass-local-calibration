@@ -150,6 +150,7 @@ class VQCalibrator(pl.LightningModule):
                     "l2": l2
                     }
         elif self.corruption_type is not None:
+            preds = log_scores.argmax(dim=1).view(-1,1)
             out = {
                 "features": z_q.view(B, -1),
                 # z_q.view(B, -1),               # (B, S*d), # quantized features alternatively use original features
@@ -158,7 +159,8 @@ class VQCalibrator(pl.LightningModule):
                 "true": torch.argmax(y_one_hot, dim=-1).view(-1, 1),
                 "indices": indices,
                 "alpha": alpha.view(B, -1),
-                "pca": init_pca.view(B, -1)
+                "pca": init_pca.view(B, -1),
+                "l2": l2
             }
         else:
             preds = log_scores.argmax(dim=1).view(-1,1)      

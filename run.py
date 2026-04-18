@@ -29,12 +29,16 @@ def main(cfg: DictConfig):
     epochs = kwargs.checkpoint.epochs
     if epochs == 9:
         model_class = 'resnet'
+        kwargs.dataset.feature_dim = 2048
     elif kwargs.checkpoint.epochs == 5:
         model_class = 'vit'
+        kwargs.dataset.feature_dim = 768
     elif kwargs.checkpoint.epochs == 20:
         model_class = 'convnext'
+        kwargs.dataset.feature_dim = 768
     else:
         model_class = 'ftt'
+        kwargs.dataset.feature_dim = 2048
         if not kwargs.data == 'weather':
             raise ValueError(
                 f'Checkpoint not corresponding to a trained modl! {kwargs.checkpoint.epochs} was given but only 9 and 20 are supported')
@@ -93,7 +97,7 @@ def main(cfg: DictConfig):
             kwargs.exp_name = 'quantize'
             for slot in kwargs.models.slots:
                 kwargs.models.S = slot
-                repr_dim = 769 if model_class == 'vit' else 2048                
+                repr_dim = 768 if model_class in ['vit', "convnext"] else 2048
                 kwargs.models.d = int(repr_dim/slot)
                 print(f'Testing model with {kwargs.models.d} dimensions per slot...')
                 print(f'Testing model with {kwargs.models.S} slots...')

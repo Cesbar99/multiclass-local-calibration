@@ -11,8 +11,7 @@ def test(kwargs):
     class_freqs = kwargs.dataset.class_freqs
     #scaler = StandardScaler()    
     if kwargs.data == 'mnist' and kwargs.dataset.variant:
-            kwargs.data = kwargs.data + '_' + kwargs.dataset.variant 
-            
+            kwargs.data = kwargs.data + '_' + kwargs.dataset.variant
     corruptions = [
         "gaussian_noise",
         "shot_noise",
@@ -28,17 +27,17 @@ def test(kwargs):
         "contrast",
         "pixelate",        
     ]
-    
     # if (kwargs.corruption_type) and (kwargs.corruption_type not in corruptions):
     #     raise ValueError(f'Unknown corruption type! {kwargs.corruption_type} was given.')
-    if kwargs.severity:
-        sev = kwargs.severity    
-    else:
-        sev = 3 if kwargs.corruption_type == "brightness" else 1 # set severity level (can be tuned)
+    sev = kwargs.severity
     if kwargs.corruption_type:
-        corruption_name = kwargs.corruption_type
-        kwargs.corruption_type = kwargs.corruption_type + f"_severity_{sev}"
-    
+        corruption_text = kwargs.corruption_type
+        if sev > 0:
+            severity = kwargs.severity
+            corruption_text += f'_severity_{severity}'
+        print("CORRUPTION TEXT: ", corruption_text)
+    else:
+        corruption_text = "None"
     epochs = kwargs.checkpoint.epochs
     if epochs == 9:
         model_class = 'resnet'
@@ -77,7 +76,7 @@ def test(kwargs):
                     kwargs.data,
                     kwargs.checkpoint.num_classes,
                     kwargs.checkpoint.num_features,
-                    kwargs.corruption_type,
+                    corruption_text,
                     kwargs.seed,
                     epochs,
                     temperature            
@@ -88,7 +87,7 @@ def test(kwargs):
                     kwargs.data,
                     kwargs.checkpoint.num_classes,
                     kwargs.checkpoint.num_features,
-                    kwargs.corruption_type,
+                    corruption_text,
                     kwargs.seed,
                     epochs,
                     temperature            
@@ -169,41 +168,7 @@ def test(kwargs):
             p_eval_cal,
             test_size=0.1, #0.1  # 10% for validation
             random_state=kwargs.seed, # for reproducibility
-            shuffle=True) 
-        
-        # df_test = pd.DataFrame(
-        #     np.hstack([
-        #         y_test.reshape(-1, 1),
-        #         p_test.reshape(-1, 1),
-        #         logits_test,
-        #         feats_test,                                
-        #         pca_test                                
-        #     ]),
-        #     columns=(
-        #         ["true"] +
-        #         [f"preds"] +
-        #         [f"logits_{i}" for i in range(logits_test.shape[1])] +
-        #         [f"features_{i}" for i in range(feats_test.shape[1])] +                
-        #         [f"pca_{i}" for i in range(pca_test.shape[1])]                                 
-        #     )
-        # )
-        
-        # filename = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_seed-{}_ep-{}_tmp_{}_only_test.csv".format(
-        #         kwargs.exp_name,
-        #         kwargs.data,
-        #         kwargs.checkpoint.num_classes,
-        #         kwargs.checkpoint.num_features,
-        #         kwargs.seed,
-        #         epochs,
-        #         temperature            
-        #     )
-        # df_test.to_csv(filename, index=False)  
-        # else:
-        #     feats_test = feats_eval_cal            
-        #     logits_test = logits_eval_cal
-        #     pca_test = pca_eval_cal
-        #     y_test = y_eval_cal
-        #     p_test = p_eval_cal                     
+            shuffle=True)
         
         # Compute accuracy
         #accuracy_test = (df_test['preds'] == df_test['true']).mean()
@@ -218,7 +183,7 @@ def test(kwargs):
         # Specify your directory and filename
         output_dir = join(kwargs.save_path_calibration_metrics, appendix)
         os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, f"accs_eval_cal_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv")
+        output_file = os.path.join(output_dir, f"accs_eval_cal_seed_{kwargs.seed}_corrupt_{corruption_text}_{model_class}.csv")
         df_accs.to_csv(output_file, index=False) 
         
         if not kwargs.only_test: # COMPUTE METRIC IN ADDITION TO ACCURACY
@@ -267,7 +232,7 @@ def test(kwargs):
             # Specify your directory and filename
             output_dir = join(kwargs.save_path_calibration_metrics, appendix)
             os.makedirs(output_dir, exist_ok=True)
-            output_file = os.path.join(output_dir, f"metric_eval_cal_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv")
+            output_file = os.path.join(output_dir, f"metric_eval_cal_seed_{kwargs.seed}_corrupt_{corruption_text}_{model_class}.csv")
 
             # Save to CSV
             df.to_csv(output_file, index=False)  
@@ -284,39 +249,11 @@ def test(kwargs):
 
             ess_output_file = os.path.join(
                 output_dir,
-                f"ess_profile_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv"
+                f"ess_profile_seed_{kwargs.seed}_corrupt_{corruption_text}_{model_class}.csv"
             )
 
             df_ess.to_csv(ess_output_file, index=False)
-            
-            #ecce_cal, ece_cal, mce_cal, brier_cal, nll_cal = compute_multiclass_calibration_metrics(probs_cal, y_true_cal_, n_bins)
-            # ecce_cal, ece_cal, mce_cal, brier_cal, nll_cal, lce_cal, mlce_cal = compute_multiclass_calibration_metrics_w_lce(probs_cal, y_true_cal_, pca_cal_, class_freqs, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy)         
-            # results = {
-            #     "ECCE": [ecce_cal],       
-            #     "ECE": [ece_cal],
-            #     "MCE": [mce_cal],
-            #     "Brier": [brier_cal],
-            #     "NLL": [nll_cal],
-            #     "LCE": [lce_cal],
-            #     "MLCE": [mlce_cal]
-            # }
-
-            # # Convert to DataFrame
-            # df = pd.DataFrame(results)
-
-            # # Specify your directory and filename
-            # output_dir = join(kwargs.save_path_calibration_metrics, appendix)
-            # os.makedirs(output_dir, exist_ok=True)
-            # output_file = os.path.join(output_dir, f"metric_train_cal_seed_{kwargs.seed}.csv")
-
-            # # Save to CSV
-            # df.to_csv(output_file, index=False)  
-
-            # Print results
-            #print(f"Test Calibration — ECCE: {ecce_test:.4f}, ECE: {ece_test:.4f}, MCE: {mce_test:.4f}, Brier: {brier_test:.4f}, NLL: {nll_test:.4f}")
             print(f"Test Calibration — ECCE: {ecce_test:.4f}, ECE: {ece_test:.4f}, MCE: {mce_test:.4f}, Brier: {brier_test:.4f}, NLL: {nll_test:.4f}, LCE: {lce_test:.4f}") #, MLCE: {mlce_test:.4f}")                
-            #print(f"Cal Calibration — ECCE: {ecce_cal:.4f}, ECE: {ece_cal:.4f}, MCE: {mce_cal:.4f}, Brier: {brier_cal:.4f}, NLL: {nll_cal:.4f}")
-            #print(f"Cal Calibration — ECCE: {ecce_cal:.4f}, ECE: {ece_cal:.4f}, MCE: {mce_cal:.4f}, Brier: {brier_cal:.4f}, NLL: {nll_cal:.4f}, LCE: {lce_cal:.4f}") #, MLCE: {mlce_cal:.4f}")
             multiclass_calibration_plot(y_true_test_, probs_test, n_bins=n_bins, save_path=save_path, filename=test_file_name)
             #multiclass_calibration_plot(y_true_cal_, probs_cal, n_bins=n_bins, save_path=save_path, filename=cal_file_name)
             
@@ -375,7 +312,7 @@ def test(kwargs):
                     kwargs.data,
                     kwargs.dataset.num_classes,
                     kwargs.dataset.num_features,
-                    kwargs.corruption_type,
+                    corruption_text,
                     kwargs.seed, #kwargs.checkpoint.seed,
                     total_epochs,                
                     model_class
@@ -414,7 +351,7 @@ def test(kwargs):
         # Specify your directory and filename
         output_dir = join(kwargs.save_path_calibration_metrics, appendix)
         os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, f'accs_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix +  
+        output_file = os.path.join(output_dir, f'accs_seed_{kwargs.seed}_corrupt_{corruption_text}_{model_class}.csv') #'metric_' + appendix +
         # Save to CSV
         print(f"saved accuracy to {output_file}")
         df_accs.to_csv(output_file, index=False) 
@@ -443,7 +380,7 @@ def test(kwargs):
         }).sort_values("codeword")
         # print(usage_df)
         if kwargs.corruption_type:
-            output_file = os.path.join(output_dir, f'usage_stats_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix +  
+            output_file = os.path.join(output_dir, f'usage_stats_seed_{kwargs.seed}_corrupt_{corruption_text}_{model_class}.csv') #'metric_' + appendix +
         else:
             output_file = os.path.join(output_dir, f'usage_stats_seed_{kwargs.seed}_{model_class}.csv') #'metric_' + appendix +  
         usage_df.to_csv(output_file, index=False)  
@@ -454,15 +391,7 @@ def test(kwargs):
         alpha_test_ = torch.tensor(alpha_test.values, dtype=torch.float32)
         
         alpha_std = torch.std(alpha_test_, dim=0)
-        alpha_mean = torch.mean(alpha_test_, dim=0)        
-        
-        # print("\n=== Standard deviation of learned region-dependent calibration parameters ===")
-        # #print(f"{alpha_std.item():.6f}")
-        # #print('\n')
-        # for i in range(alpha_std.shape[0]):
-        #     print(f"Class {i}:  mean = {alpha_mean[i].item():.4f},  std = {alpha_std[i].item():.4f}, cv = {alpha_std[i].item() / (alpha_mean[i].item() + 1e-12):.4f}")                        
-        # print('\n')
-        # ================================
+        alpha_mean = torch.mean(alpha_test_, dim=0)
         
         if not kwargs.only_test:             
             # Extract logits and true labels
@@ -484,177 +413,79 @@ def test(kwargs):
                 bw_test = torch.tensor(bw_test.values, dtype=torch.float32).squeeze() 
                 ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test = compute_multiclass_calibration_metrics_w_lce_adabw(probs_test, y_true_test_, pca_test_, bw_test, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy) 
             else:
-                if kwargs.quantize or kwargs.test:
-                    ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test, ess_profile = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_,class_freqs, n_bins, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class) #compute_multiclass_calibration_metrics_w_lce_quantv2(probs_test, y_true_test_, pca_test_, l2_test_,class_freqs, n_bins, n_bins_esse, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
-                    # ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test, ess_profile, l2_profile = compute_multiclass_calibration_metrics_w_lce_quantv2(probs_test, y_true_test_, pca_test_, l2_test_,class_freqs, n_bins, n_bins_esse, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
-                    results = {
-                        "ECCE": [ecce_test],       
-                        "ECE": [ece_test],
-                        "MCE": [mce_test],
-                        "Brier": [brier_test],
-                        "NLL": [nll_test],
-                        "LCE": [lce_test],
-                        "MLCE": [mlce_test]
+                ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test, ess_profile = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_,class_freqs, n_bins, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class) #compute_multiclass_calibration_metrics_w_lce_quantv2(probs_test, y_true_test_, pca_test_, l2_test_,class_freqs, n_bins, n_bins_esse, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
+                # ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test, ess_profile, l2_profile = compute_multiclass_calibration_metrics_w_lce_quantv2(probs_test, y_true_test_, pca_test_, l2_test_,class_freqs, n_bins, n_bins_esse, gamma=kwargs.gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
+                results = {
+                    "ECCE": [ecce_test],
+                    "ECE": [ece_test],
+                    "MCE": [mce_test],
+                    "Brier": [brier_test],
+                    "NLL": [nll_test],
+                    "LCE": [lce_test],
+                    "MLCE": [mlce_test]
+                }
+
+                # Convert to DataFrame
+                df = pd.DataFrame(results)
+
+                # Specify your directory and filename
+                output_dir = join(kwargs.save_path_calibration_metrics, appendix)
+                os.makedirs(output_dir, exist_ok=True)
+                output_file = os.path.join(output_dir, f'metrics_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{corruption_text}_{model_class}.csv') #'metric_' + appendix +
+
+                # Save to CSV
+                df.to_csv(output_file, index=False)
+
+                # ---- Save aggregated ESS profile ----
+                ess_results = {
+                    "ess_bin": list(range(len(ess_profile["avg_abs_lce_per_ess_bin"]))),
+                    "avg_abs_lce": ess_profile["avg_abs_lce_per_ess_bin"],
+                    "avg_ess": ess_profile["avg_ess_per_bin"],
+                    "count": ess_profile["count_per_bin"]
+                }
+
+                df_ess = pd.DataFrame(ess_results)
+
+                ess_output_file = os.path.join(
+                    output_dir,
+                    f"ess_profile_seed_{kwargs.seed}_corrupt_{corruption_text}_{model_class}.csv"
+                )
+
+                df_ess.to_csv(ess_output_file, index=False)
+
+                # Save to CSV
+                df.to_csv(output_file, index=False)
+                print(f"Test Quantisation — ECCE: {ecce_test:.4f}, ECE: {ece_test:.4f}, MCE: {mce_test:.4f}, Brier: {brier_test:.4f}, NLL: {nll_test:.4f}, LCE: {lce_test:.4f}") #, MLCE: {mlce_test:.4f}")
+            #else:
+                all_lce = []
+                all_mlce = []
+                for gamma in kwargs.gammas:
+                    print(f'Computing metrics with gamma {gamma}')
+                    ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test, ess_profile = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, n_bins_esse, gamma=gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
+                    all_lce.append(lce_test)
+                    all_mlce.append(mlce_test)
+                if gamma != kwargs.gamma:
+
+                    gamma_plot = {
+                        'GAMMA': kwargs.gammas,
+                        'LCE': all_lce,
+                        'MLCE': all_mlce
                     }
 
                     # Convert to DataFrame
-                    df = pd.DataFrame(results)
+                    df = pd.DataFrame(gamma_plot)
 
                     # Specify your directory and filename
                     output_dir = join(kwargs.save_path_calibration_metrics, appendix)
                     os.makedirs(output_dir, exist_ok=True)
-                    output_file = os.path.join(output_dir, f'metrics_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix + 
+                    output_file = os.path.join(output_dir, f'gamma_plot_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{corruption_text}_{model_class}.csv') #'metric_' + appendix +
 
                     # Save to CSV
-                    df.to_csv(output_file, index=False)                                      
-                    
-                    # ---- Save aggregated ESS profile ----
-                    ess_results = {
-                        "ess_bin": list(range(len(ess_profile["avg_abs_lce_per_ess_bin"]))),
-                        "avg_abs_lce": ess_profile["avg_abs_lce_per_ess_bin"],
-                        "avg_ess": ess_profile["avg_ess_per_bin"],
-                        "count": ess_profile["count_per_bin"]
-                    }
-
-                    df_ess = pd.DataFrame(ess_results)
-
-                    ess_output_file = os.path.join(
-                        output_dir,
-                        f"ess_profile_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv"
-                    )
-                    
-                    df_ess.to_csv(ess_output_file, index=False)
-                    
-                    # Save to CSV
-                    df.to_csv(output_file, index=False)                                      
-                    
-                    # ---- Save aggregated ESS profile ----
-                    # l2_results = {
-                    #     "l2_bin": list(range(len(l2_profile["avg_abs_lce_per_l2_bin"]))),
-                    #     "avg_abs_lce": l2_profile["avg_abs_lce_per_l2_bin"],
-                    #     "avg_l2": l2_profile["avg_l2_per_bin"],
-                    #     "count": l2_profile["count_per_bin"]
-                    # }
-
-                    # df_l2 = pd.DataFrame(l2_results)
-
-                    # l2_output_file = os.path.join(
-                    #     output_dir,
-                    #     f"l2_profile_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv"
-                    # )
-                    
-                    # df_l2.to_csv(l2_output_file, index=False)
-                    
-                    # Print results
-                    print(f"Test Quantisation — ECCE: {ecce_test:.4f}, ECE: {ece_test:.4f}, MCE: {mce_test:.4f}, Brier: {brier_test:.4f}, NLL: {nll_test:.4f}, LCE: {lce_test:.4f}") #, MLCE: {mlce_test:.4f}")        
-                #else:    
-                    all_lce = []
-                    all_mlce = []                
-                    for gamma in kwargs.gammas:
-                        print(f'Computing metrics with gamma {gamma}')
-                        ecce_test, ece_test, mce_test, brier_test, nll_test, lce_test, mlce_test, ess_profile = compute_multiclass_calibration_metrics_w_lce(probs_test, y_true_test_, pca_test_, class_freqs, n_bins, n_bins_esse, gamma=gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
-                        all_lce.append(lce_test)
-                        all_mlce.append(mlce_test)
-                        # if gamma == kwargs.gamma:
-                        #     results = {
-                        #         "ECCE": [ecce_test],       
-                        #         "ECE": [ece_test],
-                        #         "MCE": [mce_test],
-                        #         "Brier": [brier_test],
-                        #         "NLL": [nll_test],
-                        #         "LCE": [lce_test],
-                        #         "MLCE": [mlce_test]
-                        #     }
-
-                        #     # Convert to DataFrame
-                        #     df = pd.DataFrame(results)
-
-                        #     # Specify your directory and filename
-                        #     output_dir = join(kwargs.save_path_calibration_metrics, appendix)
-                        #     os.makedirs(output_dir, exist_ok=True)
-                        #     output_file = os.path.join(output_dir, f'metrics_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}.csv') #'metric_' + appendix + 
-
-                        #     # Save to CSV
-                        #     df.to_csv(output_file, index=False)  
-                            
-                        #     # Print results
-                        #     print(f"Test Quantisation — ECCE: {ecce_test:.4f}, ECE: {ece_test:.4f}, MCE: {mce_test:.4f}, Brier: {brier_test:.4f}, NLL: {nll_test:.4f}, LCE: {lce_test:.4f}") #, MLCE: {mlce_test:.4f}")        
-                    
-                    if gamma != kwargs.gamma:
-                        
-                        gamma_plot = {
-                            'GAMMA': kwargs.gammas,
-                            'LCE': all_lce,
-                            'MLCE': all_mlce
-                        }
-                        
-                        # Convert to DataFrame
-                        df = pd.DataFrame(gamma_plot)
-
-                        # Specify your directory and filename
-                        output_dir = join(kwargs.save_path_calibration_metrics, appendix)
-                        os.makedirs(output_dir, exist_ok=True)
-                        output_file = os.path.join(output_dir, f'gamma_plot_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix + 
-
-                        # Save to CSV
-                        df.to_csv(output_file, index=False)                                                             
+                    df.to_csv(output_file, index=False)
                         
             print("probs_test min/max:", probs_test.min().item(), probs_test.max().item())
             # Calibration plot        
-            multiclass_calibration_plot(y_true_test_, probs_test, n_bins=n_bins, save_path=save_path, filename=test_file_name, bin_strategy=kwargs.bin_strategy)                
-        """    
-        train_file_name = 'multicalss_quantisation_train_' + f'{kwargs.bin_strategy}' + '.png'        
-        train_results = "results/{}/{}_{}_classes_{}_features/raw_results_train_calquant_seed-{}_ep-{}.csv".format(
-                    name, #kwargs.exp_name,
-                    kwargs.data,
-                    kwargs.dataset.num_classes,
-                    kwargs.dataset.num_features,
-                    kwargs.seed,
-                    total_epochs,                
-                )        
-        
-        # Load your data
-        df_train = pd.read_csv(train_results)        
-
-        # Compute accuracy
-        accuracy_train = (df_train['preds'] == df_train['true']).mean()
-        print(f'Test accuracy: {accuracy_train:.2%}')        
-        
-        if not kwargs.only_test: 
-            # Extract logits and true labels
-            logits_train = df_train.filter(regex=r'^logits') #df_train.drop(columns=['preds', 'true'])
-            pca_train = df_train.filter(regex=r'^pca')
-            labels_train = df_train['true']
-            
-            logits_train_ = torch.tensor(logits_train.values, dtype=torch.float32)
-            pca_train_ = torch.tensor(pca_train.values, dtype=torch.float32)
-            y_true_train_ = torch.tensor(labels_train.values, dtype=torch.long)
-            
-            probs_train = F.softmax(logits_train_, dim=1)      
-            
-            # Compute calibration metrics
-            if kwargs.models.adabw:
-                bw_train = df_train.filter(regex=r'^bandwidth')
-                bw_train = torch.tensor(bw_train.values, dtype=torch.float32).squeeze() 
-                ecce_train, ece_train, mce_train, brier_train, nll_train, lce_train, mlce_train = compute_multiclass_calibration_metrics_w_lce_adabw(probs_train, y_true_train_, pca_train_, bw_train, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy) 
-            else:
-                ecce_train, ece_train, mce_train, brier_train, nll_train, lce_train, mlce_train = compute_multiclass_calibration_metrics_w_lce(probs_train, y_true_train_, pca_train_, class_freqs, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy, model_type=model_class) 
-                    
-            results = {            
-                "ECCE": [ecce_train],       
-                "ECE": [ece_train],            
-                "MCE": [mce_train],
-                "Brier": [brier_train],
-                "NLL": [nll_train],
-                "LCE": [lce_train],
-                "MLCE": [mlce_train]
-            }
-        
-            # Print results
-            print(f"Test Quantisation — ECCE: {ecce_train:.4f}, ECE: {ece_train:.4f}, MCE: {mce_train:.4f}, Brier: {brier_train:.4f}, NLL: {nll_train:.4f}, LCE: {lce_train:.4f}") #, MLCE: {mlce_train:.4f}")        
-            multiclass_calibration_plot(y_true_train_, probs_train, n_bins=n_bins, save_path=save_path, filename=train_file_name, bin_strategy=kwargs.bin_strategy)   
-        """                
-        
+            multiclass_calibration_plot(y_true_test_, probs_test, n_bins=n_bins, save_path=save_path, filename=test_file_name, bin_strategy=kwargs.bin_strategy)
     elif kwargs.exp_name == 'calibrate':          
         if kwargs.data == 'weather' and kwargs.dataset.shift:
             to_add = kwargs.data + '_' + 'shift' + '_calsize_' + f'{kwargs.dataset.subsample}'
@@ -695,7 +526,7 @@ def test(kwargs):
                         kwargs.data,
                         kwargs.dataset.num_classes,
                         kwargs.dataset.num_features,
-                        kwargs.corruption_type,
+                        corruption_text,
                         kwargs.seed, #kwargs.checkpoint.seed,
                         total_epochs,                
                         model_class
@@ -706,7 +537,7 @@ def test(kwargs):
                         kwargs.data,
                         kwargs.dataset.num_classes,
                         kwargs.dataset.num_features,
-                        kwargs.corruption_type,
+                        corruption_text,
                         kwargs.seed, #kwargs.checkpoint.seed,
                         total_epochs,                
                         model_class
@@ -717,7 +548,7 @@ def test(kwargs):
                         kwargs.data,
                         kwargs.dataset.num_classes,
                         kwargs.dataset.num_features,
-                        kwargs.corruption_type,
+                        corruption_text,
                         kwargs.seed, #kwargs.checkpoint.seed,
                         total_epochs,                
                         model_class
@@ -747,35 +578,7 @@ def test(kwargs):
                 if kwargs.data == 'weather' and kwargs.dataset.shift:
                     piece = f"raw_results_test_cal_shift_seed-{kwargs.seed}_ep-{total_epochs}_{model_class}.csv"  
                 test_results = root + piece   
-                # test_results = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}_{}.csv".format(
-                #         kwargs.exp_name,
-                #         kwargs.data,
-                #         kwargs.dataset.num_classes,
-                #         kwargs.dataset.num_features,
-                #         kwargs.seed, #kwargs.checkpoint.seed,
-                #         total_epochs,                
-                #         model_class
-                #     )
-                # if kwargs.models.lambda_kl == 0:
-                #     test_results = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}_{}.csv".format(
-                #         'reference_kernel',
-                #         kwargs.data,
-                #         kwargs.dataset.num_classes,
-                #         kwargs.dataset.num_features,
-                #         kwargs.seed, #kwargs.checkpoint.seed,
-                #         total_epochs,                
-                #         model_class
-                #     )
-                # if kwargs.models.kernel_only:
-                #     test_results = "results/{}/{}_{}_classes_{}_features/raw_results_test_cal_seed-{}_ep-{}_{}.csv".format(
-                #         'kernel_only',
-                #         kwargs.data,
-                #         kwargs.dataset.num_classes,
-                #         kwargs.dataset.num_features,
-                #         kwargs.seed, #kwargs.checkpoint.seed,
-                #         total_epochs,                
-                #         model_class
-                #     )
+
                    
         # Load your data
         df_test = pd.read_csv(test_results)        
@@ -789,7 +592,7 @@ def test(kwargs):
         # Specify your directory and filename
         output_dir = join(kwargs.save_path_calibration_metrics, appendix)
         os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, f'accs_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix +  
+        output_file = os.path.join(output_dir, f'accs_seed_{kwargs.seed}_corrupt_{corruption_text}_{model_class}.csv') #'metric_' + appendix +
         # Save to CSV
         df_accs.to_csv(output_file, index=False)      
         
@@ -833,7 +636,7 @@ def test(kwargs):
                     # Specify your directory and filename
                     output_dir = join(kwargs.save_path_calibration_metrics, appendix)
                     os.makedirs(output_dir, exist_ok=True)
-                    output_file = os.path.join(output_dir, f'metrics_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix + 
+                    output_file = os.path.join(output_dir, f'metrics_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{corruption_text}_{model_class}.csv') #'metric_' + appendix +
 
                     # Save to CSV
                     df.to_csv(output_file, index=False)  
@@ -850,7 +653,7 @@ def test(kwargs):
 
                     ess_output_file = os.path.join(
                         output_dir,
-                        f"ess_profile_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv"
+                        f"ess_profile_seed_{kwargs.seed}_corrupt_{corruption_text}_{model_class}.csv"
                     )
                     
                     df_ess.to_csv(ess_output_file, index=False)
@@ -884,7 +687,7 @@ def test(kwargs):
                             # Specify your directory and filename
                             output_dir = join(kwargs.save_path_calibration_metrics, appendix)
                             os.makedirs(output_dir, exist_ok=True)
-                            output_file = os.path.join(output_dir, f'metrics_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix + 
+                            output_file = os.path.join(output_dir, f'metrics_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{corruption_text}_{model_class}.csv') #'metric_' + appendix +
 
                             # Save to CSV
                             df.to_csv(output_file, index=False)  
@@ -901,7 +704,7 @@ def test(kwargs):
 
                             ess_output_file = os.path.join(
                                 output_dir,
-                                f"ess_profile_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv"
+                                f"ess_profile_seed_{kwargs.seed}_corrupt_{corruption_text}_{model_class}.csv"
                             )
                             
                             df_ess.to_csv(ess_output_file, index=False)
@@ -921,88 +724,14 @@ def test(kwargs):
                     # Specify your directory and filename
                     output_dir = join(kwargs.save_path_calibration_metrics, appendix)
                     os.makedirs(output_dir, exist_ok=True)
-                    output_file = os.path.join(output_dir, f'gamma_plot_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix + 
+                    output_file = os.path.join(output_dir, f'gamma_plot_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{corruption_text}_{model_class}.csv') #'metric_' + appendix +
 
                     # Save to CSV
                     df.to_csv(output_file, index=False)                                                             
                     
             print("probs_test min/max:", probs_test.min().item(), probs_test.max().item())
             # Calibration plot        
-            multiclass_calibration_plot(y_true_test_, probs_test, n_bins=n_bins, save_path=save_path, filename=test_file_name, bin_strategy=kwargs.bin_strategy)                
-        
-        # SKIP PERFORMANCE ON CALIBRATION SET TO SAVE COMPUTING TIME     
-        # train_file_name = 'multicalss_calibration_train_' + f'{kwargs.bin_strategy}' + '.png'        
-        # train_results = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}.csv".format(
-        #             kwargs.exp_name,
-        #             kwargs.data,
-        #             kwargs.dataset.num_classes,
-        #             kwargs.dataset.num_features,
-        #             kwargs.seed,
-        #             total_epochs,                
-        #         )
-        # if kwargs.models.lambda_kl == 0:
-        #     train_results = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}.csv".format(
-        #             'reference_kernel',
-        #             kwargs.data,
-        #             kwargs.dataset.num_classes,
-        #             kwargs.dataset.num_features,
-        #             kwargs.seed,
-        #             total_epochs,                
-        #         )
-        # if kwargs.models.kernel_only:
-        #     train_results = "results/{}/{}_{}_classes_{}_features/raw_results_train_cal_seed-{}_ep-{}.csv".format(
-        #             'kernel_only',
-        #             kwargs.data,
-        #             kwargs.dataset.num_classes,
-        #             kwargs.dataset.num_features,
-        #             kwargs.seed,
-        #             total_epochs,                
-        #         )
-        
-        # # Load your data
-        # df_train = pd.read_csv(train_results)        
-
-        # # Compute accuracy
-        # accuracy_train = (df_train['preds'] == df_train['true']).mean()
-        # print(f'Test accuracy: {accuracy_train:.2%}')        
-        
-        # if not kwargs.only_test: 
-        #     # Extract logits and true labels
-        #     logits_train = df_train.filter(regex=r'^logits') #df_train.drop(columns=['preds', 'true'])
-        #     pca_train = df_train.filter(regex=r'^features')
-        #     labels_train = df_train['true']
-            
-        #     logits_train_ = torch.tensor(logits_train.values, dtype=torch.float32)
-        #     pca_train_ = torch.tensor(pca_train.values, dtype=torch.float32)
-        #     y_true_train_ = torch.tensor(labels_train.values, dtype=torch.long)
-
-        #     # Convert logits to probabilities
-        #     if kwargs.models.lambda_kl == 0 or kwargs.models.kernel_only:
-        #         probs_train = logits_train_ 
-        #     else:
-        #         probs_train = F.softmax(logits_train_, dim=1)      
-            
-        #     # Compute calibration metrics
-        #     if kwargs.models.adabw:
-        #         bw_train = df_train.filter(regex=r'^bandwidth')
-        #         bw_train = torch.tensor(bw_train.values, dtype=torch.float32).squeeze() 
-        #         ecce_train, ece_train, mce_train, brier_train, nll_train, lce_train, mlce_train = compute_multiclass_calibration_metrics_w_lce_adabw(probs_train, y_true_train_, pca_train_, bw_train, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy) 
-        #     else:
-        #         ecce_train, ece_train, mce_train, brier_train, nll_train, lce_train, mlce_train = compute_multiclass_calibration_metrics_w_lce(probs_train, y_true_train_, pca_train_, class_freqs, n_bins, gamma=gamma, bin_strategy=kwargs.bin_strategy, data=kwargs.data, model_type=model_class)
-                    
-        #     results = {            
-        #         "ECCE": [ecce_train],       
-        #         "ECE": [ece_train],            
-        #         "MCE": [mce_train],
-        #         "Brier": [brier_train],
-        #         "NLL": [nll_train],
-        #         "LCE": [lce_train],
-        #         "MLCE": [mlce_train]
-        #     }
-        
-        #     # Print results
-        #     print(f"Test Calibration — ECCE: {ecce_train:.4f}, ECE: {ece_train:.4f}, MCE: {mce_train:.4f}, Brier: {brier_train:.4f}, NLL: {nll_train:.4f}, LCE: {lce_train:.4f}") #, MLCE: {mlce_train:.4f}")        
-        #     multiclass_calibration_plot(y_true_train_, probs_train, n_bins=n_bins, save_path=save_path, filename=train_file_name, bin_strategy=kwargs.bin_strategy)   
+            multiclass_calibration_plot(y_true_test_, probs_test, n_bins=n_bins, save_path=save_path, filename=test_file_name, bin_strategy=kwargs.bin_strategy)
                 
     elif kwargs.exp_name == 'competition':            
         if kwargs.data == 'weather' and kwargs.dataset.shift:
@@ -1027,7 +756,7 @@ def test(kwargs):
                         kwargs.data,
                         kwargs.dataset.num_classes,
                         kwargs.dataset.num_features,
-                        kwargs.corruption_type,
+                        corruption_text,
                         kwargs.seed,
                         kwargs.models.max_iter,                
                         model_class
@@ -1068,7 +797,7 @@ def test(kwargs):
         # Specify your directory and filename
         output_dir = join(kwargs.save_path_calibration_metrics, appendix)
         os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, f'accs_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix +  
+        output_file = os.path.join(output_dir, f'accs_seed_{kwargs.seed}_corrupt_{corruption_text}_{model_class}.csv') #'metric_' + appendix +
         # Save to CSV
         df_accs.to_csv(output_file, index=False)    
                
@@ -1122,7 +851,7 @@ def test(kwargs):
                 # Specify your directory and filename
                 output_dir = join(kwargs.save_path_calibration_metrics, appendix)
                 os.makedirs(output_dir, exist_ok=True)
-                output_file = os.path.join(output_dir, f'metrics_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix + 
+                output_file = os.path.join(output_dir, f'metrics_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{corruption_text}_{model_class}.csv') #'metric_' + appendix +
 
                 # Save to CSV
                 df.to_csv(output_file, index=False)   
@@ -1139,7 +868,7 @@ def test(kwargs):
 
                 ess_output_file = os.path.join(
                     output_dir,
-                    f"ess_profile_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv"
+                    f"ess_profile_seed_{kwargs.seed}_corrupt_{corruption_text}_{model_class}.csv"
                 )
                 
                 df_ess.to_csv(ess_output_file, index=False)
@@ -1169,7 +898,7 @@ def test(kwargs):
                         # Specify your directory and filename
                         output_dir = join(kwargs.save_path_calibration_metrics, appendix)
                         os.makedirs(output_dir, exist_ok=True)
-                        output_file = os.path.join(output_dir, f'gamma_plot_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_corrupt_{kwargs.corruption_type}_seed_{kwargs.seed}_{model_class}.csv') #'metric_' + appendix + 
+                        output_file = os.path.join(output_dir, f'gamma_plot_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_corrupt_{corruption_text}_seed_{kwargs.seed}_{model_class}.csv') #'metric_' + appendix +
 
                         # Save to CSV
                         df.to_csv(output_file, index=False)                                   
@@ -1234,7 +963,7 @@ def test(kwargs):
         # Specify your directory and filename
         output_dir = join(kwargs.save_path_calibration_metrics, appendix)
         os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, f'accs_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix +  
+        output_file = os.path.join(output_dir, f'accs_seed_{kwargs.seed}_corrupt_{corruption_text}_{model_class}.csv') #'metric_' + appendix +
         # Save to CSV
         df_accs.to_csv(output_file, index=False) 
                 
@@ -1285,7 +1014,7 @@ def test(kwargs):
                     # Specify your directory and filename
                     output_dir = join(kwargs.save_path_calibration_metrics, appendix)
                     os.makedirs(output_dir, exist_ok=True)
-                    output_file = os.path.join(output_dir, f'metrics_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix + 
+                    output_file = os.path.join(output_dir, f'metrics_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{corruption_text}_{model_class}.csv') #'metric_' + appendix +
 
                     # Save to CSV
                     df.to_csv(output_file, index=False)  
@@ -1302,7 +1031,7 @@ def test(kwargs):
 
                     ess_output_file = os.path.join(
                         output_dir,
-                        f"ess_profile_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv"
+                        f"ess_profile_seed_{kwargs.seed}_corrupt_{corruption_text}_{model_class}.csv"
                     )
                     
                     df_ess.to_csv(ess_output_file, index=False)
@@ -1336,7 +1065,7 @@ def test(kwargs):
                             # Specify your directory and filename
                             output_dir = join(kwargs.save_path_calibration_metrics, appendix)
                             os.makedirs(output_dir, exist_ok=True)
-                            output_file = os.path.join(output_dir, f'gamma_plot_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{kwargs.corruption_type}_{model_class}.csv') #'metric_' + appendix + 
+                            output_file = os.path.join(output_dir, f'gamma_plot_{kwargs.bin_strategy}_adabw_{kwargs.models.adabw}_seed_{kwargs.seed}_corrupt_{corruption_text}_{model_class}.csv') #'metric_' + appendix +
 
                             # Save to CSV
                             df.to_csv(output_file, index=False)                                                             
@@ -1375,6 +1104,6 @@ def test(kwargs):
                 title="Average Absolute LCE Across Density Bins for "+ f"{data_name} with a " + f"{model_class}", # ,
                 interval="std"   # use "sem95" for 95% confidence band
         )
-    kwargs.corruption_type = corruption_name
+
             
         

@@ -54,6 +54,18 @@ def pretrain(kwargs, wandb_logger):
     total_epochs = kwargs.models.epochs
     temperature = kwargs.models.temperature
     cuda_device = kwargs.cuda_device
+    epochs = kwargs.checkpoint.epochs
+    if epochs == 9:
+        model_class = 'resnet'
+    elif kwargs.checkpoint.epochs == 5:
+        model_class = 'vit'
+    elif kwargs.checkpoint.epochs == 20:
+        model_class = 'convnext'
+    else:
+        model_class = 'ftt'
+        if not kwargs.data == 'weather':
+            raise ValueError(
+                f'Checkpoint not corresponding to a trained modl! {kwargs.checkpoint.epochs} was given but only 9 and 20 are supported')
     
     corruptions = [
         "gaussian_noise",
@@ -71,13 +83,16 @@ def pretrain(kwargs, wandb_logger):
         "pixelate",  # good severity: 1       
     ]
 
-    if kwargs.severity:
-        sev = kwargs.severity    
-    else:
-        sev = 3 if kwargs.corruption_type == "brightness" else 1 # set severity level (can be tuned)
+    sev = kwargs.severity
     if kwargs.corruption_type:
+        corruption_text = kwargs.corruption_type
         corruption_name = kwargs.corruption_type
-        kwargs.corruption_type = kwargs.corruption_type + f"_severity_{sev}"
+        if sev > 0:
+            severity = kwargs.severity
+            corruption_text += f'_severity_{severity}'
+        print("CORRUPTION TEXT: ", corruption_text)
+    else:
+        corruption_text = "None"
     if kwargs.data == 'synthetic':
         dataset = SynthData(kwargs.dataset, experiment=kwargs.exp_name)
         pl_model = SynthTab(input_dim=kwargs.dataset.num_features,            
@@ -144,7 +159,7 @@ def pretrain(kwargs, wandb_logger):
         pl_model = MnistModel(kwargs.models)
     
     elif kwargs.data == 'tissue':
-        dataset = MedMnistData(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data)        
+        dataset = MedMnistData(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data, model_class=model_class)
         pl_model = MedMnistModel(kwargs.models)    
         
     elif kwargs.data == 'path':
@@ -152,7 +167,7 @@ def pretrain(kwargs, wandb_logger):
         pl_model = MedMnistModel(kwargs.models)
         
     elif kwargs.data == 'cifar10':
-        dataset = Cifar10Data(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data)
+        dataset = Cifar10Data(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data, model_class=model_class)
         # dataset2 = Cifar10Data(kwargs.dataset, experiment='calibrate', name=kwargs.data)
         pl_model = Cifar10Model(kwargs.models)
         
@@ -165,7 +180,7 @@ def pretrain(kwargs, wandb_logger):
         pl_model = Cifar10OODModel()
         
     elif kwargs.data == 'cifar100':
-        dataset = Cifar100Data(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data)
+        dataset = Cifar100Data(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data, model_class=model_class)
         # dataset2 = Cifar100Data(kwargs.dataset, experiment='calibrate', name=kwargs.data)
         pl_model = Cifar100Model(kwargs.models)   
         
@@ -208,7 +223,7 @@ def pretrain(kwargs, wandb_logger):
                 kwargs.data,
                 kwargs.dataset.num_classes,
                 kwargs.dataset.num_features,
-                kwargs.corruption_type,
+                corruption_text,
                 seed,
                 total_epochs,
                 temperature            
@@ -218,7 +233,7 @@ def pretrain(kwargs, wandb_logger):
                 kwargs.data,
                 kwargs.dataset.num_classes,
                 kwargs.dataset.num_features,
-                kwargs.corruption_type,
+                corruption_text,
                 seed,
                 total_epochs,
                 temperature            
@@ -641,9 +656,9 @@ def pretrain(kwargs, wandb_logger):
 
     print("PRE-TRAINING OVER!")
     print("START TESTING!")
-    kwargs.corruption_type = corruption_name
+    # kwargs.corruption_type = corruption_name
     test(kwargs)
-    kwargs.corruption_type = corruption_name
+    # kwargs.corruption_type = corruption_name
     
     
     

@@ -324,7 +324,7 @@ class MedMnistModel(pl.LightningModule):
         if 'vit' in self.name:            
             logits = self.model.vit.get_classifier()(feats)   
         elif 'convnext' in self.name:
-            logits = self.model.convnext_tiny.classifier(feats)
+            logits = self.model.convnext_tiny.classifier[3](feats)
         else:
             logits = self.model.resnet50.fc(feats)
         preds = torch.argmax(logits, dim=-1).view(-1,1)  # predicted class
@@ -472,7 +472,7 @@ class Cifar10Model(pl.LightningModule):
         if 'vit' in self.name:            
             logits = self.model.vit.get_classifier()(feats)    
         elif 'convnext' in self.name:
-            logits = self.model.convnext_tiny.classifier(feats)        
+            logits = self.model.convnext_tiny.classifier[3](feats)
         else:            
             logits = self.model.resnet50.fc(feats)
             
@@ -741,7 +741,7 @@ class Cifar100Model(pl.LightningModule):
         elif 'dense' in self.name:
             logits = self.model.densenet121.classifier(feats)    
         elif 'convnext' in self.name:
-            logits = self.model.convnext_tiny.classifier(feats)       
+            logits = self.model.convnext_tiny.classifier[3](feats)
         else:         
             if '152' in self.name:                
                 logits = self.model.resnet152.fc(feats)

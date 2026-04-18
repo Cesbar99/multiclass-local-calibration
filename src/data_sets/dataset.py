@@ -173,7 +173,7 @@ def generateCalibrationDatav2(kwargs, dataname=None):
                 kwargs.data,
                 kwargs.dataset.num_classes,
                 kwargs.dataset.num_features,
-                kwargs.corruption_type,
+                kwargs.corruption_type+f"_severity_{kwargs.severity}",
                 kwargs.checkpoint.seed,
                 kwargs.checkpoint.epochs,
                 kwargs.checkpoint.temperature       
@@ -183,7 +183,7 @@ def generateCalibrationDatav2(kwargs, dataname=None):
                 kwargs.data,
                 kwargs.dataset.num_classes,
                 kwargs.dataset.num_features,
-                kwargs.corruption_type,
+                kwargs.corruption_type+f"_severity_{kwargs.severity}",
                 kwargs.checkpoint.seed,
                 kwargs.checkpoint.epochs,
                 kwargs.checkpoint.temperature
@@ -1395,8 +1395,9 @@ class OOData(Dataset):
         self.data_test_cal_loader = test_loader
 
 class MedMnistData(Dataset):    
-    def __init__(self, kwargs, experiment=None, name='path'):         
-        self.name = name 
+    def __init__(self, kwargs, experiment=None, name='path', model_class=None):
+        self.name = name
+        self.model_class = model_class
         if experiment == 'pre-train':                     
             self.generatePretrainingMedMnistData(size=kwargs.size,
                                 batch_size = kwargs.batch_size,
@@ -1412,8 +1413,17 @@ class MedMnistData(Dataset):
         
     def generatePretrainingMedMnistData(self, size,
                                 batch_size,
-                                random_state):                        
-        l_transform = [transforms.Grayscale(num_output_channels=3), transforms.ToTensor()]
+                                random_state):
+        if self.model_class == 'convnext':
+            # Use ImageNet normalization for ConvNeXt, as it was pre-trained on ImageNet
+            l_transform = transforms.Compose([
+                transforms.Grayscale(num_output_channels=3), transforms.ToTensor(),
+                transforms.Normalize(
+                            (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+                        ),
+            ])
+        else:
+            l_transform = [transforms.Grayscale(num_output_channels=3), transforms.ToTensor()]
         #if self.name == 'tissue':
         #    l_transforms.append()  # Convert to 3-channel RGB)
             #transforms.RandomHorizontalFlip(),
@@ -1476,8 +1486,9 @@ class MedMnistData(Dataset):
 
 
 class Cifar10Data(Dataset):    
-    def __init__(self, kwargs, experiment=None, name='cifar10'):       
-        self.name = name   
+    def __init__(self, kwargs, experiment=None, name='cifar10', model_class=None):
+        self.name = name
+        self.model_class = model_class
         if experiment == 'pre-train':  
             kwargs.class_freqs = [1/kwargs.num_classes]*kwargs.num_classes                        
             self.generatePretrainingCifar10Data(
@@ -1497,11 +1508,20 @@ class Cifar10Data(Dataset):
         data_dir =  f"./data/{self.name.upper()}"                     
         os.makedirs(data_dir, exist_ok=True)
         generator = torch.Generator().manual_seed(random_state)
-        
-        l_transform = transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.ToTensor()
-        ])
+        if self.model_class == 'convnext':
+            # Use ImageNet normalization for ConvNeXt, as it was pre-trained on ImageNet
+            l_transform = transforms.Compose([
+                transforms.Resize((224, 224)),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                            (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+                        ),
+            ])
+        else:
+            l_transform = transforms.Compose([
+                transforms.Resize((224, 224)),
+                transforms.ToTensor()
+            ])
         
         # l_transform = transforms.Compose([ 
         #         transforms.Resize((224, 224)),
@@ -1685,8 +1705,9 @@ class Cifar10LongTailData(Dataset):
         
 
 class Cifar100Data(Dataset):    
-    def __init__(self, kwargs, experiment=None, name='cifar100'):       
-        self.name = name   
+    def __init__(self, kwargs, experiment=None, name='cifar100', model_class=None):
+        self.name = name
+        self.model_class = model_class
         if experiment == 'pre-train':    
             kwargs.class_freqs = [1/kwargs.num_classes]*kwargs.num_classes
             self.generatePretrainingCifar100Data(

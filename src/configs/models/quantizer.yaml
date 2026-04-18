@@ -24,7 +24,7 @@ vq_decay: 0.99 # 0.5
 vq_eps: 1e-8
 hidden: 0.
 dropout: 0.1
-epochs: 1000               
+epochs: 100
 similarity_dim: 50
 adabw: False                # If true uses adaptive bandwidth for lce computation else fixed bandwidth
 learn_pi: False             # If true learns the prior probabilities of the VQ codebook vectors

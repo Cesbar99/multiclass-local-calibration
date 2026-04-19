@@ -147,26 +147,30 @@ class AuxiliaryMLPV2(pl.LightningModule):
                 self.similarity_head.bias.copy_(bias_init)
                 #self.classifcation_head.bias.copy_(bias_init)
             
-        if self.linearly_combine_pca:   
-            # FOR TISSUE AND CIFAR10 ALSO A SINGLE PARAMETER WORKS FINE 
-            self.alpha_sim = nn.Parameter(torch.tensor(self.init_alpha_sim, dtype=torch.float32))  #nn.Parameter(torch.randn(self.similarity_dim) * 0.01 + self.init_alpha_sim) ##  # # # 
-            self.beta_sim = nn.Parameter(torch.empty(1).normal_(mean=0.0, std=0.01))  #nn.Parameter(torch.randn(self.similarity_dim) * 0.01) ## # # #
-            self.alpha_cls = nn.Parameter(torch.tensor(self.init_alpha_cls, dtype=torch.float32)) #nn.Parameter(torch.randn(self.output_dim) * 0.01 + self.init_alpha_cls)  ### # #  
-            self.beta_cls = nn.Parameter(torch.empty(1).normal_(mean=0.0, std=0.01)) #nn.Parameter(torch.randn(self.output_dim) * 0.01)  # #
+        if self.linearly_combine_pca:
+            
+            # FOR TISSUE AND CIFAR10 ALSO A SINGLE PARAMETER WORKS FINE                
+            if self.output_dim <= 10:            
+                self.alpha_sim = nn.Parameter(torch.tensor(self.init_alpha_sim, dtype=torch.float32))  #nn.Parameter(torch.randn(self.similarity_dim) * 0.01 + self.init_alpha_sim) ##  # # # 
+                self.beta_sim = nn.Parameter(torch.empty(1).normal_(mean=0.0, std=0.01))  #nn.Parameter(torch.randn(self.similarity_dim) * 0.01) ## # # #
+                self.alpha_cls = nn.Parameter(torch.tensor(self.init_alpha_cls, dtype=torch.float32)) #nn.Parameter(torch.randn(self.output_dim) * 0.01 + self.init_alpha_cls)  ### # #  
+                self.beta_cls = nn.Parameter(torch.empty(1).normal_(mean=0.0, std=0.01)) #nn.Parameter(torch.randn(self.output_dim) * 0.01)  # #
+                
             # FOR CIFAR100 FULL VECTOR REQUIRED.
-            # self.alpha_sim = nn.Parameter(
-            #     torch.full((self.similarity_dim,), float(self.init_alpha_sim), dtype=torch.float32)
-            # )
-            # self.beta_sim = nn.Parameter(
-            #     torch.empty(self.similarity_dim, dtype=torch.float32).normal_(mean=0.0, std=0.01)
-            # )
+            else:
+                self.alpha_sim = nn.Parameter(
+                    torch.full((self.similarity_dim,), float(self.init_alpha_sim), dtype=torch.float32)
+                )
+                self.beta_sim = nn.Parameter(
+                    torch.empty(self.similarity_dim, dtype=torch.float32).normal_(mean=0.0, std=0.01)
+                )
 
-            # self.alpha_cls = nn.Parameter(
-            #     torch.full((self.output_dim,), float(self.init_alpha_cls), dtype=torch.float32)
-            # )
-            # self.beta_cls = nn.Parameter(
-            #     torch.empty(self.output_dim, dtype=torch.float32).normal_(mean=0.0, std=0.01)
-            # )
+                self.alpha_cls = nn.Parameter(
+                    torch.full((self.output_dim,), float(self.init_alpha_cls), dtype=torch.float32)
+                )
+                self.beta_cls = nn.Parameter(
+                    torch.empty(self.output_dim, dtype=torch.float32).normal_(mean=0.0, std=0.01)
+                )
             
     def forward(self, feats, logits, pca):
         # z: (batch_size, latent_dim)

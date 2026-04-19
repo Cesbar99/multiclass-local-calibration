@@ -1402,7 +1402,7 @@ class MedMnistData(Dataset):
             self.generatePretrainingMedMnistData(size=kwargs.size,
                                 batch_size = kwargs.batch_size,
                                 random_state = kwargs.random_state)    
-            kwargs.dataset.class_freqs = self.class_freqs  
+            kwargs.class_freqs = self.class_freqs  
         elif experiment == 'calibrate' or experiment == 'competition' or experiment == 'quantize'  or experiment == 'replicate':
                 # kwargs.dataset.class_freqs = [0.321, 0.047, 0.035, 0.093, 0.071, 0.047, 0.237, 0.149]
                 if kwargs.calibrator_version == 'v2':
@@ -1416,12 +1416,12 @@ class MedMnistData(Dataset):
                                 random_state):
         if self.model_class == 'convnext':
             # Use ImageNet normalization for ConvNeXt, as it was pre-trained on ImageNet
-            l_transform = transforms.Compose([
+            l_transform = [ #transforms.Compose(
                 transforms.Grayscale(num_output_channels=3), transforms.ToTensor(),
                 transforms.Normalize(
                             (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
                         ),
-            ])
+            ]
         else:
             l_transform = [transforms.Grayscale(num_output_channels=3), transforms.ToTensor()]
         #if self.name == 'tissue':

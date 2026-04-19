@@ -99,6 +99,7 @@ def main(cfg: DictConfig):
                 kwargs.models.S = slot
                 repr_dim = 768 if model_class in ['vit', "convnext"] else 2048
                 kwargs.models.d = int(repr_dim/slot)
+                kwargs.dataset.feature_dim = repr_dim
                 print(f'Testing model with {kwargs.models.d} dimensions per slot...')
                 print(f'Testing model with {kwargs.models.S} slots...')
                 for kappa in kwargs.models.kappas:
@@ -125,7 +126,19 @@ def main(cfg: DictConfig):
             # pl.seed_everything(seed)       
             # kwargs.seed = seed
             # kwargs.checkpoint.seed = seed
-            test(kwargs)                
+            test(kwargs)     
+        elif 'ablate_cal_size' in exp_name:
+            kwargs.exp_name = 'ablate_cal_size'                            
+            # pl.seed_everything(seed)       
+            # kwargs.seed = seed
+            # kwargs.checkpoint.seed = seed
+            test(kwargs)   
+        elif 'ablate_s_k_tissue' in exp_name:
+            kwargs.exp_name = 'ablate_s_k_tissue'                            
+            # pl.seed_everything(seed)       
+            # kwargs.seed = seed
+            # kwargs.checkpoint.seed = seed
+            test(kwargs)   
 
     elif kwargs.calibrate:                
         kwargs.exp_name = 'calibrate'        
@@ -177,9 +190,10 @@ def main(cfg: DictConfig):
                        
         for slot in kwargs.models.slots:
             # kwargs.models.S = slot
-            repr_dim = 769 if model_class == 'vit' else 2048
+            repr_dim = 768 if model_class in ['vit', "convnext"] else 2048
             # kwargs.models.d = int(repr_dim / slot)
             kwargs.models.d = int(repr_dim/kwargs.models.S)
+            # kwargs.dataset.feature_dim = repr_dim
             print(f'Testing model with {kwargs.models.d} dimensions per slot...')
             print(f'Testing model with {kwargs.models.S} slots...')
             print(f'Quantizing model with {kwargs.models.S} slots...')
@@ -261,7 +275,7 @@ def main_entry():
             cfg = compose(config_name="config_local", overrides=full_overrides)
             
         elif cfg.test:
-            if cfg.exp_name not in ['pre-train', 'calibrate', 'competition', 'quantize', 'replicate', 'ess_plot']:
+            if cfg.exp_name not in ['pre-train', 'calibrate', 'competition', 'quantize', 'replicate', 'ess_plot', 'ablate_cal_size', 'ablate_s_k_tissue']:
                 raise ValueError(f"Explicitly provide 'exp_name' argument from CLI when testing! Allowed values are 'pre-train', 'calibrate', 'competition', 'quantize', 'replicate'. Instead '{cfg.exp_name}' was given!")                 
             
             elif cfg.exp_name == 'pre-train':
@@ -295,6 +309,18 @@ def main_entry():
                 cfg = compose(config_name="config_local", overrides=full_overrides)
                 
             elif cfg.exp_name == 'ess_plot':
+                model_name = 'competition'
+                full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides
+                model_name = 'competition'
+                cfg = compose(config_name="config_local", overrides=full_overrides)
+                
+            elif cfg.exp_name == 'ablate_cal_size':
+                model_name = 'competition'
+                full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides
+                model_name = 'competition'
+                cfg = compose(config_name="config_local", overrides=full_overrides)
+            
+            elif cfg.exp_name == 'ablate_s_k_tissue':
                 model_name = 'competition'
                 full_overrides = init_overrides + [f"dataset={dataset_name}", f"models={model_name}"] + second_overrides
                 model_name = 'competition'

@@ -1105,5 +1105,88 @@ def test(kwargs):
                 interval="std"   # use "sem95" for 95% confidence band
         )
 
-            
+    elif kwargs.exp_name == 'ablate_cal_size':
+        method_names = ['VQ', 'LCN', 'RK', 'SMS', 'DC', 'PS', 'TS', 'IR', 'PC']
+        data_names = ['weather', 'tissue']
+        for data_name in data_names:
+            for method_name in method_names: 
+                # method_name = "RK" # change if needed
+                # data_name = "tissue" # change if needed
+                
+                if method_name == "VQ":
+                    method = "quantize"  
+                elif method_name == "LCN":
+                    method = "calibrate"
+                elif method_name == "RK":
+                    method = "reference_kernel"
+                elif method_name == "SMS":
+                    method = "competition_SMS"
+                elif method_name == "DC":
+                    method = "competition_DC"
+                elif method_name == "PS":
+                    method = "competition_PS"
+                elif method_name == "TS":
+                    method = "competition_TS"
+                elif method_name == "IR":
+                    method = "competition_IR"   
+                elif method_name == "PC":
+                    method = "competition_PC" 
+                    
+                if data_name == "tissue":
+                    num_classes = 8
+                elif data_name == "weather":
+                    num_classes = 5
+                
+                calsizes = (0.05, 0.1, 0.25, 0.4, 0.5, 0.75, 1.0)
+                seeds = range(42, 47)
+                
+                result_table = summarize_vq_by_calsize(base_dir=kwargs.save_path_calibration_metrics,
+                    calsizes=calsizes,
+                    seeds=seeds,
+                    method=method,
+                    data_name=data_name,
+                    num_classes=num_classes,        
+                    method_name=method_name,                    
+                )                                                    
+                
+                output_dir = os.path.join(kwargs.save_path_calibration_metrics, "ablate_cal_size_results")
+                os.makedirs(output_dir, exist_ok=True)
+                print(output_dir)
+                result_table.to_csv(os.path.join(output_dir, f"ablate_{method_name}_{data_name}.csv"), index=False)     
+                print(f"\nSaved ablation results for {method_name} on {data_name} to {output_dir}")
+                
+                if data_name == "weather":
+                    result_table = summarize_vq_by_calsize(base_dir=kwargs.save_path_calibration_metrics,
+                    calsizes=calsizes,
+                    seeds=seeds,
+                    method=method,
+                    data_name=data_name+"_shift",
+                    num_classes=num_classes,        
+                    method_name=method_name,                    
+                    )                                                    
+                    
+                    output_dir = os.path.join(kwargs.save_path_calibration_metrics, "ablate_cal_size_results")
+                    os.makedirs(output_dir, exist_ok=True)
+                    print(output_dir)
+                    result_table.to_csv(os.path.join(output_dir, f"ablate_{method_name}_{data_name}_shift.csv"), index=False)     
+                    print(f"\nSaved ablation results for {method_name} on {data_name} to {output_dir}")
+                    
+    elif kwargs.exp_name == 'ablate_s_k_tissue':
+        slots=(16, 32, 64, 128, 256)
+        kappas=(16, 32, 64, 128, 256)
+        seeds=range(42, 47)
+        result_slots, result_kappa = summarize_vq_by_slot_kappa(
+            base_dir=kwargs.save_path_calibration_metrics,
+            slots=slots,
+            kappas=kappas,
+            seeds=seeds,            
+            method_name="VQ"
+        )
+        output_dir = os.path.join(kwargs.save_path_calibration_metrics, "ablate_s_k_tissue_results")
+        os.makedirs(output_dir, exist_ok=True)
+        print(output_dir)
+        result_slots.to_csv(os.path.join(output_dir, f"ablate_slots_tissue.csv"), index=False)
+        result_kappa.to_csv(os.path.join(output_dir, f"ablate_kappas_tissue.csv"), index=False)
+        print(f"\nSaved ablation of S and K results for tissue to {output_dir}")
+        
         

@@ -3637,6 +3637,228 @@ def save_pipe_table(summary, save_dir, filename="entropy_lce_table.txt",
     return out_path
     
     
+import os
+import pandas as pd
+
+
+def summarize_vq_by_calsize(
+    base_dir,
+    calsizes=(0.05, 0.1, 0.25, 0.4, 0.5, 0.75, 1.0),
+    seeds=range(42, 47),
+    method="quantize",
+    data_name="tissue",
+    num_classes=8,        
+    method_name="VQ"
+):
+    rows = []
     
+    if data_name == "tissue":
+        model_class = "resnet"
+    else:
+        model_class = "ftt" 
+
+    for calsize in calsizes:
+        dfs = []
+        
+        folder_name = f"{method}_{data_name}_calsize_{calsize}_{num_classes}_classes_None_features"        
+        folder_path = os.path.join(base_dir, folder_name)
+
+        if not os.path.isdir(folder_path):
+            print(f"Warning: folder not found: {folder_path}")
+            continue
+
+        for seed in seeds:            
+            file_name = f"metrics_None_adabw_False_seed_{seed}_corrupt_None_{model_class}.csv"
+            file_path = os.path.join(folder_path, file_name)
+
+            if not os.path.isfile(file_path):
+                print(f"Warning: file not found: {file_path}")
+                continue
+
+            df = pd.read_csv(file_path)
+            dfs.append(df)
+
+        if not dfs:
+            print(f"Warning: no files found for calsize={calsize}")
+            continue
+
+        all_data = pd.concat(dfs, ignore_index=True)
+
+        means = all_data.mean(axis=0)
+        stds = all_data.std(axis=0, ddof=1)
+
+        row = {
+            "method": method_name,
+            "calsize": calsize
+        }
+
+        for metric in all_data.columns:
+            row[metric] = f"{means[metric]:.6f} +- {stds[metric]:.6f}"
+
+        rows.append(row)
+
+    return pd.DataFrame(rows)    
     
+import os
+import pandas as pd
+
+
+def summarize_vq_by_slot_kappa(
+    base_dir,
+    slots=(16, 32, 64, 128, 256),
+    kappas=(16, 32, 64, 128, 256),
+    seeds=range(42, 47),    
+    method_name="VQ"
+):
+    """
+    Build a summary table with one row per (slot, kappa) combination.
+
+    Parameters
+    ----------
+    base_dir : str
+        Directory containing the experiment folders.
+    slots : iterable
+        Slot values to scan.
+    kappas : iterable
+        Kappa values to scan.
+    seeds : iterable
+        Seeds to scan.
+    folder_template : str
+        Template for folder names.
+    file_template : str
+        Template for metric file names.
+    method_name : str
+        Value for the 'method' column.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with columns:
+        method, slot, kappa, ECCE, ECE, MCE, Brier, NLL, LCE, MLCE
+        where metric values are formatted as 'mean +- std'.
+    """
+    rows = []
+
+    for slot in slots:            
+        for kappa in [32, 64]:
+            
+            # kappas = 64 and slot = 64
+            # kappa = 64 and slot != 64
+            # kappa != 64 and slot = 64 
+            # kappa != 64 and slot != 64 
+            
+            if slot == 64 and kappa == 64:
+                folder_name = f"quantize_tissue_calsize_1.0_8_classes_None_features" # folder_template.format(slot=slot, kappa=kappa)
+            elif slot != 64 and kappa == 64:
+                folder_name = f"quantizeslot-{slot}_tissue_calsize_1.0_8_classes_None_features" # folder_template.format(slot=slot, kappa=kappa)
+            elif slot == 64 and kappa != 64:
+                folder_name = f"quantizekappa-{kappa}_tissue_calsize_1.0_8_classes_None_features" # folder_template.format(slot=slot, kappa=kappa)
+            else:
+                folder_name = f"quantizeslot-{slot}kappa-{kappa}_tissue_calsize_1.0_8_classes_None_features" # folder_template.format(slot=slot, kappa=kappa)
+            folder_path = os.path.join(base_dir, folder_name)
+
+            if not os.path.isdir(folder_path):
+                print(f"Warning: folder not found: {folder_path}")
+                continue
+
+            dfs = []
+
+            for seed in seeds:
+                file_name = f"metrics_None_adabw_False_seed_{seed}_corrupt_None_resnet.csv" # file_template.format(seed=seed)
+                file_path = os.path.join(folder_path, file_name)
+
+                if not os.path.isfile(file_path):
+                    print(f"Warning: file not found: {file_path}")
+                    continue
+
+                df = pd.read_csv(file_path)
+                dfs.append(df)
+
+            if not dfs:
+                print(f"Warning: no CSV files found for slot={slot}, kappa={kappa}")
+                continue
+
+            all_data = pd.concat(dfs, ignore_index=True)
+
+            means = all_data.mean(axis=0)
+            stds = all_data.std(axis=0, ddof=1)
+
+            row = {
+                "method": method_name,
+                "slot": slot,
+                "kappa": kappa
+            }
+
+            for metric in all_data.columns:
+                row[metric] = f"{means[metric]:.6f} +- {stds[metric]:.6f}"
+
+            rows.append(row)
+            
+    result_slots = pd.DataFrame(rows)
+
+    if not result_slots.empty:
+        result_slots = result_slots.sort_values(by=["slot", "kappa"]).reset_index(drop=True)
     
+    rows = []
+    
+    for kappa in kappas:
+        for slot in [64]:
+            
+            # kappas = 64 and slot = 64
+            # kappa = 64 and slot != 64
+            # kappa != 64 and slot = 64 
+            # kappa != 64 and slot != 64 
+            
+            if slot == 64 and kappa == 64:
+                folder_name = f"quantize_tissue_calsize_1.0_8_classes_None_features" # folder_template.format(slot=slot, kappa=kappa)
+            elif slot != 64 and kappa == 64:
+                folder_name = f"quantizeslot-{slot}_tissue_calsize_1.0_8_classes_None_features" # folder_template.format(slot=slot, kappa=kappa)
+            elif slot == 64 and kappa != 64:
+                folder_name = f"quantizekappa-{kappa}_tissue_calsize_1.0_8_classes_None_features" # folder_template.format(slot=slot, kappa=kappa)
+            else:
+                folder_name = f"quantizeslot-{slot}kappa-{kappa}_tissue_calsize_1.0_8_classes_None_features" # folder_template.format(slot=slot, kappa=kappa)
+            folder_path = os.path.join(base_dir, folder_name)
+
+            if not os.path.isdir(folder_path):
+                print(f"Warning: folder not found: {folder_path}")
+                continue
+
+            dfs = []
+
+            for seed in seeds:
+                file_name = f"metrics_None_adabw_False_seed_{seed}_corrupt_None_resnet.csv" # file_template.format(seed=seed)
+                file_path = os.path.join(folder_path, file_name)
+
+                if not os.path.isfile(file_path):
+                    print(f"Warning: file not found: {file_path}")
+                    continue
+
+                df = pd.read_csv(file_path)
+                dfs.append(df)
+
+            if not dfs:
+                print(f"Warning: no CSV files found for slot={slot}, kappa={kappa}")
+                continue
+
+            all_data = pd.concat(dfs, ignore_index=True)
+
+            means = all_data.mean(axis=0)
+            stds = all_data.std(axis=0, ddof=1)
+
+            row = {
+                "method": method_name,
+                "slot": slot,
+                "kappa": kappa
+            }
+
+            for metric in all_data.columns:
+                row[metric] = f"{means[metric]:.6f} +- {stds[metric]:.6f}"
+
+            rows.append(row)
+
+    result_kappa = pd.DataFrame(rows)
+
+    if not result_kappa.empty:
+        result_kappa = result_kappa.sort_values(by=["slot", "kappa"]).reset_index(drop=True)
+
+    return result_slots, result_kappa

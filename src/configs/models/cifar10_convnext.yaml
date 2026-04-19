@@ -4,7 +4,7 @@ defaults:
 model: cifar10_convnext
 temperature: 1.0
 use_acc: True
-epochs: 10
+epochs: 20
 
 optimizer:
   name: adam

@@ -28,7 +28,7 @@ CUDA_VISIBLE_DEVICES=1 python -u run.py pretrain=False calibrate=False quantize=
 
 ALERT! THIS REQUIRES PRE-TRAINED CLASSIFIER WHICH IS MISSING FROM THE REPO!
 
-To solve this problem deo the following:
+To solve this problem do the following:
 1) in the cloned repo, create a new folder named results
 2) create another new folder named data. Inside create a folder named CIFAR10 (or CIFAR100 or TISSUE) and ther store: cifar-10-python.tar.gz
 3) Run the following command:

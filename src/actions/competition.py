@@ -29,28 +29,14 @@ def competition(kwargs, wandb_logger=None):
     
     if kwargs.data == 'synthetic':
         dataset = SynthData(kwargs, experiment=kwargs.exp_name)  
-    elif kwargs.data == 'covtype':
-        dataset = CovTypeData(kwargs, experiment=kwargs.exp_name)  
-    elif kwargs.data == 'otto':
-        dataset = OttoData(kwargs, experiment=kwargs.exp_name)                    
-    elif kwargs.data == 'mnist':
-        if kwargs.dataset.variant:
-            kwargs.data = kwargs.data + '_' + kwargs.dataset.variant                        
-        dataset = MnistData(kwargs, experiment=kwargs.exp_name)
     elif kwargs.data == 'tissue':
         corrupt = kwargs.corruption_type
         kwargs.corruption_type = None
         dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)   
-    elif kwargs.data == 'path':
-        dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)       
     elif kwargs.data == 'cifar10':
         corrupt = kwargs.corruption_type
         kwargs.corruption_type = None
         dataset = Cifar10Data(kwargs, experiment=kwargs.exp_name)
-    elif kwargs.data == 'cifar10_ood':
-        dataset = Cifar10OODData(calibration=kwargs.calibration)
-    elif kwargs.data == 'cifar10LT':
-        dataset = Cifar10LongTailData(kwargs, experiment=kwargs.exp_name)
     elif kwargs.data == 'cifar100':
         corrupt = kwargs.corruption_type
         kwargs.corruption_type = None
@@ -59,18 +45,6 @@ def competition(kwargs, wandb_logger=None):
         corrupt = False
         kwargs.corruption_type = None
         dataset = WeatherData(kwargs, experiment=kwargs.exp_name)        
-    elif kwargs.data == 'food101':
-        corrupt = kwargs.corruption_type
-        kwargs.corruption_type = None
-        dataset = Food101Datav2(kwargs, experiment=kwargs.exp_name)  
-    elif kwargs.data == 'cifar100_longtail':
-        dataset = Cifar100LongTailData(calibration=kwargs.calibration)
-    elif kwargs.data == 'Imagenet':
-        dataset = ImagenetData(calibration=kwargs.calibration)
-    elif kwargs.data == 'imagenet_ood':
-        dataset = ImagenetOODData(calibration=kwargs.calibration)
-    elif kwargs.data == 'imagenet_longtail':
-        dataset = ImagenetLongTailData(calibration=kwargs.calibration)    
 
     corruptions = [
         "gaussian_noise",

@@ -44,13 +44,7 @@ def pretrain(kwargs, wandb_logger):
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     seed = kwargs.seed
-    #pl.seed_everything(seed, workers=True)  
-    # if kwargs.data != 'food101':
-    #     total_epochs = kwargs.models.epochs
-    #     temperature = kwargs.models.temperature
-    # else:
-    #     total_epochs = 'None'
-    #     temperature = 1.0
+    
     total_epochs = kwargs.models.epochs
     temperature = kwargs.models.temperature
     cuda_device = kwargs.cuda_device
@@ -102,10 +96,6 @@ def pretrain(kwargs, wandb_logger):
                             use_acc=kwargs.models.use_acc
                         )
         
-    elif kwargs.data == 'covtype':
-        dataset = CovTypeData(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data)
-        pl_model = CovTypeModel(kwargs.models, dataset.numerical_features, dataset.category_counts)
-        
     elif kwargs.data == 'weather':
         dataset = WeatherData(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data, seed=seed)
         # splits = WeatherData(kwargs.dataset, experiment='xg_debug', name='weather', seed=42)
@@ -148,62 +138,19 @@ def pretrain(kwargs, wandb_logger):
         
         pl_model = WeatherModel(kwargs.models, dataset.numerical_features, dataset.category_counts, dataset.class_counts)
     
-    elif kwargs.data == 'otto':
-        dataset = OttoData(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data)
-        pl_model = OttoModel(kwargs.models, dataset.numerical_features)        
-        
-    elif kwargs.data == 'mnist':
-        if kwargs.dataset.variant:
-            kwargs.data = kwargs.data + '_' + kwargs.dataset.variant            
-        dataset = MnistData(kwargs.dataset, experiment=kwargs.exp_name)
-        pl_model = MnistModel(kwargs.models)
-    
     elif kwargs.data == 'tissue':
         dataset = MedMnistData(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data, model_class=model_class)
         pl_model = MedMnistModel(kwargs.models)    
-        
-    elif kwargs.data == 'path':
-        dataset = MedMnistData(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data)
-        pl_model = MedMnistModel(kwargs.models)
         
     elif kwargs.data == 'cifar10':
         dataset = Cifar10Data(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data, model_class=model_class)
         # dataset2 = Cifar10Data(kwargs.dataset, experiment='calibrate', name=kwargs.data)
         pl_model = Cifar10Model(kwargs.models)
         
-    elif kwargs.data == 'cifar10LT':
-        dataset = Cifar10LongTailData(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data)
-        pl_model = Cifar10LongTailModel(kwargs.models)
-    
-    elif kwargs.data == 'cifar10_ood':
-        dataset = Cifar10OODData()
-        pl_model = Cifar10OODModel()
-        
     elif kwargs.data == 'cifar100':
         dataset = Cifar100Data(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data, model_class=model_class)
         # dataset2 = Cifar100Data(kwargs.dataset, experiment='calibrate', name=kwargs.data)
         pl_model = Cifar100Model(kwargs.models)   
-        
-    elif kwargs.data == 'food101':
-        # dataset = Food101Data(kwargs, experiment=kwargs.exp_name, name=kwargs.data) # generatefoodDataforPca(kwargs)        
-        dataset = Food101Datav2(kwargs.dataset, experiment=kwargs.exp_name, name=kwargs.data) # generatefoodDataforPca(kwargs)        
-        pl_model = Food101Model(kwargs.models)   
-        
-    elif kwargs.data == 'cifar100_longtail':
-        dataset = Cifar100LongTailData()
-        pl_model = Cifar100LongTailModel()
-        
-    elif kwargs.data == 'Imagenet':
-        dataset = ImagenetData()
-        pl_model = ImagenetModel()
-        
-    elif kwargs.data == 'imagenet_ood':
-        dataset = ImagenetOODData()
-        pl_model = ImagenetOODModel()
-        
-    elif kwargs.data == 'imagenet_longtail':
-        dataset = ImagenetLongTailData()  
-        pl_model = ImagenetLongTailModel()    
         
     path = f"checkpoints/{kwargs.exp_name}/{kwargs.data}_{kwargs.dataset.num_classes}_classes_{kwargs.dataset.num_features}_features/"    
     os.makedirs(path, exist_ok=True) 
@@ -553,53 +500,6 @@ def pretrain(kwargs, wandb_logger):
         raws = trainer.predict(pl_model, dataset.data_eval_cal_loader) #dataset.data_eval_cal_loader
         res, pca = get_raw_res(raws)
     res.to_csv(raw_results_path_eval_cal, index=False)
-    
-    # if kwargs.data == 'cifar10':
-    #     dataset2 = Cifar10Data(kwargs.dataset, experiment='calibrate', name=kwargs.data)
-    # elif kwargs.data == 'cifar100':
-    #     dataset2 = Cifar100Data(kwargs.dataset, experiment='calibrate', name=kwargs.data)
-    # elif kwargs.data == 'tissue':
-    #     dataset2 = MedMnistData(kwargs.dataset, experiment='calibrate', name=kwargs.data)
-    
-    # if kwargs.data == 'food101':
-    #     if kwargs.return_features:
-    #         raws = []
-    #         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    #         # if kwargs.data != 'food101':
-    #         #     pl_model.eval()        
-    #         #     pl_model.to(device)
-
-    #         with torch.no_grad():
-    #             # if kwargs.data != 'food101':
-    #             #     for batch in tqdm(dataset2.data_test_cal_loader, desc="Extracting features"):
-    #             #         batch = [b.to(device) for b in batch]                
-    #             #         raw = pl_model.extract_features(batch)
-    #             #         raws.append(raw)
-    #             # else:
-    #             for batch in tqdm(dataset.data_val_cal_loader, desc="Extracting features"):
-    #                 batch = [b.to(device) for b in batch]                    
-    #                 feats, logits, y_onehot, p, p_onehot = batch                    
-    #                 preds = torch.argmax(logits, dim=1)
-    #                 y = torch.argmax(y_onehot, dim=1)
-    #                 raw = {
-    #                     "features": feats,                  # replace logits with features
-    #                     "logits": logits,
-    #                     "preds": preds,     # dummy preds
-    #                     "true": y
-    #                 }            
-    #                 raws.append(raw)
-
-    #         #all_raws = torch.cat(all_raws)
-    #         print('features shape: ', raws[1]['features'].shape)
-    #         res, pca = get_raw_res(raws, features=True, reduced_dim=kwargs.similarity_dim, fit_pca=pca) #fit_pca=pca
-    #     else:
-    #         raws = trainer.predict(pl_model, dataset.data_eval_cal_loader) #dataset.data_eval_cal_loader
-    #         res, pca = get_raw_res(raws)
-            
-    #     # if kwargs.data == 'food101':
-    #     res.to_csv(raw_results_path_val_cal, index=False)
-        # else:
-        #     res.to_csv(raw_results_path_eval_cal, index=False)
     
     if kwargs.data == 'weather':
         raw_results_path_eval_cal_shift = "results/{}/{}_{}_classes_{}_features/raw_results_eval_cal_shift_seed-{}_ep-{}_tmp_{}.csv".format(

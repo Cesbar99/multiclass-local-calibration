@@ -56,7 +56,7 @@ def test(kwargs):
             to_add = kwargs.data + '_' + 'shift' 
         else:
             to_add = kwargs.data
-        # if kwargs.data != 'food101':        
+      
         temperature = kwargs.checkpoint.temperature
         # else:
         #     epochs = 'None'

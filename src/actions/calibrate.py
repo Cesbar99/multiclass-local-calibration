@@ -29,36 +29,14 @@ def calibrate(kwargs, wandb_logger):
     
     if kwargs.data == 'synthetic':
         dataset = SynthData(kwargs, experiment=kwargs.exp_name)  
-    elif kwargs.data == 'covtype':
-        dataset = CovTypeData(kwargs, experiment=kwargs.exp_name)  
-    elif kwargs.data == 'otto':
-        dataset = OttoData(kwargs, experiment=kwargs.exp_name)                    
-    elif kwargs.data == 'mnist':
-        if kwargs.dataset.variant:
-            kwargs.data = kwargs.data + '_' + kwargs.dataset.variant                        
-        dataset = MnistData(kwargs, experiment=kwargs.exp_name)
     elif kwargs.data == 'weather':       
         dataset = WeatherData(kwargs, experiment=kwargs.exp_name)        
     elif kwargs.data == 'tissue':
-        dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)   
-    elif kwargs.data == 'path':
-        dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)       
+        dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)    
     elif kwargs.data == 'cifar10':
         dataset = Cifar10Data(kwargs, experiment=kwargs.exp_name)
-    elif kwargs.data == 'cifar10_ood':
-        dataset = Cifar10OODData(calibration=kwargs.calibration)
-    elif kwargs.data == 'cifar10LT':
-        dataset = Cifar10LongTailData(kwargs, experiment=kwargs.exp_name)
     elif kwargs.data == 'cifar100':
         dataset = Cifar100Data(kwargs, experiment=kwargs.exp_name) 
-    elif kwargs.data == 'cifar100_longtail':
-        dataset = Cifar100LongTailData(calibration=kwargs.calibration)
-    elif kwargs.data == 'Imagenet':
-        dataset = ImagenetData(calibration=kwargs.calibration)
-    elif kwargs.data == 'imagenet_ood':
-        dataset = ImagenetOODData(calibration=kwargs.calibration)
-    elif kwargs.data == 'imagenet_longtail':
-        dataset = ImagenetLongTailData(calibration=kwargs.calibration)    
     
     corruptions = [
         "gaussian_noise",
@@ -473,40 +451,6 @@ def calibrate(kwargs, wandb_logger):
 
     print("\nSTART TESTING!")     
     
-    # latents_list = []
-    # with torch.no_grad():
-    #     for batch in dataset.data_test_cal_loader:
-    #         init_feats, init_logits, init_pca, y_one_hot, init_preds, init_preds_one_hot = batch
-            
-    #         # move everything you need to the model device
-    #         init_feats = init_feats.to(pl_model.device_name)
-    #         init_logits = init_logits.to(pl_model.device_name)
-    #         init_pca   = init_pca.to(pl_model.device_name)
-    #         y_one_hot  = y_one_hot.to(pl_model.device_name)
-    #         init_preds = init_preds.to(pl_model.device_name)
-    #         init_preds_one_hot = init_preds_one_hot.to(pl_model.device_name)
-                                    
-    #         noisy_feats = init_feats #+ self.noise * eps
-
-    #         # Forward pass
-    #         _, latents_sim = pl_model(noisy_feats, init_logits, init_pca)
-
-    #         # Similarity features (z_cal)
-    #         z_cal = latents_sim[:, :pl_model.similarity_dim]
-
-    #         latents_list.append(z_cal)            
-
-    # # Concatenate and ensure they live on the same device as everything else
-    # z_cal_full = torch.cat(latents_list, dim=0).to(pl_model.device_name)  # (N_cal, D)    
-    
-    # # === NEW: estimate bandwidth from z_cal_full ===
-    # h = estimate_bandwidth_silverman(z_cal_full)  # (D,)
-    
-    # # store either per-dim or a global scalar    
-    # bandwidth_scalar = float(h.mean().item()) 
-    # kwargs.gamma = bandwidth_scalar
-    # print('ESTIMATED BANDIWDTH FOR LOCAL METRICS: ', bandwidth_scalar)
-           
     test(kwargs)
         
 

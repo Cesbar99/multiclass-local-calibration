@@ -14,7 +14,7 @@ loss:
   gamma: 2
   
 # calibration hyper-parameters                                                                                                                                                                                        
-log_var_initializer: 1.    # Control initial variance. less classes -> smaller values. If sampling is true set to small values to initialize encodings close to inputs   #   
+log_var_initializer: 1.    # Control initial variance. Default 10. Used 6 for convnext. In general less classes -> smaller values. If sampling is true set to small values to initialize encodings close to inputs   #   
 hidden_dim: 256            # Size of hidden layer of calibrating net                                                                                                     #
 alpha1: 15.                # Classification contraint penalty                                                                                                            #
 alpha2: 0.                 # Switch-off variance penalty                                                                                                                 #

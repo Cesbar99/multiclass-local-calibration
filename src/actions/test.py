@@ -1189,4 +1189,67 @@ def test(kwargs):
         result_kappa.to_csv(os.path.join(output_dir, f"ablate_kappas_tissue.csv"), index=False)
         print(f"\nSaved ablation of S and K results for tissue to {output_dir}")
         
+    elif kwargs.exp_name == 'convnext_results':
+        method_names = ['VQ', 'LCN', 'RK', 'SMS', 'DC', 'PS', 'TS', 'IR', 'PC', 'NC']
+        data_names = ['cifar10', 'cifar100', 'tissue']
+                
+        for data_name in data_names:
+            reusults_tables = []
+            for method_name in method_names: 
+                # method_name = "RK" # change if needed
+                # data_name = "tissue" # change if needed
+                
+                if method_name == "VQ":
+                    method = "quantize"  
+                elif method_name == "LCN":
+                    method = "calibrate"
+                elif method_name == "RK":
+                    method = "reference_kernel"
+                elif method_name == "SMS":
+                    method = "competition_SMS"
+                elif method_name == "DC":
+                    method = "competition_DC"
+                elif method_name == "PS":
+                    method = "competition_PS"
+                elif method_name == "TS":
+                    method = "competition_TS"
+                elif method_name == "IR":
+                    method = "competition_IR"   
+                elif method_name == "PC":
+                    method = "competition_PC" 
+                elif method_name == "NC":
+                    method = "pre-train"
+                    
+                if data_name == "tissue":
+                    num_classes = 8
+                elif data_name == "weather":
+                    num_classes = 5
+                elif data_name == "cifar10":
+                    num_classes = 10
+                elif data_name == "cifar100":
+                    num_classes = 100
+                
+                calsizes = [1.0]
+                seeds = range(42, 47)
+                
+                result_table = summarize_vq_by_calsize(base_dir=kwargs.save_path_calibration_metrics,
+                    calsizes=calsizes,
+                    seeds=seeds,
+                    method=method,
+                    data_name=data_name,
+                    num_classes=num_classes,        
+                    method_name=method_name,   
+                    model_class="convnext"                 
+                )                                                    
+                
+                reusults_tables.append(result_table)
         
+            final_table = pd.concat(reusults_tables, ignore_index=True)   
+            final_table.drop(columns=['calsize'], inplace=True)
+                
+            output_dir = os.path.join(kwargs.save_path_calibration_metrics, "summary_convnext_results")
+            os.makedirs(output_dir, exist_ok=True) 
+                
+            final_table.to_csv(os.path.join(output_dir, f"{data_name}.csv"), index=False)     
+            print(f"\nSaved ablation results for {method_name} on {data_name} to {output_dir}")
+                

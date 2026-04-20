@@ -878,7 +878,7 @@ def compute_multiclass_calibration_metrics_w_lce(
     if data == 'food101':
         filter_thr = 10
     else:
-        filter_thr = 10 if model_type == "vit" else 20
+        filter_thr = 10 if model_type in ["vit", "convnext"] else 20
 
     # Negative log-likelihood
     log_probs = torch.log(probs + 1e-12)
@@ -3648,27 +3648,36 @@ def summarize_vq_by_calsize(
     method="quantize",
     data_name="tissue",
     num_classes=8,        
-    method_name="VQ"
+    method_name="VQ",
+    model_class=None
 ):
     rows = []
     
-    if data_name == "tissue":
-        model_class = "resnet"
-    else:
-        model_class = "ftt" 
+    if not model_class:
+        if data_name == "tissue":
+            model_class = "resnet"
+        else:
+            model_class = "ftt" 
 
     for calsize in calsizes:
         dfs = []
         
-        folder_name = f"{method}_{data_name}_calsize_{calsize}_{num_classes}_classes_None_features"        
+        if method_name == "NC":
+            folder_name = f"{method}_{data_name}_{num_classes}_classes_None_features"        
+        else:
+            folder_name = f"{method}_{data_name}_calsize_{calsize}_{num_classes}_classes_None_features"                
         folder_path = os.path.join(base_dir, folder_name)
 
         if not os.path.isdir(folder_path):
             print(f"Warning: folder not found: {folder_path}")
             continue
 
-        for seed in seeds:            
-            file_name = f"metrics_None_adabw_False_seed_{seed}_corrupt_None_{model_class}.csv"
+        for seed in seeds:   
+            
+            if method_name == "NC":
+                file_name = f"metric_eval_cal_seed_{seed}_corrupt_None_{model_class}.csv"
+            else:      
+                file_name = f"metrics_None_adabw_False_seed_{seed}_corrupt_None_{model_class}.csv"            
             file_path = os.path.join(folder_path, file_name)
 
             if not os.path.isfile(file_path):
@@ -3698,9 +3707,6 @@ def summarize_vq_by_calsize(
         rows.append(row)
 
     return pd.DataFrame(rows)    
-    
-import os
-import pandas as pd
 
 
 def summarize_vq_by_slot_kappa(

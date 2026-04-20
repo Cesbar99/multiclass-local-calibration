@@ -342,8 +342,8 @@ def calibrate(kwargs, wandb_logger):
         else:   #strict=False to allow loading only the local net weights into the reference kernel model
             if (kwargs.data in ['tissue', 'cifar100', 'weather']) or (seed == 43):
                 pl_model.load_state_dict(checkpoint['state_dict'])
-            else:
-                pl_model.model.load_state_dict(checkpoint)   #        
+            else:                
+                pl_model.load_state_dict(checkpoint['state_dict'])   #        
         print(F'LOADING CHECKPOINT FILE {best_model_path}')
     else:
         print(F'BEGIN CALIBRATION FOR {total_epochs} EPOCHS WITH SEED {seed}!')  

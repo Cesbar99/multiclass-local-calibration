@@ -32,39 +32,14 @@ def replicate(kwargs, wandb_logger=None):
     
     if kwargs.data == 'synthetic':
         dataset = SynthData(kwargs, experiment=kwargs.exp_name)  
-    elif kwargs.data == 'covtype':
-        dataset = CovTypeData(kwargs, experiment=kwargs.exp_name)  
-    elif kwargs.data == 'otto':
-        dataset = OttoData(kwargs, experiment=kwargs.exp_name)                    
-    elif kwargs.data == 'mnist':
-        if kwargs.dataset.variant:
-            kwargs.data = kwargs.data + '_' + kwargs.dataset.variant                        
-        dataset = MnistData(kwargs, experiment=kwargs.exp_name)
     elif kwargs.data == 'tissue':
         dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)   
-    elif kwargs.data == 'path':
-        dataset = MedMnistData(kwargs, experiment=kwargs.exp_name)       
     elif kwargs.data == 'cifar10':
         dataset = Cifar10Data(kwargs, experiment=kwargs.exp_name)
-    elif kwargs.data == 'cifar10_ood':
-        dataset = Cifar10OODData(calibration=kwargs.calibration)
-    elif kwargs.data == 'cifar10LT':
-        dataset = Cifar10LongTailData(kwargs, experiment=kwargs.exp_name)
     elif kwargs.data == 'cifar100':
         dataset = Cifar100Data(kwargs, experiment=kwargs.exp_name)  
-    elif kwargs.data == 'food101':
-        dataset = Food101Datav2(kwargs, experiment=kwargs.exp_name)  
     elif kwargs.data == 'cubic':
         dataset = CubicData(kwargs)
-    elif kwargs.data == 'cifar100_longtail':
-        dataset = Cifar100LongTailData(calibration=kwargs.calibration)
-    elif kwargs.data == 'Imagenet':
-        dataset = ImagenetData(calibration=kwargs.calibration)
-    elif kwargs.data == 'imagenet_ood':
-        dataset = ImagenetOODData(calibration=kwargs.calibration)
-    elif kwargs.data == 'imagenet_longtail':
-        dataset = ImagenetLongTailData(calibration=kwargs.calibration)    
-        
     
     if kwargs.data == 'cubic':
         data = kwargs.dataset.warp_type
@@ -297,19 +272,6 @@ def replicate(kwargs, wandb_logger=None):
     res, pca = get_raw_res(raws, features=True, reduced_dim=None)
     res.to_csv(raw_results_path_test_cal, index=False)
     
-    # raws = []
-    # calibrator.eval()
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # calibrator.to(device)
-
-    # with torch.no_grad():
-    #     for batch in tqdm(dataset.data_train_cal_loader, desc="Extracting Replicator Calibration logits"):
-    #         batch = [b.to(device) for b in batch]                
-    #         raw = calibrator.calibrated_predictions(batch)
-    #         raws.append(raw)
-            
-    # res = get_raw_res(raws, features=True, reduced_dim=None)
-    # res.to_csv(raw_results_path_train_cal, index=False)
     
     print(f"\nSTART TESTING {kwargs.method}!")        
     test(kwargs)

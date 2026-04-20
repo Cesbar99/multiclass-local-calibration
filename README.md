@@ -30,7 +30,7 @@ ALERT! THIS REQUIRES PRE-TRAINED CLASSIFIER WHICH IS MISSING FROM THE REPO!
 
 To solve this problem do the following:
 1) in the cloned repo, create a new folder named results
-2) create another new folder named data. Inside create a folder named CIFAR10 (or CIFAR100 or TISSUE) and ther store: cifar-10-python.tar.gz
+2) create another new folder named data. Inside create a folder named CIFAR10 (or CIFAR100 or TISSUE) and there store: cifar-10-python.tar.gz
 3) Run the following command:
    
 CUDA_VISIBLE_DEVICES=1 python -u run.py pretrain=True calibrate=False quantize=False replicate=False test=False competition=True exp_name=pre-train data=cifar10 gamma=10 dataset.batch_size=128 return_features=True similarity_dim=50 models.epochs=9 checkpoint.epochs=9 n_bins_calibration_metrics=15 

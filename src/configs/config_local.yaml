@@ -60,9 +60,9 @@ n_bins_esse: 15
 bin_strategy: # 'quantile' for same size bins or 'default' which uses probabilities theresholds (equivalent to uniform)
 gamma: 0.1 # bandwidth for LCE
 l2_plot: False # If true plots LCE vs L2 distance to centroids, else plots LCE vs effective sample size
-save_path_calibration_plots: /home/barbera/calibration/localibration/results/plots/
-save_path_calibration_metrics: /home/barbera/calibration/localibration/results/metrics/
-save_path_boxplots: /home/barbera/calibration/localibration/results/boxplots/
+save_path_calibration_plots: # ADD YOURS
+save_path_calibration_metrics: # ADD YOURS
+save_path_boxplots: # ADD YOURS
 
 # default behaviour for batch size
 batch_size_map:
@@ -71,18 +71,10 @@ batch_size_map:
 
 # default models for experiment
 models_map:
-  weather: weather_ftt
-  mnist: mnist_cnn
-  synthetic: mlp
-  tissue: tissue_vit #tissue_resnet50 #tissue_vit #tissue_convnext
-  path: path_densenet121 #path_resnet50 path_vit
-  cifar10: cifar10_resnet50 #cifar10_vit #cifar10_convnext
-  cifar10LT: cifar10LT_vit
-  cifar100: cifar100_resnet152 #cifar100_convnext #cifar100_vit #cifar100_densenet121 #cifar100_resnet50 #cifar100_resnet18 
-  food101: food101_resnet152 #food101_resnet50 food101_resnet152 food101_vit food101_densenet121 food101_resnet18 
-  covtype: covtype_resmlp #covtype_ftt
-  otto: otto_resmlp #otto_ftt 
-  cubic: cubic_resmlp #otto_ftt 
+  weather: weather_ftt    
+  tissue: tissue_resnet50 #tissue_vit #tissue_convnext  
+  cifar10: cifar10_resnet50 #cifar10_vit #cifar10_convnext  
+  cifar100: cifar100_resnet152 #cifar100_convnext #cifar100_vit #cifar100_densenet121 #cifar100_resnet50 #cifar100_resnet18         
 
 # MAP FROM EPOCHS TO MODEL CLASSES
 # model_classes_map:
@@ -99,7 +91,7 @@ n_trials: 50
 multi_obj: False
 
 #competitors
-methods: ['TS', 'IR', 'PS', 'PC', 'DC', 'SMS'] #tempearature scaling, isotonic regression, platt scaling, dirichlet calibration
+methods: ['TS', 'IR', 'PS', 'PC', 'DC', 'SMS'] #tempearature scaling, isotonic regression, platt scaling, dirichlet calibration, Structured Matrix Scaling
 method:
 gammas: [] #[0.1, 1., 5., 7., 10., 100.] #[0.1, 0.3, 1, 3, 5, 7, 10, 100]
 

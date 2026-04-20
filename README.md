@@ -1,5 +1,4 @@
-# replicator_calibration
-oops! I calibrated again!
+# LOCAL CALIBRATION WITH JENSEN SHANNON DISTANCE
 
 data types: 'cifar10', 'cifar100', 'tissue'
 

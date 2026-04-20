@@ -47,7 +47,7 @@ TO RUN A NEW MODEL OR A NEW DATASET:
 4) Go to algorithms/networks.py and add ther your new architecture or model there
 5) Go to algorithms/trainers.py and add the training for your custom architecture
 6) Go to config.yaml and edit models_map accordingly.
-7) 6) Go to pretrain.py and add at the top your dataset.
+7) Go to pretrain.py and add at the top your dataset.
 8) Go to calibrate.py and add at the top (line 65 circa) your dataset.
 9) If your base-model to pre-train does not support pytorch lightning, go to actions/pretrain.py and add your training code there 
 
